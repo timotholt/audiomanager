@@ -1,10 +1,10 @@
 BEGIN MASTER SPEC v1.0
 
 # VO Foundry — Master Technical Specification
-Version: 1.0.0
-Status: Ratified (MVP scope locked)
+Version: 1.1.0 (Refactored for Service Layer)
+Status: Ratified
 Editors: Lead Software Architect (you), Implementation Team (2–3 engineers)
-Date: 2025-11-02
+Date: 2025-11-23
 License: Internal use only
 
 =====================================================================
@@ -41,13 +41,18 @@ Non-Goals (MVP):
 Components:
 – Data Layer: flat JSON, JSONL, and CSV files stored under project_root.
 – Validation Layer: JSON Schema (Draft-07), validated on every write.
-– CLI Layer: Node.js-based, deterministic output, no side effects.
-– Local Web UI: served from localhost only, zero network egress.
+– Service Layer: Core business logic (imports, state changes, audio processing) decoupled from interfaces.
+– CLI Layer: Thin wrapper around Service Layer; Node.js-based, deterministic output.
+– Local Web UI: Thin wrapper around Service Layer; served from localhost only.
 – Audio Pipeline: ffmpeg for probing, normalization, transcoding.
-– Task Runner: deterministic queue for batch operations; no background daemons.
+
+Layered Architecture Rule:
+1. CLI and API (Web UI) must NEVER contain business logic.
+2. All business logic must reside in `src/services/`.
+3. CLI commands and API routes simply parse input, call a Service, and format output.
 
 Process Flow:
-1. Import actors and dialogue lines.
+1. Import actors and dialogue lines (via Service).
 2. System generates all valid Pairs or user generates them manually.
 3. User records / imports takes.
 4. Reviewer approves any number of takes.

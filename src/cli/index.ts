@@ -3,6 +3,8 @@ import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { importActorsCommand } from './commands/import-actors.js';
+import { importDialoguesCommand } from './commands/import-dialogues.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -31,6 +33,18 @@ program
     .action((path) => {
         console.log(`Initializing project in ${path}...`);
         // TODO: Implement init logic
+    });
+
+program.addCommand(importActorsCommand);
+program.addCommand(importDialoguesCommand);
+
+program
+    .command('index')
+    .command('rebuild')
+    .description('Rebuild all derived indexes')
+    .action(async () => {
+        const { rebuildIndexesService } = await import('../services/indexing.js');
+        await rebuildIndexesService(process.cwd());
     });
 
 program.parse();

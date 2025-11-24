@@ -21,12 +21,14 @@
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "commander": "^14.0.2",
+    "csv-parse": "^6.1.0",
     "fastify": "^5.6.2",
     "fs-extra": "^11.3.2",
     "uuidv7": "^1.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@types/csv-parse": "^1.2.5",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^22.19.1",
     "@typescript-eslint/eslint-plugin": "^8.15.0",

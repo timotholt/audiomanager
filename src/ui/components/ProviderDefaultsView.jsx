@@ -1,13 +1,10 @@
 import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import TextField from '@mui/material/TextField';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import Slider from '@mui/material/Slider';
 import Stack from '@mui/material/Stack';
+import CircularProgress from '@mui/material/CircularProgress';
+import ProviderSettingsEditor from './ProviderSettingsEditor.jsx';
+import { useGlobalDefaults } from '../hooks/useGlobalDefaults.js';
 
 export default function ProviderDefaultsView({ 
   contentType,
@@ -15,8 +12,7 @@ export default function ProviderDefaultsView({
   loadingVoices,
   error 
 }) {
-  // This would typically load and manage default provider settings
-  // For now, it's a placeholder showing the structure
+  const { defaults, loading, error: defaultsError, updateDefaults } = useGlobalDefaults();
   
   const getContentTypeTitle = (type) => {
     return type.charAt(0).toUpperCase() + type.slice(1);
@@ -35,6 +31,30 @@ export default function ProviderDefaultsView({
     }
   };
 
+  const handleSettingsChange = async (newSettings) => {
+    try {
+      await updateDefaults(contentType, newSettings);
+    } catch (err) {
+      console.error('Failed to update defaults:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  const currentDefaults = defaults?.[contentType] || {
+    provider: 'elevenlabs',
+    batch_generate: 1,
+    approval_count_default: 1,
+    stability: contentType === 'dialogue' ? 0.5 : undefined,
+    similarity_boost: contentType === 'dialogue' ? 0.75 : undefined
+  };
+
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, minWidth: 0 }}>
       <Typography variant="h6" gutterBottom sx={{ fontSize: '1.1rem' }}>
@@ -45,106 +65,25 @@ export default function ProviderDefaultsView({
         {getContentTypeDescription(contentType)}
       </Typography>
 
-      <Stack spacing={3}>
-        {/* Provider Selection */}
-        <FormControl size="small" fullWidth>
-          <InputLabel>Default Provider</InputLabel>
-          <Select
-            value="elevenlabs"
-            label="Default Provider"
-            // onChange would update global defaults
-          >
-            <MenuItem value="elevenlabs">ElevenLabs</MenuItem>
-            <MenuItem value="manual">Manual</MenuItem>
-          </Select>
-        </FormControl>
-
-        {/* ElevenLabs Settings */}
-        <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
-          <Typography variant="subtitle2" gutterBottom>
-            ElevenLabs Settings
-          </Typography>
-          
-          <Stack spacing={2}>
-            <FormControl size="small" fullWidth>
-              <InputLabel>Default Voice</InputLabel>
-              <Select
-                value=""
-                label="Default Voice"
-                disabled={loadingVoices}
-                // onChange would update default voice
-              >
-                {voices.map((voice) => (
-                  <MenuItem key={voice.voice_id} value={voice.voice_id}>
-                    {voice.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <TextField
-              size="small"
-              label="Default Batch Generate"
-              type="number"
-              defaultValue={1}
-              inputProps={{ min: 1, max: 10 }}
-              sx={{ width: 200 }}
-            />
-
-            <TextField
-              size="small"
-              label="Default Approval Count"
-              type="number"
-              defaultValue={1}
-              inputProps={{ min: 1, max: 5 }}
-              sx={{ width: 200 }}
-            />
-
-            {/* Dialogue-specific defaults */}
-            {contentType === 'dialogue' && (
-              <>
-                <Box>
-                  <Typography variant="body2" gutterBottom>
-                    Default Stability: 0.5
-                  </Typography>
-                  <Slider
-                    defaultValue={0.5}
-                    min={0}
-                    max={1}
-                    step={0.1}
-                    size="small"
-                    // onChange would update default stability
-                  />
-                </Box>
-                
-                <Box>
-                  <Typography variant="body2" gutterBottom>
-                    Default Similarity Boost: 0.75
-                  </Typography>
-                  <Slider
-                    defaultValue={0.75}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    size="small"
-                    // onChange would update default similarity boost
-                  />
-                </Box>
-              </>
-            )}
-          </Stack>
-        </Box>
-
-        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-          Note: Changes to default settings will only affect new actors. Existing actors with custom settings will not be changed.
+      <Box sx={{ p: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+        <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
+          {contentType.charAt(0).toUpperCase() + contentType.slice(1)} Default Settings
         </Typography>
-      </Stack>
+        
+        <ProviderSettingsEditor
+          contentType={contentType}
+          settings={currentDefaults}
+          voices={voices}
+          loadingVoices={loadingVoices}
+          onSettingsChange={handleSettingsChange}
+          isDefault={true}
+          error={error || defaultsError}
+        />
+      </Box>
 
-      {error && (
-        <Typography color="error" variant="body2" sx={{ mt: 2 }}>
-          {error}
-        </Typography>
-      )}
+      <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 2 }}>
+        Note: Changes to default settings will only affect new actors. Existing actors with custom settings will not be changed.
+      </Typography>
     </Box>
   );
 }

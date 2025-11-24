@@ -138,10 +138,12 @@ export function useDataOperations({
 
       const updatedProviderSettings = {
         ...actor.provider_settings,
-        [contentType]: {
-          ...actor.provider_settings?.[contentType],
-          ...newSettings
-        }
+        [contentType]: newSettings.provider === 'inherit' 
+          ? { provider: 'inherit' }  // Replace entirely when switching to inherit
+          : {
+              ...actor.provider_settings?.[contentType],
+              ...newSettings
+            }
       };
 
       const result = await updateActor(actorId, {

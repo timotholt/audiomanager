@@ -46,8 +46,12 @@ export function getJobs() {
   return fetchJson('/api/jobs');
 }
 
-export function getVoices() {
-  return fetchJson('/api/voices');
+export async function getVoices() {
+  const res = await fetch('/api/voices');
+  if (!res.ok) {
+    throw new Error(`Failed to get voices: ${await res.text()}`);
+  }
+  return res.json();
 }
 
 export async function createActor(payload) {
@@ -82,6 +86,26 @@ export async function createContent(payload) {
   });
   if (!res.ok) {
     throw new Error(`Failed to create content: ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getGlobalDefaults() {
+  const res = await fetch('/api/defaults');
+  if (!res.ok) {
+    throw new Error(`Failed to get global defaults: ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function updateGlobalDefaults(contentType, settings) {
+  const res = await fetch(`/api/defaults/${encodeURIComponent(contentType)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to update global defaults: ${await res.text()}`);
   }
   return res.json();
 }

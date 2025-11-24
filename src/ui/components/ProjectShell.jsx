@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TreePane from './TreePane.jsx';
@@ -13,6 +13,11 @@ export default function ProjectShell() {
   const [error, setError] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
   const [expandNode, setExpandNode] = useState(null);
+
+  // Memoize the callback to prevent unnecessary re-renders
+  const handleExpandNode = useCallback((expandNodeFunction) => {
+    setExpandNode(() => expandNodeFunction);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,7 +70,7 @@ export default function ProjectShell() {
         sections={sections}
         selectedNode={selectedNode}
         onSelect={setSelectedNode}
-        onExpandNode={setExpandNode}
+        onExpandNode={handleExpandNode}
       />
       <DetailPane
         actors={actors}

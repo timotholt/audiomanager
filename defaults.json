@@ -1,0 +1,20 @@
+{
+  "dialogue": {
+    "provider": "elevenlabs",
+    "batch_generate": 1,
+    "approval_count_default": 1,
+    "stability": 0.5,
+    "similarity_boost": 0.75,
+    "voice_id": "2EiwWnXFnvU5JabPnv8n"
+  },
+  "music": {
+    "provider": "elevenlabs",
+    "batch_generate": 1,
+    "approval_count_default": 1
+  },
+  "sfx": {
+    "provider": "elevenlabs",
+    "batch_generate": 1,
+    "approval_count_default": 1
+  }
+}

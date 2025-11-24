@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import path from 'path';
+import path, { join } from 'path';
 import { fileURLToPath } from 'url';
 import { getProjectPaths } from './utils/paths.js';
 import { appendJsonl, ensureJsonlFile, readJsonl } from './utils/jsonl.js';
@@ -39,6 +39,23 @@ fastify.post('/api/actors', async (request, reply) => {
   const body = request.body as Partial<Actor> | undefined;
   const now = new Date().toISOString();
 
+  // Load global defaults
+  const defaultsPath = join(paths.root, 'defaults.json');
+  let globalDefaults: any = {
+    dialogue: { provider: 'elevenlabs', batch_generate: 1, approval_count_default: 1, stability: 0.5, similarity_boost: 0.75 },
+    music: { provider: 'elevenlabs', batch_generate: 1, approval_count_default: 1 },
+    sfx: { provider: 'elevenlabs', batch_generate: 1, approval_count_default: 1 },
+  };
+
+  try {
+    const fs = await import('fs-extra').then(m => m.default);
+    if (await fs.pathExists(defaultsPath)) {
+      globalDefaults = await fs.readJson(defaultsPath);
+    }
+  } catch (err) {
+    fastify.log.warn(err, 'Failed to load global defaults, using hardcoded values');
+  }
+
   const actor: Actor = {
     id: generateId(),
     display_name: body?.display_name ?? 'New Actor',
@@ -50,11 +67,7 @@ fastify.post('/api/actors', async (request, reply) => {
         .replace(/^_+|_+$/g, '')}_`,
     all_approved: false,
     provider_settings:
-      (body?.provider_settings as Actor['provider_settings']) ?? {
-        dialogue: { provider: 'elevenlabs', batch_generate: 1, approval_count_default: 1, stability: 0.5, similarity_boost: 0.75 },
-        music: { provider: 'elevenlabs', batch_generate: 1, approval_count_default: 1 },
-        sfx: { provider: 'elevenlabs', batch_generate: 1, approval_count_default: 1 },
-      },
+      (body?.provider_settings as Actor['provider_settings']) ?? globalDefaults,
     aliases: body?.aliases ?? [],
     notes: body?.notes ?? '',
     created_at: now,
@@ -438,6 +451,100 @@ fastify.get('/api/jobs', async () => {
   const paths = getProjectPaths(projectRoot);
   const jobs = await readJsonl<GenerationJob>(paths.catalog.generationJobs);
   return { jobs };
+});
+
+// Global defaults endpoints
+fastify.get('/api/defaults', async () => {
+  const projectRoot = getProjectRoot();
+  const paths = getProjectPaths(projectRoot);
+  const defaultsPath = join(paths.root, 'defaults.json');
+  
+  try {
+    const fs = await import('fs-extra').then(m => m.default);
+    
+    if (await fs.pathExists(defaultsPath)) {
+      const defaults = await fs.readJson(defaultsPath);
+      return { defaults };
+    } else {
+      // Return hardcoded defaults if no file exists
+      const defaults = {
+        dialogue: { 
+          provider: 'elevenlabs', 
+          batch_generate: 1, 
+          approval_count_default: 1, 
+          stability: 0.5, 
+          similarity_boost: 0.75 
+        },
+        music: { 
+          provider: 'elevenlabs', 
+          batch_generate: 1, 
+          approval_count_default: 1 
+        },
+        sfx: { 
+          provider: 'elevenlabs', 
+          batch_generate: 1, 
+          approval_count_default: 1 
+        }
+      };
+      return { defaults };
+    }
+  } catch (err) {
+    fastify.log.error(err, 'Failed to read defaults');
+    throw new Error('Failed to read defaults');
+  }
+});
+
+fastify.put('/api/defaults/:contentType', async (request, reply) => {
+  const projectRoot = getProjectRoot();
+  const paths = getProjectPaths(projectRoot);
+  const defaultsPath = join(paths.root, 'defaults.json');
+  const contentType = (request.params as any).contentType as 'dialogue' | 'music' | 'sfx';
+  const body = request.body as any;
+
+  if (!['dialogue', 'music', 'sfx'].includes(contentType)) {
+    return reply.status(400).send({ error: 'Invalid content type' });
+  }
+
+  try {
+    const fs = await import('fs-extra').then(m => m.default);
+    
+    // Read existing defaults or create new ones
+    let defaults: any = {};
+    if (await fs.pathExists(defaultsPath)) {
+      defaults = await fs.readJson(defaultsPath);
+    } else {
+      defaults = {
+        dialogue: { 
+          provider: 'elevenlabs', 
+          batch_generate: 1, 
+          approval_count_default: 1, 
+          stability: 0.5, 
+          similarity_boost: 0.75 
+        },
+        music: { 
+          provider: 'elevenlabs', 
+          batch_generate: 1, 
+          approval_count_default: 1 
+        },
+        sfx: { 
+          provider: 'elevenlabs', 
+          batch_generate: 1, 
+          approval_count_default: 1 
+        }
+      };
+    }
+
+    // Update the specific content type
+    defaults[contentType] = { ...defaults[contentType], ...body };
+
+    // Write back to file
+    await fs.writeJson(defaultsPath, defaults, { spaces: 2 });
+
+    return { defaults };
+  } catch (err) {
+    fastify.log.error(err, 'Failed to update defaults');
+    throw new Error('Failed to update defaults');
+  }
 });
 
 fastify.post('/api/generation/batch', async (request, reply) => {

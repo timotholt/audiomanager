@@ -12,6 +12,7 @@ import Collapse from '@mui/material/Collapse';
 import ExpandLess from '@mui/icons-material/ExpandLess';
 import ExpandMore from '@mui/icons-material/ExpandMore';
 import Stack from '@mui/material/Stack';
+import ProviderSettingsEditor from './ProviderSettingsEditor.jsx';
 
 export default function SectionView({ 
   sectionData,
@@ -108,7 +109,7 @@ export default function SectionView({
       </Typography>
 
       {/* Provider Settings */}
-      <Box sx={{ mt: 2, border: 1, borderColor: 'divider', borderRadius: 1 }}>
+      <Box sx={{ mt: 3, border: 1, borderColor: 'divider', borderRadius: 1 }}>
         <Box 
           sx={{ 
             p: 2, 
@@ -133,7 +134,7 @@ export default function SectionView({
               <FormControl size="small" fullWidth>
                 <InputLabel>Provider Mode</InputLabel>
                 <Select
-                  value={providerSettings.provider === 'elevenlabs' || providerSettings.provider === 'manual' ? 'custom' : 'inherit'}
+                  value={providerSettings.provider === 'inherit' ? 'inherit' : 'custom'}
                   label="Provider Mode"
                   onChange={(e) => {
                     if (e.target.value === 'inherit') {
@@ -168,88 +169,18 @@ export default function SectionView({
                 </Select>
               </FormControl>
 
-              {/* Custom Settings */}
-              {(providerSettings.provider === 'elevenlabs' || providerSettings.provider === 'manual') && (
-                <>
-                  <FormControl size="small" fullWidth>
-                    <InputLabel>Provider</InputLabel>
-                    <Select
-                      value={providerSettings.provider || 'elevenlabs'}
-                      label="Provider"
-                      onChange={(e) => onUpdateProviderSettings(actor.id, contentType, { provider: e.target.value })}
-                    >
-                      <MenuItem value="elevenlabs">ElevenLabs</MenuItem>
-                      <MenuItem value="manual">Manual</MenuItem>
-                    </Select>
-                  </FormControl>
-
-                  {providerSettings.provider === 'elevenlabs' && (
-                    <>
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>Voice</InputLabel>
-                        <Select
-                          value={providerSettings.voice_id || ''}
-                          label="Voice"
-                          onChange={(e) => onUpdateProviderSettings(actor.id, contentType, { voice_id: e.target.value })}
-                          disabled={loadingVoices}
-                        >
-                          {voices.map((voice) => (
-                            <MenuItem key={voice.voice_id} value={voice.voice_id}>
-                              {voice.name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-
-                      <TextField
-                        size="small"
-                        label="Batch Generate"
-                        type="number"
-                        value={providerSettings.batch_generate || 1}
-                        onChange={(e) => onUpdateProviderSettings(actor.id, contentType, { batch_generate: parseInt(e.target.value) || 1 })}
-                        inputProps={{ min: 1, max: 10 }}
-                        sx={{ width: 120 }}
-                      />
-
-                      {/* Dialogue-specific settings */}
-                      {contentType === 'dialogue' && (
-                        <>
-                          <Box>
-                            <Typography variant="body2" gutterBottom>
-                              Stability: {providerSettings.stability || 0.5}
-                            </Typography>
-                            <Slider
-                              value={providerSettings.stability || 0.5}
-                              onChange={(e, value) => {
-                                onUpdateProviderSettings(actor.id, contentType, { stability: value });
-                              }}
-                              min={0}
-                              max={1}
-                              step={0.1}
-                              size="small"
-                            />
-                          </Box>
-                          
-                          <Box>
-                            <Typography variant="body2" gutterBottom>
-                              Similarity Boost: {providerSettings.similarity_boost || 0.75}
-                            </Typography>
-                            <Slider
-                              value={providerSettings.similarity_boost || 0.75}
-                              onChange={(e, value) => {
-                                onUpdateProviderSettings(actor.id, contentType, { similarity_boost: value });
-                              }}
-                              min={0}
-                              max={1}
-                              step={0.05}
-                              size="small"
-                            />
-                          </Box>
-                        </>
-                      )}
-                    </>
-                  )}
-                </>
+              {/* Custom Settings - only show when not inheriting */}
+              {providerSettings.provider !== 'inherit' && (
+                <ProviderSettingsEditor
+                  contentType={contentType}
+                  settings={providerSettings}
+                  voices={voices}
+                  loadingVoices={loadingVoices}
+                  onSettingsChange={(newSettings) => {
+                    onUpdateProviderSettings(actor.id, contentType, newSettings);
+                  }}
+                  isDefault={false}
+                />
               )}
             </Stack>
           </Box>

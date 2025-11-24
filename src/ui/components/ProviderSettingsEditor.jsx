@@ -104,16 +104,27 @@ export default function ProviderSettingsEditor({
               <FormControl size="small" fullWidth sx={{ mb: 1 }}>
                 <InputLabel>{isDefault ? 'Default Voice' : 'Voice'}</InputLabel>
                 <Select
-                  value={currentSettings.voice_id || ''}
+                  value={
+                    // Only use saved voice_id if it exists in the voices array, otherwise use empty string
+                    voices.some(v => v.voice_id === currentSettings.voice_id) 
+                      ? currentSettings.voice_id 
+                      : ''
+                  }
                   label={isDefault ? 'Default Voice' : 'Voice'}
                   onChange={(e) => handleChange('voice_id', e.target.value)}
-                  disabled={loadingVoices}
+                  disabled={loadingVoices || voices.length === 0}
                 >
-                  {voices.map((voice) => (
-                    <MenuItem key={voice.voice_id} value={voice.voice_id}>
-                      {voice.name}
+                  {voices.length === 0 ? (
+                    <MenuItem value="" disabled>
+                      {loadingVoices ? 'Loading voices...' : 'No voices available (check API key)'}
                     </MenuItem>
-                  ))}
+                  ) : (
+                    voices.map((voice) => (
+                      <MenuItem key={voice.voice_id} value={voice.voice_id}>
+                        {voice.name}
+                      </MenuItem>
+                    ))
+                  )}
                 </Select>
               </FormControl>
               

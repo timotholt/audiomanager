@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -8,6 +8,13 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Slider from '@mui/material/Slider';
 import Stack from '@mui/material/Stack';
+import Button from '@mui/material/Button';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import CircularProgress from '@mui/material/CircularProgress';
+import { previewVoice } from '../api/client.js';
+
+// Cache for voice previews to avoid regenerating the same audio
+const voicePreviewCache = new Map();
 
 export default function ProviderSettingsEditor({ 
   contentType,
@@ -18,9 +25,50 @@ export default function ProviderSettingsEditor({
   isDefault = false,
   error 
 }) {
+  const [playingPreview, setPlayingPreview] = useState(false);
+
   const handleChange = (key, value) => {
     if (onSettingsChange) {
       onSettingsChange({ ...settings, [key]: value });
+    }
+  };
+
+  const handlePlayPreview = async () => {
+    if (!currentSettings.voice_id) return;
+    
+    // Create cache key based on voice settings
+    const stability = currentSettings.stability || 0.5;
+    const similarityBoost = currentSettings.similarity_boost || 0.75;
+    const cacheKey = `${currentSettings.voice_id}-${stability}-${similarityBoost}`;
+    
+    try {
+      setPlayingPreview(true);
+      
+      // Check if we have cached audio for this voice/settings combination
+      let audioData = voicePreviewCache.get(cacheKey);
+      
+      if (!audioData) {
+        // Generate new audio and cache it
+        console.log('Generating new voice preview for:', currentSettings.voice_id);
+        const result = await previewVoice(
+          currentSettings.voice_id,
+          "The quick brown fox jumps over the lazy dog!",
+          stability,
+          similarityBoost
+        );
+        audioData = result.audio;
+        voicePreviewCache.set(cacheKey, audioData);
+      } else {
+        console.log('Using cached voice preview for:', currentSettings.voice_id);
+      }
+      
+      // Create audio element and play the cached or new audio
+      const audio = new Audio(`data:audio/mp3;base64,${audioData}`);
+      await audio.play();
+    } catch (err) {
+      console.error('Failed to play voice preview:', err);
+    } finally {
+      setPlayingPreview(false);
     }
   };
 
@@ -52,21 +100,37 @@ export default function ProviderSettingsEditor({
         <>
           {/* Voice selection only for dialogue */}
           {contentType === 'dialogue' && (
-            <FormControl size="small" fullWidth>
-              <InputLabel>{isDefault ? 'Default Voice' : 'Voice'}</InputLabel>
-              <Select
-                value={currentSettings.voice_id || ''}
-                label={isDefault ? 'Default Voice' : 'Voice'}
-                onChange={(e) => handleChange('voice_id', e.target.value)}
-                disabled={loadingVoices}
-              >
-                {voices.map((voice) => (
-                  <MenuItem key={voice.voice_id} value={voice.voice_id}>
-                    {voice.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Box>
+              <FormControl size="small" fullWidth sx={{ mb: 1 }}>
+                <InputLabel>{isDefault ? 'Default Voice' : 'Voice'}</InputLabel>
+                <Select
+                  value={currentSettings.voice_id || ''}
+                  label={isDefault ? 'Default Voice' : 'Voice'}
+                  onChange={(e) => handleChange('voice_id', e.target.value)}
+                  disabled={loadingVoices}
+                >
+                  {voices.map((voice) => (
+                    <MenuItem key={voice.voice_id} value={voice.voice_id}>
+                      {voice.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              {/* Play Sample button */}
+              {currentSettings.voice_id && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={playingPreview ? <CircularProgress size={16} /> : <PlayArrowIcon />}
+                  onClick={handlePlayPreview}
+                  disabled={playingPreview || !currentSettings.voice_id}
+                  sx={{ fontSize: '0.75rem' }}
+                >
+                  {playingPreview ? 'Playing...' : 'Play Sample'}
+                </Button>
+              )}
+            </Box>
           )}
 
           <TextField

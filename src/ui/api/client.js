@@ -110,6 +110,23 @@ export async function updateGlobalDefaults(contentType, settings) {
   return res.json();
 }
 
+export async function previewVoice(voiceId, text, stability, similarityBoost) {
+  const res = await fetch('/api/voices/preview', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      voice_id: voiceId,
+      text: text,
+      stability: stability,
+      similarity_boost: similarityBoost
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to preview voice: ${await res.text()}`);
+  }
+  return res.json();
+}
+
 export async function createSection(payload) {
   const res = await fetch('/api/sections', {
     method: 'POST',

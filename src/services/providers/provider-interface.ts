@@ -58,4 +58,9 @@ export interface AudioProvider {
      * Get current quota/usage information
      */
     getQuota(): Promise<QuotaInfo>;
+
+    /**
+     * Get available voices
+     */
+    getVoices(): Promise<Array<{ voice_id: string; name: string; category?: string }>>;
 }

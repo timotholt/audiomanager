@@ -105,6 +105,26 @@ export class ElevenLabsProvider implements AudioProvider {
     }
 
     /**
+     * Get available voices
+     */
+    async getVoices(): Promise<Array<{ voice_id: string; name: string; category?: string }>> {
+        const url = `${this.apiUrl}/voices`;
+
+        const response = await fetch(url, {
+            headers: {
+                'xi-api-key': this.apiKey,
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get voices: ${response.statusText}`);
+        }
+
+        const data = await response.json() as { voices?: Array<{ voice_id: string; name: string; category?: string }> };
+        return data.voices || [];
+    }
+
+    /**
      * Fetch with retry logic
      */
     private async fetchWithRetry(url: string, options: RequestInit): Promise<Buffer> {

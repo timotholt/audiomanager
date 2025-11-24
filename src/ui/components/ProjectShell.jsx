@@ -12,6 +12,7 @@ export default function ProjectShell() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
+  const [expandNode, setExpandNode] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,12 +65,14 @@ export default function ProjectShell() {
         sections={sections}
         selectedNode={selectedNode}
         onSelect={setSelectedNode}
+        onExpandNode={setExpandNode}
       />
       <DetailPane
         actors={actors}
         content={content}
         sections={sections}
         selectedNode={selectedNode}
+        expandNode={expandNode}
         onActorCreated={(actor) => setActors((prev) => [...prev, actor])}
         onContentCreated={(item) => setContent((prev) => [...prev, item])}
         onSectionCreated={(section) => setSections((prev) => [...prev, section])}

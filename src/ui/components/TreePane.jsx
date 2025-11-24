@@ -34,7 +34,7 @@ function getContentStatusColor(content) {
   return 'warning.main';
 }
 
-export default function TreePane({ actors, content, sections, selectedNode, onSelect }) {
+export default function TreePane({ actors, content, sections, selectedNode, onSelect, onExpandNode }) {
   const selectedId = selectedNode ? nodeKey(selectedNode.type, selectedNode.id) : null;
   
   // Load expanded state from localStorage or use defaults
@@ -73,6 +73,26 @@ export default function TreePane({ actors, content, sections, selectedNode, onSe
       return newState;
     });
   };
+
+  const expandNode = (key) => {
+    setExpanded(prev => {
+      const newState = { ...prev, [key]: true };
+      // Save to localStorage
+      try {
+        localStorage.setItem('audiomanager-tree-expanded', JSON.stringify(newState));
+      } catch (e) {
+        console.warn('Failed to save tree state to localStorage:', e);
+      }
+      return newState;
+    });
+  };
+
+  // Expose expandNode to parent component
+  React.useEffect(() => {
+    if (onExpandNode) {
+      onExpandNode(expandNode);
+    }
+  }, [onExpandNode]);
 
   return (
     <Box

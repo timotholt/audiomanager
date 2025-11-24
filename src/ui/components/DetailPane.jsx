@@ -20,7 +20,7 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { createActor, createContent, createSection, deleteActor, deleteContent, getVoices, updateActor, updateSection } from '../api/client.js';
 
-export default function DetailPane({ actors, content, sections, selectedNode, onActorCreated, onContentCreated, onActorDeleted, onContentDeleted, onSectionCreated, onActorUpdated, onSectionUpdated }) {
+export default function DetailPane({ actors, content, sections, selectedNode, expandNode, onActorCreated, onContentCreated, onActorDeleted, onContentDeleted, onSectionCreated, onActorUpdated, onSectionUpdated }) {
   const [actorName, setActorName] = useState('');
   const [creatingActor, setCreatingActor] = useState(false);
   const [contentPrompt, setContentPrompt] = useState('');
@@ -59,6 +59,11 @@ export default function DetailPane({ actors, content, sections, selectedNode, on
       const result = await createActor({ display_name: actorName || 'New Actor' });
       if (result && result.actor && onActorCreated) {
         onActorCreated(result.actor);
+        
+        // Auto-expand Actors to show the new actor
+        if (expandNode) {
+          expandNode('actors');
+        }
       }
       setActorName('');
       // For now, ask user to refresh; later we can reload actors automatically.
@@ -160,6 +165,17 @@ export default function DetailPane({ actors, content, sections, selectedNode, on
           onContentCreated(result.content);
         }
         
+        // Auto-expand to show the new content
+        if (expandNode) {
+          expandNode('actors'); // Expand Actors root
+          expandNode(`actor-${actorId}`); // Expand the actor
+          // Find the section for this content type and expand it
+          const section = sections.find(s => s.actor_id === actorId && s.content_type === contentType);
+          if (section) {
+            expandNode(`section-${section.id}`); // Expand the section
+          }
+        }
+        
         // Show message about duplicates if any were skipped
         if (result.message) {
           setError(result.message);
@@ -192,6 +208,12 @@ export default function DetailPane({ actors, content, sections, selectedNode, on
       
       if (result && result.section && onSectionCreated) {
         onSectionCreated(result.section);
+        
+        // Auto-expand the parent actor to show the new section
+        if (expandNode) {
+          expandNode('actors'); // Expand Actors root
+          expandNode(`actor-${actorId}`); // Expand the specific actor
+        }
       }
       
       console.log(`Created ${contentType} section for actor ${actorId}`);
@@ -256,36 +278,31 @@ export default function DetailPane({ actors, content, sections, selectedNode, on
   if (!selectedNode) {
     return (
       <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, minWidth: 0 }}>
-        <Typography variant="body1" gutterBottom>
-          Select an actor or content item from the tree, or create a new actor below.
+        <Typography variant="h6" gutterBottom sx={{ fontSize: '1.1rem' }}>
+          Welcome to Audio Manager
         </Typography>
+        <Typography variant="body1" gutterBottom sx={{ mb: 2 }}>
+          Select an item from the tree on the left to get started:
+        </Typography>
+        
+        <Box sx={{ ml: 2, mb: 2 }}>
+          <Typography variant="body2" gutterBottom sx={{ fontWeight: 'bold' }}>
+            • Defaults - Configure global provider settings
+          </Typography>
+          <Typography variant="body2" gutterBottom sx={{ fontWeight: 'bold' }}>
+            • Actors - View and manage individual actors
+          </Typography>
+        </Box>
+        
+        <Typography variant="body2" color="text.secondary">
+          To create new actors or sections, first select "Actors" from the tree, then choose an existing actor to add sections to it.
+        </Typography>
+        
         {error && (
-          <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+          <Typography color="error" variant="body2" sx={{ mt: 2 }}>
             {error}
           </Typography>
         )}
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            Add new actor
-          </Typography>
-          <Stack spacing={1} direction="row" sx={{ maxWidth: 480 }}>
-            <TextField
-              label="Actor display name"
-              size="small"
-              fullWidth
-              value={actorName}
-              onChange={(e) => setActorName(e.target.value)}
-            />
-            <Button
-              variant="contained"
-              size="small"
-              disabled={creatingActor || !actorName.trim()}
-              onClick={handleCreateActor}
-            >
-              {creatingActor ? 'Creating…' : 'Add Actor'}
-            </Button>
-          </Stack>
-        </Box>
       </Box>
     );
   }

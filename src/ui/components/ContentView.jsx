@@ -79,6 +79,7 @@ export default function ContentView({
   capitalizationConversion = 'lowercase',
   onTakesGenerated,
   onTakeUpdated,
+  onStatusChange,
   error: parentError 
 }) {
   // Build the base filename for this content item
@@ -161,6 +162,7 @@ export default function ContentView({
     try {
       setDeleting(true);
       setError(null);
+      if (onStatusChange) onStatusChange('Processing');
       await deleteContent(item.id);
       if (onContentDeleted) onContentDeleted(item.id);
       setConfirmDeleteContentOpen(false);
@@ -168,6 +170,7 @@ export default function ContentView({
       setError(err.message || String(err));
     } finally {
       setDeleting(false);
+      if (onStatusChange) onStatusChange('');
     }
   };
 
@@ -176,6 +179,7 @@ export default function ContentView({
     try {
       setSaving(true);
       setError(null);
+      if (onStatusChange) onStatusChange('Processing');
       const result = await updateContent(item.id, { [field]: value });
       if (result.content && onContentUpdated) {
         onContentUpdated(result.content);
@@ -184,6 +188,7 @@ export default function ContentView({
       setError(err.message || String(err));
     } finally {
       setSaving(false);
+      if (onStatusChange) onStatusChange('');
     }
   };
 
@@ -227,6 +232,7 @@ export default function ContentView({
   const handleTakeStatus = async (takeId, status) => {
     if (sectionComplete) return;
     try {
+      if (onStatusChange) onStatusChange('Processing');
       const result = await updateTake(takeId, { status });
       if (result.take) {
         setTakes(prev => prev.map(t => t.id === takeId ? result.take : t));
@@ -241,6 +247,8 @@ export default function ContentView({
       }
     } catch (err) {
       setError(err.message || String(err));
+    } finally {
+      if (onStatusChange) onStatusChange('');
     }
   };
 
@@ -250,6 +258,7 @@ export default function ContentView({
     try {
       setGeneratingTakes(true);
       setError(null);
+      if (onStatusChange) onStatusChange(`Generating take 1 of ${count}`);
       const result = await generateTakes(item.id, count);
       if (result.takes && result.takes.length > 0) {
         setTakes(prev => [...prev, ...result.takes]);
@@ -262,16 +271,20 @@ export default function ContentView({
       setError(err.message || String(err));
     } finally {
       setGeneratingTakes(false);
+      if (onStatusChange) onStatusChange('');
     }
   };
 
   const handleDeleteTake = async (takeId) => {
     if (sectionComplete) return;
     try {
+      if (onStatusChange) onStatusChange('Processing');
       await deleteTake(takeId);
       setTakes(prev => prev.filter(t => t.id !== takeId));
     } catch (err) {
       setError(err.message || String(err));
+    } finally {
+      if (onStatusChange) onStatusChange('');
     }
   };
 

@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import { GlobalStyles, ThemeProvider, createTheme } from '@mui/material';
 import AppBarShell from './components/AppBarShell.jsx';
 import ProjectShell from './components/ProjectShell.jsx';
+import StatusBar from './components/StatusBar.jsx';
 
 // Font size multipliers
 const FONT_SIZE_SCALES = {
@@ -26,6 +27,7 @@ export default function App() {
   const [capitalizationConversion, setCapitalizationConversion] = useState(() => {
     return localStorage.getItem('audiomanager-capitalization-conversion') || 'lowercase';
   });
+  const [statusText, setStatusText] = useState('');
 
   // Save settings to localStorage
   useEffect(() => {
@@ -81,6 +83,11 @@ export default function App() {
         <ProjectShell 
           blankSpaceConversion={blankSpaceConversion} 
           capitalizationConversion={capitalizationConversion}
+          onStatusChange={setStatusText}
+        />
+        <StatusBar 
+          statusText={statusText}
+          providerCredits="ElevenLabs: 22000 credits"
         />
       </Box>
     </ThemeProvider>

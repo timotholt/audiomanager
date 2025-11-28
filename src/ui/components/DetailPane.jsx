@@ -30,7 +30,8 @@ export default function DetailPane({
   onTakesGenerated,
   onTakeUpdated,
   blankSpaceConversion,
-  capitalizationConversion 
+  capitalizationConversion,
+  onStatusChange
 }) {
   const actorOps = useActorOperations({ 
     onActorCreated, 
@@ -133,6 +134,7 @@ export default function DetailPane({
           capitalizationConversion={capitalizationConversion}
           onTakesGenerated={onTakesGenerated}
           onTakeUpdated={onTakeUpdated}
+          onStatusChange={onStatusChange}
           error={commonError}
         />
       );

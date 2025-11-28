@@ -5,7 +5,7 @@ import TreePane from './TreePane.jsx';
 import DetailPane from './DetailPane.jsx';
 import { getActors, getContent, getSections, getTakes, deleteSection } from '../api/client.js';
 
-export default function ProjectShell({ blankSpaceConversion, capitalizationConversion }) {
+export default function ProjectShell({ blankSpaceConversion, capitalizationConversion, onStatusChange }) {
   const [actors, setActors] = useState([]);
   const [content, setContent] = useState([]);
   const [sections, setSections] = useState([]); // Track sections separately from content
@@ -125,6 +125,7 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         }}
         blankSpaceConversion={blankSpaceConversion}
         capitalizationConversion={capitalizationConversion}
+        onStatusChange={onStatusChange}
       />
     </Box>
   );

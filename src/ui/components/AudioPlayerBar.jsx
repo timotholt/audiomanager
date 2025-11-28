@@ -11,7 +11,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import WaveSurfer from 'wavesurfer.js';
 
 // Debug flag for this module
-const DEBUG_AUDIO_PLAYER = true;
+const DEBUG_AUDIO_PLAYER = false;
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00';

@@ -5,15 +5,25 @@ import { runBatchGeneration } from '../../services/generation.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
-export function registerGenerationRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext) {
-  fastify.get('/api/jobs', async () => {
-    const { paths } = getProjectContext();
+export function registerGenerationRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {
+  fastify.get('/api/jobs', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     const jobs = await readJsonl<GenerationJob>(paths.catalog.generationJobs);
     return { jobs };
   });
 
   fastify.post('/api/generation/batch', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { projectRoot } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { projectRoot } = ctx;
     const body = request.body as {
       actorId?: string;
       contentType?: 'dialogue' | 'music' | 'sfx';

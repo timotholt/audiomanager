@@ -1,0 +1,22 @@
+{
+  "dialogue": {
+    "provider": "elevenlabs",
+    "batch_generate": 1,
+    "approval_count_default": 1,
+    "stability": 0,
+    "similarity_boost": 1,
+    "model_id": "eleven_v3",
+    "voice_id": "flHkNRp1BlvT73UL6gyz"
+  },
+  "music": {
+    "provider": "elevenlabs",
+    "batch_generate": 1,
+    "approval_count_default": 1,
+    "duration_seconds": 179
+  },
+  "sfx": {
+    "provider": "elevenlabs",
+    "batch_generate": 1,
+    "approval_count_default": 1
+  }
+}

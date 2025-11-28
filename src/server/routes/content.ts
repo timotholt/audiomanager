@@ -8,9 +8,14 @@ import { getAudioProvider } from '../../services/provider-factory.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
-export function registerContentRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext) {
-  fastify.get('/api/content', async (request: FastifyRequest) => {
-    const { paths } = getProjectContext();
+export function registerContentRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {
+  fastify.get('/api/content', async (request: FastifyRequest, reply: FastifyReply) => {
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     const contentItems = await readJsonl<Content>(paths.catalog.content);
 
     const query = request.query as { actorId?: string; type?: string };
@@ -27,7 +32,12 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
   });
 
   fastify.post('/api/content', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.content);
 
     const body = request.body as {
@@ -110,7 +120,12 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
   });
 
   fastify.put('/api/content/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     
     const { id } = request.params as { id: string };
     const body = request.body as Partial<Content>;
@@ -153,7 +168,12 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
   });
 
   fastify.delete('/api/content/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
 
     const { id } = request.params as { id: string };
 
@@ -175,7 +195,12 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
 
   // Generate takes for a specific content item
   fastify.post('/api/content/:id/generate', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { projectRoot, paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { projectRoot, paths } = ctx;
     const { id } = request.params as { id: string };
     const body = request.body as { count?: number } | undefined;
     const count = body?.count || 1;
@@ -208,17 +233,40 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       const nextFromContent = content.next_take_number ?? 1;
       let nextTakeNumber = Math.max(nextFromExisting, nextFromContent);
 
-      // Compute the base filename in the same style as the UI's Filenames tab.
+      // Compute the base filename used for all generated takes.
+      // Pattern: actorname_{dialog|music|sfx}_cue_v001
+      // - actor.base_filename is normalized to remove trailing underscores
+      // - cue_id is normalized to lowercase with underscores for spaces
+      // - content type is mapped to a short suffix (dialog, music, sfx)
       const actorBase = (actor.base_filename || 'unknown').replace(/_+$/, '');
       const safeCueId = (content.cue_id || 'untitled')
         .trim()
         .replace(/\s+/g, '_')
         .toLowerCase();
-      const derivedBaseFilename = `${actorBase}_${content.content_type}_${safeCueId}`;
+
+      let typeSuffix: string;
+      if (content.content_type === 'dialogue') {
+        typeSuffix = 'dialog';
+      } else if (content.content_type === 'music') {
+        typeSuffix = 'music';
+      } else if (content.content_type === 'sfx') {
+        typeSuffix = 'sfx';
+      } else {
+        typeSuffix = String(content.content_type || 'content');
+      }
+
+      const derivedBaseFilename = `${actorBase}_${typeSuffix}_${safeCueId}`;
       const contentFilename = (content as Content & { filename?: string }).filename;
-      const baseFilename = contentFilename && contentFilename.trim().length > 0
+
+      // If a custom filename is provided, use it; otherwise use the derived one.
+      // In either case, normalize multiple underscores and trim leading/trailing underscores.
+      const rawBase = contentFilename && contentFilename.trim().length > 0
         ? contentFilename.trim()
         : derivedBaseFilename;
+
+      const baseFilename = rawBase
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
 
       const generatedTakes: Take[] = [];
 
@@ -233,7 +281,7 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
 
         const takeNumber = nextTakeNumber++;
         const paddedTake = String(takeNumber).padStart(3, '0');
-        const filename = `${baseFilename}_take_${paddedTake}.wav`;
+        const filename = `${baseFilename}_v${paddedTake}.wav`;
 
         if (content.content_type === 'dialogue') {
           const providerSettings = actor.provider_settings?.dialogue;

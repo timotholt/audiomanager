@@ -4,15 +4,25 @@ import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../ut
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
-export function registerSectionRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext) {
-  fastify.get('/api/sections', async () => {
-    const { paths } = getProjectContext();
+export function registerSectionRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {
+  fastify.get('/api/sections', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     const sections = await readJsonl<Section>(paths.catalog.sections);
     return { sections };
   });
 
   fastify.post('/api/sections', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.sections);
 
     const body = request.body as {
@@ -41,7 +51,12 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
   });
 
   fastify.put('/api/sections/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     
     const { id } = request.params as { id: string };
     const body = request.body as Partial<Section>;
@@ -92,7 +107,12 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
   });
 
   fastify.delete('/api/sections/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
 
     const { id } = request.params as { id: string };
 

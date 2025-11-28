@@ -5,18 +5,18 @@ import { join, basename } from 'path';
 // Projects are stored relative to the app root
 const PROJECTS_DIR = join(process.cwd(), 'projects');
 
-// Current active project path - mutable for dynamic switching
-let currentProjectPath = process.cwd();
+// Current active project path - mutable for dynamic switching. When null, no project is selected.
+let currentProjectPath: string | null = null;
 
 // Ensure projects directory exists
 fs.ensureDirSync(PROJECTS_DIR);
 
 // Export functions to get/set current project
-export function getCurrentProjectPath(): string {
+export function getCurrentProjectPath(): string | null {
   return currentProjectPath;
 }
 
-export function setCurrentProject(projectPath: string): void {
+export function setCurrentProject(projectPath: string | null): void {
   currentProjectPath = projectPath;
   console.log(`[Projects] Switched to project: ${projectPath}`);
 }
@@ -218,6 +218,10 @@ export default async function projectRoutes(fastify: FastifyInstance) {
   fastify.get('/api/projects/current', async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
       const currentPath = getCurrentProjectPath();
+      if (!currentPath) {
+        return { project: null };
+      }
+
       const vofPath = join(currentPath, '.vof');
       
       if (!await fs.pathExists(vofPath)) {

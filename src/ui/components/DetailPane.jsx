@@ -1,7 +1,7 @@
 import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import WelcomeScreen from './WelcomeScreen.jsx';
+import NoSelectionView from './NoSelectionView.jsx';
 import SectionView from './SectionView.jsx';
 import ContentView from './ContentView.jsx';
 import ProviderDefaultsView from './ProviderDefaultsView.jsx';
@@ -63,7 +63,7 @@ export default function DetailPane({
 
   switch (view) {
     case 'welcome':
-      return <WelcomeScreen error={commonError} />;
+      return <NoSelectionView error={commonError} />;
 
     case 'actor':
       return (

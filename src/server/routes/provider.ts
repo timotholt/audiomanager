@@ -7,10 +7,15 @@ const voicePreviewCache = new Map<string, string>();
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
-export function registerProviderRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext) {
+export function registerProviderRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {
   fastify.get('/api/voices', async (_request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const { projectRoot } = getProjectContext();
+      const ctx = getProjectContext();
+      if (!ctx) {
+        reply.code(400);
+        return { error: 'No project selected' };
+      }
+      const { projectRoot } = ctx;
       const provider = await getAudioProvider(projectRoot);
       const voices = await provider.getVoices();
       return { voices };
@@ -30,7 +35,12 @@ export function registerProviderRoutes(fastify: FastifyInstance, getProjectConte
 
   fastify.post('/api/voices/preview', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const { projectRoot } = getProjectContext();
+      const ctx = getProjectContext();
+      if (!ctx) {
+        reply.code(400);
+        return { error: 'No project selected' };
+      }
+      const { projectRoot } = ctx;
       const provider = await getAudioProvider(projectRoot);
       
       const body = request.body as {
@@ -83,9 +93,14 @@ export function registerProviderRoutes(fastify: FastifyInstance, getProjectConte
   });
 
   // Get provider credits/usage (currently only ElevenLabs)
-  fastify.get('/api/provider/credits', async (request: FastifyRequest, _reply: FastifyReply) => {
+  fastify.get('/api/provider/credits', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const { projectRoot } = getProjectContext();
+      const ctx = getProjectContext();
+      if (!ctx) {
+        reply.code(400);
+        return { error: 'No project selected' };
+      }
+      const { projectRoot } = ctx;
       const provider = await getAudioProvider(projectRoot);
       const quota = await provider.getQuota();
 

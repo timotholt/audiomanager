@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
-export function registerDefaultsRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext) {
+export function registerDefaultsRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {
   const DEFAULTS: Record<string, Record<string, unknown>> = {
     dialogue: { 
       provider: 'elevenlabs', 
@@ -26,7 +26,12 @@ export function registerDefaultsRoutes(fastify: FastifyInstance, getProjectConte
 
   // Global defaults endpoints
   fastify.get('/api/defaults', async (_request: FastifyRequest, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     const defaultsPath = join(paths.root, 'defaults.json');
     
     try {
@@ -54,7 +59,12 @@ export function registerDefaultsRoutes(fastify: FastifyInstance, getProjectConte
   });
 
   fastify.put('/api/defaults/:contentType', async (request: FastifyRequest<{ Params: { contentType: string } }>, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     const defaultsPath = join(paths.root, 'defaults.json');
     const contentType = (request.params as { contentType: string }).contentType as 'dialogue' | 'music' | 'sfx';
     const body = request.body as Record<string, unknown>;

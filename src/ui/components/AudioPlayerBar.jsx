@@ -137,7 +137,11 @@ export default function AudioPlayerBar({
     });
 
     wavesurfer.on('error', (err) => {
-      console.error('[AudioPlayerBar] WaveSurfer error:', err);
+      // Only log if debug is enabled - media errors are common during project switching
+      if (DEBUG_AUDIO_PLAYER) {
+        console.error('[AudioPlayerBar] WaveSurfer error:', err);
+      }
+      setIsReady(false);
     });
 
     wavesurferRef.current = wavesurfer;

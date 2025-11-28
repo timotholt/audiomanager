@@ -5,9 +5,14 @@ import { readJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js'
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
-export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext) {
-  fastify.get('/api/takes', async (request: FastifyRequest) => {
-    const { paths } = getProjectContext();
+export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {
+  fastify.get('/api/takes', async (request: FastifyRequest, reply: FastifyReply) => {
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     const takes = await readJsonl<Take>(paths.catalog.takes);
 
     const query = request.query as { contentId?: string };
@@ -19,7 +24,12 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
   });
 
   fastify.put('/api/takes/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     
     const { id } = request.params as { id: string };
     const body = request.body as Partial<Take>;
@@ -59,7 +69,12 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
 
   // Delete a take
   fastify.delete('/api/takes/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     
     const { id } = request.params as { id: string };
 

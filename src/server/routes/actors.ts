@@ -7,15 +7,25 @@ import { validate } from '../../utils/validation.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
-export function registerActorRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext) {
-  fastify.get('/api/actors', async () => {
-    const { paths } = getProjectContext();
+export function registerActorRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {
+  fastify.get('/api/actors', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     const actors = await readJsonl<Actor>(paths.catalog.actors);
     return { actors };
   });
 
   fastify.post('/api/actors', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.actors);
 
     const body = request.body as Partial<Actor> | undefined;
@@ -66,7 +76,12 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
   });
 
   fastify.put('/api/actors/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
     
     const { id } = request.params as { id: string };
     const body = request.body as Partial<Actor>;
@@ -109,7 +124,12 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
   });
 
   fastify.delete('/api/actors/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const { paths } = getProjectContext();
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
 
     const { id } = request.params as { id: string };
 

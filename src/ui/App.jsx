@@ -6,6 +6,7 @@ import AppBarShell from './components/AppBarShell.jsx';
 import ProjectShell from './components/ProjectShell.jsx';
 import StatusBar from './components/StatusBar.jsx';
 import AudioPlayerBar from './components/AudioPlayerBar.jsx';
+import WelcomeScreen from './components/WelcomeScreen.jsx';
 import { getProviderCredits } from './api/client.js';
 
 // Font size multipliers
@@ -68,6 +69,13 @@ export default function App() {
     setAudioUrl(null);
   }, []);
 
+  // Clear audio player when project changes or becomes null
+  useEffect(() => {
+    setCurrentTake(null);
+    setAudioUrl(null);
+    setIsPlaying(false);
+  }, [currentProject]);
+
   // Save settings to localStorage
   useEffect(() => {
     localStorage.setItem('audiomanager-theme-mode', themeMode);
@@ -104,12 +112,13 @@ export default function App() {
     }
   }, []);
 
-  // Load credits on startup and refresh every 15 seconds
+  // Load credits on startup and refresh every 15 seconds (only when project selected)
   useEffect(() => {
+    if (!currentProject) return;
     refreshCredits();
     const interval = setInterval(refreshCredits, 15000);
     return () => clearInterval(interval);
-  }, [refreshCredits]);
+  }, [refreshCredits, currentProject]);
 
   // Create theme based on settings
   const theme = useMemo(() => {
@@ -147,17 +156,21 @@ export default function App() {
           currentProject={currentProject}
           onProjectChange={setCurrentProject}
         />
-        <ProjectShell 
-          key={currentProject?.name || 'no-project'}
-          currentProject={currentProject}
-          blankSpaceConversion={blankSpaceConversion} 
-          capitalizationConversion={capitalizationConversion}
-          onStatusChange={setStatusText}
-          onCreditsRefresh={refreshCredits}
-          onPlayTake={handlePlayTake}
-          onStopPlayback={handleStopPlayback}
-          currentPlayingTakeId={isPlaying ? currentTake?.id : null}
-        />
+        {currentProject ? (
+          <ProjectShell 
+            key={currentProject?.name || 'no-project'}
+            currentProject={currentProject}
+            blankSpaceConversion={blankSpaceConversion} 
+            capitalizationConversion={capitalizationConversion}
+            onStatusChange={setStatusText}
+            onCreditsRefresh={refreshCredits}
+            onPlayTake={handlePlayTake}
+            onStopPlayback={handleStopPlayback}
+            currentPlayingTakeId={isPlaying ? currentTake?.id : null}
+          />
+        ) : (
+          <WelcomeScreen onProjectChange={setCurrentProject} />
+        )}
         <AudioPlayerBar
           currentTake={currentTake}
           audioUrl={audioUrl}

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
@@ -11,7 +11,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import WaveSurfer from 'wavesurfer.js';
 
 // Debug flag for this module
-const DEBUG_AUDIO_PLAYER = false;
+const DEBUG_AUDIO_PLAYER = true;
 
 function formatTime(seconds) {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -24,8 +24,7 @@ export default function AudioPlayerBar({
   currentTake, 
   audioUrl,
   isPlaying,
-  onPlayingChange,
-  onPlaybackEnd 
+  onPlayingChange
 }) {
   const containerRef = useRef(null);
   const wavesurferRef = useRef(null);
@@ -35,34 +34,41 @@ export default function AudioPlayerBar({
   const [isMuted, setIsMuted] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
-  // Immediately stop and destroy previous WaveSurfer when audioUrl changes
-  // This runs synchronously before the new effect, preventing audio overlap
-  const prevAudioUrlRef = useRef(null);
-  if (audioUrl !== prevAudioUrlRef.current) {
-    if (wavesurferRef.current) {
+  // Use ref for callback to prevent effect re-runs
+  const onPlayingChangeRef = useRef(onPlayingChange);
+  onPlayingChangeRef.current = onPlayingChange;
+
+  // Track previous audioUrl to detect changes
+  const prevAudioUrlRef = useRef(audioUrl);
+
+  // Cleanup previous WaveSurfer BEFORE render commits (useLayoutEffect runs synchronously)
+  useLayoutEffect(() => {
+    if (DEBUG_AUDIO_PLAYER) {
+      console.log('[AudioPlayerBar] useLayoutEffect - prevUrl:', prevAudioUrlRef.current, 'newUrl:', audioUrl, 'hasWs:', !!wavesurferRef.current);
+    }
+    if (prevAudioUrlRef.current !== audioUrl && wavesurferRef.current) {
       if (DEBUG_AUDIO_PLAYER) {
-        console.log('[AudioPlayerBar] Stopping previous audio before loading new');
+        console.log('[AudioPlayerBar] Cleaning up previous WaveSurfer');
       }
+      // Unsubscribe events first to prevent callbacks during cleanup
+      wavesurferRef.current.unAll();
       wavesurferRef.current.stop();
       wavesurferRef.current.destroy();
       wavesurferRef.current = null;
     }
     prevAudioUrlRef.current = audioUrl;
-  }
-
-  // Reset state when audioUrl changes
-  useEffect(() => {
-    if (!audioUrl) {
-      setIsReady(false);
-      setDuration(0);
-      setCurrentTime(0);
-      if (onPlayingChange) onPlayingChange(false);
-    }
-  }, [audioUrl, onPlayingChange]);
+  }, [audioUrl]);
 
   // Initialize WaveSurfer
   useEffect(() => {
-    if (!containerRef.current || !audioUrl) return;
+    // Reset state
+    setIsReady(false);
+    setDuration(0);
+    setCurrentTime(0);
+
+    if (!containerRef.current || !audioUrl) {
+      return;
+    }
 
     if (DEBUG_AUDIO_PLAYER) {
       console.log('[AudioPlayerBar] Initializing WaveSurfer with URL:', audioUrl);
@@ -80,9 +86,7 @@ export default function AudioPlayerBar({
       barGap: 1,
       barRadius: 2,
       height: 40,
-      responsive: true,
       normalize: true,
-      backend: 'WebAudio',
     });
 
     wavesurfer.load(audioUrl);
@@ -90,12 +94,23 @@ export default function AudioPlayerBar({
     wavesurfer.on('ready', () => {
       if (DEBUG_AUDIO_PLAYER) {
         console.log('[AudioPlayerBar] WaveSurfer ready, duration:', wavesurfer.getDuration());
+        // Check audio context state
+        const backend = wavesurfer.getMediaElement?.() || wavesurfer.backend?.ac;
+        if (backend?.state) {
+          console.log('[AudioPlayerBar] Audio context state:', backend.state);
+        }
       }
       setDuration(wavesurfer.getDuration());
       setIsReady(true);
       // Auto-play when loaded
-      wavesurfer.play();
-      if (onPlayingChange) onPlayingChange(true);
+      wavesurfer.play().then(() => {
+        if (DEBUG_AUDIO_PLAYER) {
+          console.log('[AudioPlayerBar] Play started successfully, isPlaying:', wavesurfer.isPlaying());
+        }
+      }).catch(err => {
+        console.error('[AudioPlayerBar] Play failed:', err);
+      });
+      if (onPlayingChangeRef.current) onPlayingChangeRef.current(true);
     });
 
     wavesurfer.on('audioprocess', () => {
@@ -107,20 +122,18 @@ export default function AudioPlayerBar({
     });
 
     wavesurfer.on('play', () => {
-      if (onPlayingChange) onPlayingChange(true);
+      if (onPlayingChangeRef.current) onPlayingChangeRef.current(true);
     });
 
     wavesurfer.on('pause', () => {
-      if (onPlayingChange) onPlayingChange(false);
+      if (onPlayingChangeRef.current) onPlayingChangeRef.current(false);
     });
 
     wavesurfer.on('finish', () => {
       if (DEBUG_AUDIO_PLAYER) {
         console.log('[AudioPlayerBar] Playback finished');
       }
-      if (onPlayingChange) onPlayingChange(false);
-      // Notify parent that playback ended (but don't clear the player)
-      if (onPlaybackEnd) onPlaybackEnd();
+      if (onPlayingChangeRef.current) onPlayingChangeRef.current(false);
     });
 
     wavesurfer.on('error', (err) => {
@@ -170,9 +183,9 @@ export default function AudioPlayerBar({
     if (wavesurferRef.current) {
       wavesurferRef.current.stop();
       setCurrentTime(0);
-      if (onPlayingChange) onPlayingChange(false);
+      if (onPlayingChangeRef.current) onPlayingChangeRef.current(false);
     }
-  }, [onPlayingChange]);
+  }, []);
 
   const handleVolumeChange = useCallback((event, newValue) => {
     setVolume(newValue);

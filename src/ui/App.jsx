@@ -156,7 +156,6 @@ export default function App() {
           audioUrl={audioUrl}
           isPlaying={isPlaying}
           onPlayingChange={setIsPlaying}
-          onPlaybackEnd={handlePlaybackEnd}
         />
         <StatusBar 
           statusText={statusText}

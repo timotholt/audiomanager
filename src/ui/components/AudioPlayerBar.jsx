@@ -85,7 +85,7 @@ export default function AudioPlayerBar({
       barWidth: 2,
       barGap: 1,
       barRadius: 2,
-      height: 40,
+      height: 32,
       normalize: true,
     });
 
@@ -196,46 +196,42 @@ export default function AudioPlayerBar({
     setIsMuted(prev => !prev);
   }, []);
 
+  // Determine background color based on take status
+  const getStatusBgColor = () => {
+    if (!currentTake) return 'background.paper';
+    switch (currentTake.status) {
+      case 'approved':
+        return 'success.dark';
+      case 'rejected':
+        return 'error.dark';
+      default: // 'new' or other
+        return 'background.paper';
+    }
+  };
+
   return (
     <Box
       sx={{
         position: 'fixed',
-        bottom: '1.75rem', // Above the status bar
+        bottom: '1.75rem',
         left: 0,
         right: 0,
-        height: 72,
         bgcolor: 'background.paper',
         borderTop: 1,
         borderColor: 'divider',
         display: 'flex',
-        alignItems: 'center',
-        px: 2,
-        gap: 2,
+        flexDirection: 'column',
+        px: 1,
+        py: 0.5,
         zIndex: 1300,
         boxShadow: '0 -2px 10px rgba(0,0,0,0.1)',
       }}
     >
-      {/* Play/Pause/Stop controls */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-        <IconButton onClick={handlePlayPause} size="small" color="primary" disabled={!audioUrl}>
-          {isPlaying ? <PauseIcon /> : <PlayArrowIcon />}
-        </IconButton>
-        <IconButton onClick={handleStop} size="small" disabled={!audioUrl}>
-          <StopIcon />
-        </IconButton>
-      </Box>
-
-      {/* Current time */}
-      <Typography variant="caption" sx={{ minWidth: 40, fontFamily: 'monospace', color: audioUrl ? 'text.primary' : 'text.disabled' }}>
-        {formatTime(currentTime)}
-      </Typography>
-
-      {/* Waveform container or empty state */}
+      {/* Top row: Waveform */}
       <Box 
         sx={{ 
-          flexGrow: 1, 
-          minWidth: 200,
-          height: 40,
+          width: '100%',
+          height: 32,
           position: 'relative',
         }} 
       >
@@ -269,29 +265,48 @@ export default function AudioPlayerBar({
         )}
       </Box>
 
-      {/* Duration */}
-      <Typography variant="caption" sx={{ minWidth: 40, fontFamily: 'monospace', color: audioUrl ? 'text.primary' : 'text.disabled' }}>
-        {formatTime(duration)}
-      </Typography>
+      {/* Bottom row: Controls */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+        {/* Play/Pause/Stop */}
+        <IconButton onClick={handlePlayPause} size="small" color="primary" disabled={!audioUrl} sx={{ p: 0.5 }}>
+          {isPlaying ? <PauseIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
+        </IconButton>
+        <IconButton onClick={handleStop} size="small" disabled={!audioUrl} sx={{ p: 0.5 }}>
+          <StopIcon fontSize="small" />
+        </IconButton>
 
-      {/* Track info */}
-      <Box sx={{ minWidth: 150, maxWidth: 250, overflow: 'hidden' }}>
-        <Typography 
-          variant="body2" 
-          noWrap 
-          sx={{ fontWeight: 500, fontSize: '0.8rem', color: currentTake ? 'text.primary' : 'text.disabled' }}
-          title={currentTake?.filename || ''}
+        {/* Time display */}
+        <Typography variant="caption" sx={{ fontFamily: 'monospace', fontSize: '0.7rem', color: audioUrl ? 'text.primary' : 'text.disabled' }}>
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </Typography>
+
+        {/* Spacer */}
+        <Box sx={{ flexGrow: 1 }} />
+
+        {/* Track info with status color */}
+        <Box 
+          sx={{ 
+            overflow: 'hidden',
+            bgcolor: getStatusBgColor(),
+            px: 1,
+            py: 0.25,
+            borderRadius: 0.5,
+            transition: 'background-color 0.3s ease',
+            maxWidth: { xs: 120, sm: 200 },
+          }}
         >
-          {currentTake?.filename || 'No track loaded'}
-        </Typography>
-        <Typography variant="caption" color="text.secondary" noWrap>
-          {currentTake ? `Take ${currentTake.take_number}` : '—'}
-        </Typography>
-      </Box>
+          <Typography 
+            variant="caption" 
+            noWrap 
+            sx={{ fontWeight: 500, fontSize: '0.7rem', display: 'block' }}
+            title={currentTake?.filename || ''}
+          >
+            {currentTake?.filename || 'No track'}
+          </Typography>
+        </Box>
 
-      {/* Volume control */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 120 }}>
-        <IconButton onClick={handleMuteToggle} size="small" disabled={!audioUrl}>
+        {/* Volume */}
+        <IconButton onClick={handleMuteToggle} size="small" disabled={!audioUrl} sx={{ p: 0.5 }}>
           {isMuted || volume === 0 ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
         </IconButton>
         <Slider
@@ -302,10 +317,9 @@ export default function AudioPlayerBar({
           step={0.01}
           size="small"
           disabled={!audioUrl}
-          sx={{ width: 80 }}
+          sx={{ width: 60 }}
         />
       </Box>
-
     </Box>
   );
 }

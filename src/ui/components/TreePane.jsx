@@ -165,42 +165,14 @@ export default function TreePane({ width, actors, content, sections, takes = [],
         flexShrink: 0,
         borderRight: 1,
         borderColor: 'divider',
-        overflowY: 'auto',
-        overflowX: 'hidden',
         height: '100%',
-        pt: '0.625rem',
+        maxHeight: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
-      <Typography variant="subtitle2" sx={{ px: '1.25rem', pb: '0.625rem', fontSize: '0.85rem' }}>
-        Project
-      </Typography>
-      
-      {/* Color Legend */}
-      <Box sx={{ px: '1.25rem', pb: '0.625rem', fontSize: '0.7rem', color: 'text.secondary' }}>
-        <Typography variant="caption" sx={{ fontSize: '0.65rem', display: 'block', mb: '0.3125rem' }}>
-          Status:
-        </Typography>
-        <Box sx={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.3125rem' }}>
-            <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'text.disabled' }} />
-            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Not Started</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.3125rem' }}>
-            <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'error.main' }} />
-            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>No Approvals</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.3125rem' }}>
-            <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'warning.main' }} />
-            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>In Progress</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.3125rem' }}>
-            <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'success.main' }} />
-            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Complete</Typography>
-          </Box>
-        </Box>
-      </Box>
-      
-      <List dense disablePadding sx={{ px: '0.3125rem', pb: '0.625rem' }}>
+      <List dense disablePadding sx={{ px: '0.3125rem', py: '0.625rem', flexGrow: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         {/* Render sections in order: Defaults first, then alphabetically */}
         {(() => {
           // Define all available sections with their properties
@@ -271,7 +243,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                       <ListItemButton
                         key={child.id}
                         sx={{ 
-                          pl: '1.75rem', 
+                          pl: '1.5rem', 
                           py: 0, 
                           pr: 0, 
                           minHeight: '1.125rem',
@@ -296,7 +268,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                         <Box key={actor.id}>
                           <ListItemButton
                             sx={{ 
-                              pl: '1.75rem', 
+                              pl: '1.5rem', 
                               py: 0, 
                               pr: 0, 
                               minHeight: '1.125rem',
@@ -332,7 +304,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                                   <Box key={sectionItem.id}>
                                     <ListItemButton
                                       sx={{ 
-                                        pl: '3rem', 
+                                        pl: '2.5rem', 
                                         py: 0, 
                                         pr: 0, 
                                         minHeight: '1.125rem',
@@ -383,7 +355,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                                               <ListItemButton
                                                 key={c.id}
                                                 sx={{ 
-                                                  pl: '4.25rem', 
+                                                  pl: '3.5rem', 
                                                   py: 0, 
                                                   pr: 0, 
                                                   minHeight: '1.125rem',
@@ -425,6 +397,26 @@ export default function TreePane({ width, actors, content, sections, takes = [],
           ));
         })()}
       </List>
+
+      {/* Color Legend at bottom - 2 rows, 2 columns */}
+      <Box sx={{ px: '1rem', py: '0.375rem', color: 'text.secondary', borderTop: 1, borderColor: 'divider', flexShrink: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.125rem 0.5rem' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'success.main' }} />
+          <Typography variant="caption" sx={{ fontSize: '0.6rem', lineHeight: 1.1 }}>Complete</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'warning.main' }} />
+          <Typography variant="caption" sx={{ fontSize: '0.6rem', lineHeight: 1.1 }}>In Progress</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'error.main' }} />
+          <Typography variant="caption" sx={{ fontSize: '0.6rem', lineHeight: 1.1 }}>No Approvals</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'text.disabled' }} />
+          <Typography variant="caption" sx={{ fontSize: '0.6rem', lineHeight: 1.1 }}>Not Started</Typography>
+        </Box>
+      </Box>
     </Box>
   );
 }

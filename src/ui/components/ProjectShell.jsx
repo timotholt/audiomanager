@@ -142,7 +142,7 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
   }
 
   return (
-    <Box ref={containerRef} component="main" sx={{ flexGrow: 1, pt: 8, display: 'flex', minWidth: 0, userSelect: isResizing ? 'none' : 'auto' }}>
+    <Box ref={containerRef} component="main" sx={{ flexGrow: 1, pt: 6, pb: '6rem', display: 'flex', minWidth: 0, userSelect: isResizing ? 'none' : 'auto' }}>
       <TreePane
         width={treePaneWidth}
         actors={actors}

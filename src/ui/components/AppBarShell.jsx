@@ -21,16 +21,17 @@ export default function AppBarShell({
   return (
     <>
       <AppBar position="fixed" color="default" elevation={1} sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }} noWrap>
+        <Toolbar variant="dense" sx={{ minHeight: 40, py: 0.25 }}>
+          <Typography variant="body1" sx={{ flexGrow: 1, fontWeight: 500, fontSize: '0.9rem' }} noWrap>
             VO Foundry
           </Typography>
           <IconButton
             size="small"
             onClick={() => setSettingsOpen(true)}
             aria-label="Settings"
+            sx={{ p: 0.5 }}
           >
-            <SettingsIcon />
+            <SettingsIcon fontSize="small" />
           </IconButton>
         </Toolbar>
       </AppBar>

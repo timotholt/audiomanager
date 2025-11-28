@@ -883,14 +883,16 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
     const existingTakes = await readJsonl<Take>(paths.catalog.takes);
     const takesForContent = existingTakes.filter(t => t.content_id === content.id);
     
-    // Use next_take_number from content if available, otherwise compute from existing takes
-    // This ensures deleted take numbers are never reused
+    // Determine the next take number to use.
+    // We never reuse numbers, even if some takes are deleted.
     const maxExistingTakeNumber = takesForContent.reduce((max, t) => Math.max(max, t.take_number), 0);
-    const baseTakeNumber = Math.max(content.next_take_number || 0, maxExistingTakeNumber);
+    const nextFromExisting = maxExistingTakeNumber + 1; // next after any existing takes
+    const nextFromContent = content.next_take_number ?? 1; // persisted next number, if any
+    let nextTakeNumber = Math.max(nextFromExisting, nextFromContent);
 
     const generatedTakes: Take[] = [];
 
-    for (let i = 1; i <= count; i++) {
+    for (let i = 0; i < count; i++) {
       const buffer = await provider.generateDialogue(
         content.prompt || content.item_id || 'Hello',
         providerSettings.voice_id,
@@ -900,8 +902,9 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
         }
       );
 
-      const takeNumber = baseTakeNumber + i;
-      const filename = `${actor.base_filename}${content.item_id}_take${takeNumber}.wav`;
+      const takeNumber = nextTakeNumber++;
+      const paddedTake = String(takeNumber).padStart(3, '0');
+      const filename = `${actor.base_filename}${content.item_id}_take_${paddedTake}.wav`;
       // Store relative path from media root for URL serving
       const relativePath = join('actors', actor.id, 'dialogue', content.id, 'raw', filename);
       const mediaDir = join(paths.media, 'actors', actor.id, 'dialogue', content.id, 'raw');
@@ -958,12 +961,11 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
     }
 
     // Update content's next_take_number to prevent reuse of deleted take numbers
-    const newNextTakeNumber = baseTakeNumber + count + 1;
     const contentIndex = contentItems.findIndex(c => c.id === id);
     if (contentIndex !== -1) {
       contentItems[contentIndex] = {
         ...contentItems[contentIndex],
-        next_take_number: newNextTakeNumber,
+        next_take_number: nextTakeNumber,
         updated_at: new Date().toISOString(),
       };
       const fsMod = await import('fs-extra');

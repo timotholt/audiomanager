@@ -37,7 +37,7 @@ export default function RootView({ actorOps, error }) {
             disabled={!actorName.trim() || actorOps.creating}
             onClick={() => actorOps.createActor({ display_name: actorName || 'New Actor' }).then(() => setActorName(''))}
           >
-            {actorOps.creating ? 'Creating…' : 'Add Simple Actor'}
+            {actorOps.creating ? 'Creating…' : 'Add Actors'}
           </Button>
         </Stack>
       </Box>

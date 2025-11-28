@@ -132,8 +132,16 @@ export default function ContentView({
       `${newActorBase}_${item.content_type}_${newItemIdConverted}`,
       capitalizationConversion
     );
-    setFilename(item.filename || newBaseFilename);
-  }, [item.item_id, item.prompt, item.filename, item.content_type, actor, blankSpaceConversion, capitalizationConversion]);
+    const effective = item.filename || newBaseFilename;
+    setFilename(effective);
+
+    // If the server doesn't have a filename yet, persist the UI-computed one
+    // so the backend and UI always agree on naming.
+    if (!item.filename && !sectionComplete) {
+      // This will call updateContent('filename', effective)
+      handleSaveField('filename', effective);
+    }
+  }, [item.id, item.item_id, item.prompt, item.filename, item.content_type, actor, blankSpaceConversion, capitalizationConversion, sectionComplete]);
   
   // Compute effective filename (custom or auto-generated)
   const effectiveFilename = filename || baseFilename;
@@ -360,8 +368,8 @@ export default function ContentView({
           size="small"
           onClick={() => {
             setFilename(baseFilename);
-            // Also save to clear any custom filename
-            handleSaveField('filename', '');
+            // Also save so the server uses this exact base filename
+            handleSaveField('filename', baseFilename);
           }}
           disabled={isDisabled || saving || filename === baseFilename}
           title="Reset to default filename"

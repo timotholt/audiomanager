@@ -125,6 +125,7 @@ export default function DetailPane({
       
       return (
         <ContentView 
+          key={data.item.id}
           item={data.item}
           actor={contentActor}
           onContentDeleted={onContentDeleted}

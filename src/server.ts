@@ -892,24 +892,6 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
       return { error: 'Actor not found' };
     }
 
-    // Only support dialogue for now
-    if (content.content_type !== 'dialogue') {
-      reply.code(400);
-      return { error: 'Only dialogue generation is currently supported' };
-    }
-
-    // Get provider settings for dialogue
-    const providerSettings = actor.provider_settings?.dialogue;
-    if (!providerSettings || providerSettings.provider !== 'elevenlabs') {
-      reply.code(400);
-      return { error: 'No ElevenLabs provider configured for dialogue' };
-    }
-
-    if (!providerSettings.voice_id) {
-      reply.code(400);
-      return { error: 'No voice selected for this actor' };
-    }
-
     const provider = await getAudioProvider(projectRoot);
     await ensureJsonlFile(paths.catalog.takes);
     const existingTakes = await readJsonl<Take>(paths.catalog.takes);
@@ -922,24 +904,82 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
     const nextFromContent = content.next_take_number ?? 1; // persisted next number, if any
     let nextTakeNumber = Math.max(nextFromExisting, nextFromContent);
 
+    // Compute the base filename in the same style as the UI's Filenames tab.
+    // Prefer an explicitly stored filename; otherwise, derive from actor base, content type, and a safe item_id.
+    const actorBase = (actor.base_filename || 'unknown').replace(/_+$/, '');
+    const safeItemId = (content.item_id || 'untitled')
+      .trim()
+      .replace(/\s+/g, '_')
+      .toLowerCase();
+    const derivedBaseFilename = `${actorBase}_${content.content_type}_${safeItemId}`;
+    const baseFilename = (content as any).filename && (content as any).filename.trim().length > 0
+      ? (content as any).filename.trim()
+      : derivedBaseFilename;
+
     const generatedTakes: Take[] = [];
 
+    // Capture dialogue settings we want to record on the take metadata
+    let dialogSettingsForMetadata: { voice_id?: string; stability?: number; similarity_boost?: number } | null = null;
+
     for (let i = 0; i < count; i++) {
-      const buffer = await provider.generateDialogue(
-        content.prompt || content.item_id || 'Hello',
-        providerSettings.voice_id,
-        {
-          stability: providerSettings.stability,
-          similarity_boost: providerSettings.similarity_boost,
-        }
-      );
+      const textPrompt = content.prompt || content.item_id || 'Hello';
+      let buffer: Buffer;
+      let relativePath: string;
+      let mediaDir: string;
 
       const takeNumber = nextTakeNumber++;
       const paddedTake = String(takeNumber).padStart(3, '0');
-      const filename = `${actor.base_filename}${content.item_id}_take_${paddedTake}.wav`;
-      // Store relative path from media root for URL serving
-      const relativePath = join('actors', actor.id, 'dialogue', content.id, 'raw', filename);
-      const mediaDir = join(paths.media, 'actors', actor.id, 'dialogue', content.id, 'raw');
+      const filename = `${baseFilename}_take_${paddedTake}.wav`;
+
+      if (content.content_type === 'dialogue') {
+        const providerSettings = actor.provider_settings?.dialogue;
+        if (!providerSettings || providerSettings.provider !== 'elevenlabs') {
+          reply.code(400);
+          return { error: 'No ElevenLabs provider configured for dialogue' };
+        }
+        if (!providerSettings.voice_id) {
+          reply.code(400);
+          return { error: 'No voice selected for this actor' };
+        }
+
+        buffer = await provider.generateDialogue(
+          textPrompt,
+          providerSettings.voice_id,
+          {
+            stability: providerSettings.stability,
+            similarity_boost: providerSettings.similarity_boost,
+          }
+        );
+
+        // Store relative path from media root for URL serving (dialogue)
+        relativePath = join('actors', actor.id, 'dialogue', content.id, 'raw', filename);
+        mediaDir = join(paths.media, 'actors', actor.id, 'dialogue', content.id, 'raw');
+
+        // Save settings for generation_params metadata
+        dialogSettingsForMetadata = {
+          voice_id: providerSettings.voice_id,
+          stability: providerSettings.stability,
+          similarity_boost: providerSettings.similarity_boost,
+        };
+      } else if (content.content_type === 'music') {
+        const musicSettings = actor.provider_settings?.music;
+        if (!musicSettings || musicSettings.provider !== 'elevenlabs') {
+          reply.code(400);
+          return { error: 'No ElevenLabs provider configured for music' };
+        }
+
+        buffer = await provider.generateMusic(textPrompt, {
+          duration_seconds: 60, // TODO: make configurable per content/actor
+        });
+
+        // Store relative path from media root for URL serving (music)
+        relativePath = join('actors', actor.id, 'music', content.id, 'raw', filename);
+        mediaDir = join(paths.media, 'actors', actor.id, 'music', content.id, 'raw');
+      } else {
+        reply.code(400);
+        return { error: `Generation not supported for content type "${content.content_type}"` };
+      }
+
       const filePath = join(mediaDir, filename);
 
       await import('fs-extra').then(async (fsMod) => {
@@ -960,6 +1000,24 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
       const rawChannels = primaryStream?.channels ?? 1;
 
       const now = new Date().toISOString();
+
+      // Generation params differ for dialogue vs music
+      const generationParams = content.content_type === 'dialogue' && dialogSettingsForMetadata
+        ? {
+            provider: 'elevenlabs',
+            voice_id: dialogSettingsForMetadata.voice_id,
+            stability: dialogSettingsForMetadata.stability,
+            similarity_boost: dialogSettingsForMetadata.similarity_boost,
+            prompt: textPrompt,
+            generated_at: now,
+          }
+        : {
+            provider: 'elevenlabs',
+            model_id: 'music_v1',
+            prompt: textPrompt,
+            generated_at: now,
+          };
+
       const take: Take = {
         id: generateId(),
         content_id: content.id,
@@ -976,14 +1034,7 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
         lufs_integrated: 0,
         peak_dbfs: 0,
         generated_by: 'elevenlabs',
-        generation_params: {
-          provider: 'elevenlabs',
-          voice_id: providerSettings.voice_id,
-          stability: providerSettings.stability,
-          similarity_boost: providerSettings.similarity_boost,
-          prompt: content.prompt || content.item_id || 'Hello',
-          generated_at: now,
-        },
+        generation_params: generationParams,
         created_at: now,
         updated_at: now,
       };

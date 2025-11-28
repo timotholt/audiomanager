@@ -8,6 +8,7 @@ import { registerSectionRoutes } from './server/routes/sections.js';
 import { registerDefaultsRoutes } from './server/routes/defaults.js';
 import { registerProviderRoutes } from './server/routes/provider.js';
 import { registerGenerationRoutes } from './server/routes/generation.js';
+import llmRoutes from './server/routes/llm.js';
 
 const fastify = Fastify({
   logger: false,
@@ -44,6 +45,7 @@ registerSectionRoutes(fastify, getProjectContext);
 registerDefaultsRoutes(fastify, getProjectContext);
 registerProviderRoutes(fastify, getProjectContext);
 registerGenerationRoutes(fastify, getProjectContext);
+fastify.register(llmRoutes);
 
 async function start() {
   try {

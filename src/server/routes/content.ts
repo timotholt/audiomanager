@@ -223,7 +223,7 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       const generatedTakes: Take[] = [];
 
       // Capture dialogue settings we want to record on the take metadata
-      let dialogSettingsForMetadata: { voice_id?: string; stability?: number; similarity_boost?: number } | null = null;
+      let dialogSettingsForMetadata: { voice_id?: string; model_id?: string; stability?: number; similarity_boost?: number } | null = null;
 
       for (let i = 0; i < count; i++) {
         const textPrompt = content.prompt || content.item_id || 'Hello';
@@ -252,7 +252,8 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
             {
               stability: providerSettings.stability,
               similarity_boost: providerSettings.similarity_boost,
-            }
+            },
+            providerSettings.model_id
           );
 
           relativePath = join('actors', actor.id, 'dialogue', content.id, 'raw', filename);
@@ -260,6 +261,7 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
 
           dialogSettingsForMetadata = {
             voice_id: providerSettings.voice_id,
+            model_id: providerSettings.model_id,
             stability: providerSettings.stability,
             similarity_boost: providerSettings.similarity_boost,
           };
@@ -317,6 +319,7 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
           generationParams = {
             provider: 'elevenlabs',
             voice_id: dialogSettingsForMetadata.voice_id,
+            model_id: dialogSettingsForMetadata.model_id,
             stability: dialogSettingsForMetadata.stability,
             similarity_boost: dialogSettingsForMetadata.similarity_boost,
             prompt: textPrompt,

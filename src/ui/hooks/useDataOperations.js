@@ -39,6 +39,11 @@ export function useDataOperations({
       setLoadingVoices(true);
       setError(null);
       const result = await getVoices();
+      // Debug: log voice data to see what fields are available
+      if (result.voices?.length > 0) {
+        console.log('[useDataOperations] Sample voice data:', result.voices[0]);
+        console.log('[useDataOperations] high_quality_base_model_ids:', result.voices[0].high_quality_base_model_ids);
+      }
       setVoices(result.voices || []);
       if (!result.voices || result.voices.length === 0) {
         setError('No voices available from ElevenLabs');
@@ -142,7 +147,7 @@ export function useDataOperations({
     
     // Valid keys per content type
     const validKeys = contentType === 'dialogue'
-      ? ['provider', 'voice_id', 'batch_generate', 'approval_count_default', 'stability', 'similarity_boost']
+      ? ['provider', 'voice_id', 'model_id', 'batch_generate', 'approval_count_default', 'stability', 'similarity_boost']
       : ['provider', 'batch_generate', 'approval_count_default'];
     
     const sanitized = {};

@@ -5,7 +5,8 @@
     "approval_count_default": 1,
     "stability": 0.4,
     "similarity_boost": 0.75,
-    "voice_id": "SOYHLrjzK2X1ezoPC6cr"
+    "voice_id": "SOYHLrjzK2X1ezoPC6cr",
+    "model_id": "eleven_v3"
   },
   "music": {
     "provider": "elevenlabs",

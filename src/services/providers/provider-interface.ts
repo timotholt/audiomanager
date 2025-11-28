@@ -41,7 +41,8 @@ export interface AudioProvider {
     generateDialogue(
         text: string,
         voiceId: string,
-        settings?: VoiceSettings
+        settings?: VoiceSettings,
+        modelId?: string
     ): Promise<Buffer>;
 
     /**
@@ -62,5 +63,5 @@ export interface AudioProvider {
     /**
      * Get available voices
      */
-    getVoices(): Promise<Array<{ voice_id: string; name: string; category?: string }>>;
+    getVoices(): Promise<Array<{ voice_id: string; name: string; category?: string; high_quality_base_model_ids?: string[] }>>;
 }

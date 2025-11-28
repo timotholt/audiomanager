@@ -26,6 +26,7 @@ export interface Actor {
         dialogue?: {
             provider: 'elevenlabs' | 'manual' | 'inherit';
             voice_id?: string;
+            model_id?: string;
             batch_generate?: number;
             approval_count_default?: number;
             stability?: number;

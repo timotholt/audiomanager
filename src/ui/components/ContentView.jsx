@@ -23,8 +23,14 @@ import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { deleteContent, updateContent, getTakes, updateTake, generateTakes, deleteTake } from '../api/client.js';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
+
+// Local storage key for LLM settings (same as SettingsDialog)
+const LLM_STORAGE_KEY = 'vofoundry-llm-settings';
 
 // Helper to format date as "11/27 @ 3:22pm"
 function formatStatusDate(isoString) {
@@ -113,6 +119,10 @@ export default function ContentView({
   // Initialize filename with stored value or auto-generated baseFilename
   const [filename, setFilename] = useState(item.filename || baseFilename);
   const [saving, setSaving] = useState(false);
+  
+  // AI prompt generation state
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
   
   // Takes
   const [takes, setTakes] = useState([]);
@@ -283,6 +293,106 @@ export default function ContentView({
   };
 
   const isDisabled = sectionComplete;
+
+  // AI prompt handlers
+  const getLLMSettings = () => {
+    try {
+      const stored = localStorage.getItem(LLM_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleAIGenerate = async () => {
+    const settings = getLLMSettings();
+    if (!settings?.apiKey) {
+      setAiError('Configure AI in Settings first');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError('');
+
+    try {
+      const res = await fetch('/api/llm/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: settings.provider,
+          apiKey: settings.apiKey,
+          model: settings.model,
+          systemPrompt: settings.systemPrompts?.generate || '',
+          contentName: item.item_id || 'untitled',
+          actorName: actor?.name || '',
+          sectionType: item.content_type
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.prompt) {
+        setPrompt(data.prompt);
+        handleSaveField('prompt', data.prompt);
+      } else {
+        setAiError(data.error || data.details || 'Failed to generate');
+      }
+    } catch (err) {
+      setAiError(err.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAIImprove = async () => {
+    const settings = getLLMSettings();
+    if (!settings?.apiKey) {
+      setAiError('Configure AI in Settings first');
+      return;
+    }
+
+    if (!prompt.trim()) {
+      setAiError('Enter a prompt first');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError('');
+
+    try {
+      const res = await fetch('/api/llm/improve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: settings.provider,
+          apiKey: settings.apiKey,
+          model: settings.model,
+          systemPrompt: settings.systemPrompts?.improve || '',
+          currentPrompt: prompt,
+          contentName: item.item_id || 'untitled',
+          sectionType: item.content_type
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.prompt) {
+        setPrompt(data.prompt);
+        handleSaveField('prompt', data.prompt);
+      } else {
+        setAiError(data.error || data.details || 'Failed to improve');
+      }
+    } catch (err) {
+      setAiError(err.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleResetPrompt = () => {
+    const newDefault = item.item_id ? item.item_id.charAt(0).toUpperCase() + item.item_id.slice(1) : '';
+    setPrompt(newDefault);
+    handleSaveField('prompt', newDefault);
+    setAiError('');
+  };
   
   // Compute approval progress
   const approvedCount = takes.filter(t => t.status === 'approved').length;
@@ -318,19 +428,67 @@ export default function ContentView({
         sx={{ mb: DESIGN_SYSTEM.spacing.elementGap, ...DESIGN_SYSTEM.components.formControl }}
       />
 
-      {/* Editable Prompt */}
-      <TextField
-        fullWidth
-        size="small"
-        multiline
-        rows={3}
-        label="Prompt"
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        onBlur={() => prompt !== item.prompt && handleSaveField('prompt', prompt)}
-        disabled={isDisabled || saving}
-        sx={{ mb: DESIGN_SYSTEM.spacing.elementGap, ...DESIGN_SYSTEM.components.formControl }}
-      />
+      {/* Editable Prompt with AI toolbar */}
+      <Box sx={{ mb: DESIGN_SYSTEM.spacing.elementGap }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">Prompt</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {aiLoading && <CircularProgress size={16} />}
+            <Tooltip title="Generate prompt with AI">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={handleAIGenerate}
+                  disabled={isDisabled || aiLoading}
+                  sx={{ p: 0.5 }}
+                >
+                  <AutoAwesomeIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Improve prompt with AI">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={handleAIImprove}
+                  disabled={isDisabled || aiLoading || !prompt.trim()}
+                  sx={{ p: 0.5 }}
+                >
+                  <AutoFixHighIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Reset to default">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={handleResetPrompt}
+                  disabled={isDisabled}
+                  sx={{ p: 0.5 }}
+                >
+                  <RestartAltIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
+        </Box>
+        <TextField
+          fullWidth
+          size="small"
+          multiline
+          rows={3}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onBlur={() => prompt !== item.prompt && handleSaveField('prompt', prompt)}
+          disabled={isDisabled || saving}
+          sx={DESIGN_SYSTEM.components.formControl}
+        />
+        {aiError && (
+          <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+            {aiError}
+          </Typography>
+        )}
+      </Box>
 
       {/* Editable Filename */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>

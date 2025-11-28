@@ -37,6 +37,7 @@ export function registerProviderRoutes(fastify: FastifyInstance, getProjectConte
         text?: string;
         stability?: number;
         similarity_boost?: number;
+        model_id?: string;
       };
 
       if (!body.voice_id) {
@@ -49,17 +50,18 @@ export function registerProviderRoutes(fastify: FastifyInstance, getProjectConte
         stability: body.stability || 0.5,
         similarity_boost: body.similarity_boost || 0.75
       };
+      const modelId = body.model_id || 'eleven_multilingual_v2';
 
-      // Create cache key based on voice and settings
-      const cacheKey = `${body.voice_id}-${settings.stability}-${settings.similarity_boost}-${sampleText}`;
+      // Create cache key based on voice, settings, and model
+      const cacheKey = `${body.voice_id}-${modelId}-${settings.stability}-${settings.similarity_boost}-${sampleText}`;
       
       // Check if we have cached audio
       let base64Audio = voicePreviewCache.get(cacheKey);
       
       if (!base64Audio) {
         // Generate new audio and cache it
-        fastify.log.info(`Generating new voice preview for voice: ${body.voice_id}`);
-        const audioBuffer = await provider.generateDialogue(sampleText, body.voice_id, settings);
+        fastify.log.info(`Generating new voice preview for voice: ${body.voice_id} with model: ${modelId}`);
+        const audioBuffer = await provider.generateDialogue(sampleText, body.voice_id, settings, modelId);
         base64Audio = audioBuffer.toString('base64');
         voicePreviewCache.set(cacheKey, base64Audio);
       } else {

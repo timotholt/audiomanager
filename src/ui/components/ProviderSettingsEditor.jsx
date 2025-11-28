@@ -54,7 +54,7 @@ export default function ProviderSettingsEditor({
     if (!rawSettings || rawSettings.provider === 'inherit') {
       return { provider: 'inherit' };
     }
-    const validKeys = ['provider', 'voice_id', 'batch_generate', 'approval_count_default', 'stability', 'similarity_boost'];
+    const validKeys = ['provider', 'voice_id', 'model_id', 'batch_generate', 'approval_count_default', 'stability', 'similarity_boost'];
     const sanitized = {};
     for (const key of validKeys) {
       if (rawSettings[key] !== undefined) {
@@ -64,9 +64,27 @@ export default function ProviderSettingsEditor({
     return sanitized;
   };
 
+  // Use currentSettings as base to ensure we're working with actual values, not undefined
+  const getBaseSettings = () => {
+    const isInheriting = settings?.provider === 'inherit';
+    return isInheriting ? DEFAULT_SETTINGS[contentType] : (settings || DEFAULT_SETTINGS[contentType]);
+  };
+
   const handleChange = (key, value) => {
     if (onSettingsChange) {
-      const newSettings = { ...settings, [key]: value };
+      const base = getBaseSettings();
+      const newSettings = { ...base, [key]: value };
+      console.log('[ProviderSettingsEditor] handleChange:', key, value, 'new settings:', newSettings);
+      onSettingsChange(sanitizeSettings(newSettings));
+    }
+  };
+
+  // Handle multiple changes at once to avoid stale state issues
+  const handleMultiChange = (changes) => {
+    if (onSettingsChange) {
+      const base = getBaseSettings();
+      const newSettings = { ...base, ...changes };
+      console.log('[ProviderSettingsEditor] handleMultiChange:', changes, 'new settings:', newSettings);
       onSettingsChange(sanitizeSettings(newSettings));
     }
   };
@@ -74,10 +92,11 @@ export default function ProviderSettingsEditor({
   const handlePlayPreview = async () => {
     if (!currentSettings.voice_id) return;
     
-    // Create cache key based on voice settings
+    // Create cache key based on voice settings and model
     const stability = currentSettings.stability || 0.5;
     const similarityBoost = currentSettings.similarity_boost || 0.75;
-    const cacheKey = `${currentSettings.voice_id}-${stability}-${similarityBoost}`;
+    const modelId = currentSettings.model_id || 'eleven_multilingual_v2';
+    const cacheKey = `${currentSettings.voice_id}-${modelId}-${stability}-${similarityBoost}`;
     
     try {
       setPlayingPreview(true);
@@ -87,12 +106,13 @@ export default function ProviderSettingsEditor({
       
       if (!audioData) {
         // Generate new audio and cache it
-        console.log('Generating new voice preview for:', currentSettings.voice_id);
+        console.log('Generating new voice preview for:', currentSettings.voice_id, 'with model:', modelId);
         const result = await previewVoice(
           currentSettings.voice_id,
           "The quick brown fox jumps over the lazy dog!",
           stability,
-          similarityBoost
+          similarityBoost,
+          modelId
         );
         audioData = result.audio;
         voicePreviewCache.set(cacheKey, audioData);
@@ -160,6 +180,26 @@ export default function ProviderSettingsEditor({
           {/* ElevenLabs Settings */}
           {currentSettings.provider === 'elevenlabs' && (
             <>
+              {/* Model selection for dialogue */}
+              {contentType === 'dialogue' && (
+                <FormControl size="small" sx={DESIGN_SYSTEM.components.formControl}>
+                  <InputLabel>Model</InputLabel>
+                  <Select
+                    value={currentSettings.model_id || 'eleven_multilingual_v2'}
+                    label="Model"
+                    onChange={(e) => {
+                      console.log('[ProviderSettingsEditor] Model onChange fired:', e.target.value);
+                      handleChange('model_id', e.target.value);
+                    }}
+                  >
+                    <MenuItem value="eleven_v3">Eleven v3 (alpha) - Audio tags [angry], [whispers]</MenuItem>
+                    <MenuItem value="eleven_multilingual_v2">Eleven Multilingual v2 - Best quality</MenuItem>
+                    <MenuItem value="eleven_turbo_v2_5">Eleven Turbo v2.5 - Fast, multilingual</MenuItem>
+                    <MenuItem value="eleven_flash_v2_5">Eleven Flash v2.5 - Ultra fast</MenuItem>
+                  </Select>
+                </FormControl>
+              )}
+
               {/* Voice selection only for dialogue - Voice and Play Sample on same line */}
               {contentType === 'dialogue' && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -180,13 +220,29 @@ export default function ProviderSettingsEditor({
                         <MenuItem value="" disabled>
                           {loadingVoices ? 'Loading voices...' : 'No voices available (check API key)'}
                         </MenuItem>
-                      ) : (
-                        voices.map((voice) => (
+                      ) : (() => {
+                        const selectedModel = currentSettings.model_id || 'eleven_multilingual_v2';
+                        // Filter voices that support the selected model
+                        const compatibleVoices = voices.filter(voice => {
+                          const modelIds = voice.high_quality_base_model_ids || [];
+                          // Check if voice supports the selected model
+                          return modelIds.some(id => id.includes(selectedModel) || selectedModel.includes(id));
+                        });
+                        
+                        if (compatibleVoices.length === 0) {
+                          return (
+                            <MenuItem value="" disabled>
+                              No voices available for this model
+                            </MenuItem>
+                          );
+                        }
+                        
+                        return compatibleVoices.map((voice) => (
                           <MenuItem key={voice.voice_id} value={voice.voice_id}>
                             {voice.name}
                           </MenuItem>
-                        ))
-                      )}
+                        ));
+                      })()}
                     </Select>
                   </FormControl>
                   

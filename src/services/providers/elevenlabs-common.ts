@@ -65,7 +65,15 @@ export class ElevenLabsCommonApi {
         const response = await fetch(url, options);
 
         if (!response.ok) {
-          throw new Error(`API error: ${response.status} ${response.statusText}`);
+          // Try to get error details from response body
+          let errorDetails = '';
+          try {
+            const errorBody = await response.text();
+            errorDetails = ` - ${errorBody}`;
+          } catch {
+            // Ignore if we can't read the body
+          }
+          throw new Error(`API error: ${response.status} ${response.statusText}${errorDetails}`);
         }
 
         const arrayBuffer = await response.arrayBuffer();

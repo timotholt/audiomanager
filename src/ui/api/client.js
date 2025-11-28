@@ -136,7 +136,7 @@ export async function updateGlobalDefaults(contentType, settings) {
   return res.json();
 }
 
-export async function previewVoice(voiceId, text, stability, similarityBoost) {
+export async function previewVoice(voiceId, text, stability, similarityBoost, modelId) {
   const res = await fetch('/api/voices/preview', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -144,7 +144,8 @@ export async function previewVoice(voiceId, text, stability, similarityBoost) {
       voice_id: voiceId,
       text: text,
       stability: stability,
-      similarity_boost: similarityBoost
+      similarity_boost: similarityBoost,
+      model_id: modelId
     }),
   });
   if (!res.ok) {

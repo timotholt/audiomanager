@@ -17,6 +17,15 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
   const [playingContentId, setPlayingContentId] = useState(null);
   const [playingTakeId, setPlayingTakeId] = useState(null);
   const [audioElement, setAudioElement] = useState(null);
+  const [playedTakes, setPlayedTakes] = useState(() => {
+    try {
+      const saved = localStorage.getItem('audiomanager-played-takes');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      console.warn('Failed to load played takes from localStorage:', e);
+      return {};
+    }
+  });
 
   // Memoize the callback to prevent unnecessary re-renders
   const handleExpandNode = useCallback((expandNodeFunction) => {
@@ -65,6 +74,7 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
     setAudioElement(audio);
     setPlayingContentId(contentId);
     setPlayingTakeId(take.id);
+    setPlayedTakes((prev) => ({ ...prev, [take.id]: true }));
     audio.play().catch((err) => {
       console.error('Failed to play take:', err);
       setAudioElement(null);
@@ -72,6 +82,14 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
       setPlayingTakeId(null);
     });
   }, [audioElement, playingContentId, playingTakeId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('audiomanager-played-takes', JSON.stringify(playedTakes));
+    } catch (e) {
+      console.warn('Failed to save played takes to localStorage:', e);
+    }
+  }, [playedTakes]);
 
   useEffect(() => {
     let cancelled = false;
@@ -129,6 +147,7 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         onSelect={setSelectedNode}
         onExpandNode={handleExpandNode}
         playingContentId={playingContentId}
+        playedTakes={playedTakes}
       />
       <DetailPane
         actors={actors}
@@ -184,6 +203,8 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         playingTakeId={playingTakeId}
         onPlayRequest={handlePlayTakeGlobal}
         onStopRequest={handleStopPlayback}
+        playedTakes={playedTakes}
+        onTakePlayed={(takeId) => setPlayedTakes((prev) => ({ ...prev, [takeId]: true }))}
       />
     </Box>
   );

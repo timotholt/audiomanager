@@ -84,6 +84,8 @@ export default function ContentView({
   playingTakeId,
   onPlayRequest,
   onStopRequest,
+  playedTakes = {},
+  onTakePlayed,
   error: parentError 
 }) {
   // Build the base filename for this content item
@@ -116,7 +118,6 @@ export default function ContentView({
   const [loadingTakes, setLoadingTakes] = useState(false);
   const [generatingTakes, setGeneratingTakes] = useState(false);
   const [expandedTakes, setExpandedTakes] = useState({});
-  const [playedTakes, setPlayedTakes] = useState({});
 
   // Sync local state when item changes
   useEffect(() => {
@@ -203,8 +204,10 @@ export default function ContentView({
   };
 
   const handlePlayTake = (take) => {
-    // Mark as played so (new) tag goes away
-    setPlayedTakes(prev => ({ ...prev, [take.id]: true }));
+    // Mark as played so (new) tag goes away everywhere
+    if (onTakePlayed) {
+      onTakePlayed(take.id);
+    }
 
     const isCurrentlyPlaying = playingContentId === item.id && playingTakeId === take.id;
 

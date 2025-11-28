@@ -98,7 +98,7 @@ function getActorStatus(actor, sections, content, takes) {
   return worstStatus;
 }
 
-export default function TreePane({ actors, content, sections, takes = [], selectedNode, onSelect, onExpandNode, playingContentId }) {
+export default function TreePane({ actors, content, sections, takes = [], selectedNode, onSelect, onExpandNode, playingContentId, playedTakes = {} }) {
   const selectedId = selectedNode ? nodeKey(selectedNode.type, selectedNode.id) : null;
   
   // Load expanded state from localStorage or use defaults
@@ -355,9 +355,17 @@ export default function TreePane({ actors, content, sections, takes = [], select
                                           .filter((c) => c.actor_id === actor.id && c.content_type === sectionType)
                                           .map((c) => {
                                             const contentStatus = getContentStatus(c, takes);
-                                            const displayText = contentStatus.approvedCount > 0 
+                                            const contentTakes = takes.filter(t => t.content_id === c.id);
+                                            const newCount = contentTakes.filter(t => t.status === 'new' && !playedTakes[t.id]).length;
+
+                                            let displayText = contentStatus.approvedCount > 0 
                                               ? `${c.item_id || c.id} (${contentStatus.approvedCount})`
                                               : (c.item_id || c.id);
+
+                                            if (newCount > 0) {
+                                              displayText += ` (${newCount} new)`;
+                                            }
+
                                             const isPlaying = playingContentId === c.id;
 
                                             const iconColor = isPlaying ? 'common.white' : contentStatus.color;

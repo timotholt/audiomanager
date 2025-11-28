@@ -98,7 +98,7 @@ function getActorStatus(actor, sections, content, takes) {
   return worstStatus;
 }
 
-export default function TreePane({ actors, content, sections, takes = [], selectedNode, onSelect, onExpandNode }) {
+export default function TreePane({ actors, content, sections, takes = [], selectedNode, onSelect, onExpandNode, playingContentId }) {
   const selectedId = selectedNode ? nodeKey(selectedNode.type, selectedNode.id) : null;
   
   // Load expanded state from localStorage or use defaults
@@ -358,6 +358,15 @@ export default function TreePane({ actors, content, sections, takes = [], select
                                             const displayText = contentStatus.approvedCount > 0 
                                               ? `${c.item_id || c.id} (${contentStatus.approvedCount})`
                                               : (c.item_id || c.id);
+                                            const isPlaying = playingContentId === c.id;
+
+                                            const iconColor = isPlaying ? 'common.white' : contentStatus.color;
+                                            const contentIcon = sectionType === 'dialogue'
+                                              ? <RecordVoiceOverIcon sx={{ fontSize: '0.625rem', color: iconColor }} />
+                                              : sectionType === 'music'
+                                                ? <MusicNoteIcon sx={{ fontSize: '0.625rem', color: iconColor }} />
+                                                : <GraphicEqIcon sx={{ fontSize: '0.625rem', color: iconColor }} />;
+
                                             return (
                                               <ListItemButton
                                                 key={c.id}
@@ -373,7 +382,7 @@ export default function TreePane({ actors, content, sections, takes = [], select
                                                 onClick={() => handleSelect('content', c.id)}
                                               >
                                                 <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                                                  <DescriptionIcon sx={{ fontSize: '0.625rem', color: contentStatus.color }} />
+                                                  {contentIcon}
                                                 </ListItemIcon>
                                                 <ListItemText 
                                                   primary={displayText} 

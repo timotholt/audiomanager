@@ -971,10 +971,23 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
         buffer = await provider.generateMusic(textPrompt, {
           duration_seconds: 60, // TODO: make configurable per content/actor
         });
-
         // Store relative path from media root for URL serving (music)
         relativePath = join('actors', actor.id, 'music', content.id, 'raw', filename);
         mediaDir = join(paths.media, 'actors', actor.id, 'music', content.id, 'raw');
+      } else if (content.content_type === 'sfx') {
+        const sfxSettings = actor.provider_settings?.sfx;
+        if (!sfxSettings || sfxSettings.provider !== 'elevenlabs') {
+          reply.code(400);
+          return { error: 'No ElevenLabs provider configured for sfx' };
+        }
+
+        buffer = await provider.generateSFX(textPrompt, {
+          // For now, use simple defaults; can be extended with duration / influence later.
+        } as any);
+
+        // Store relative path from media root for URL serving (sfx)
+        relativePath = join('actors', actor.id, 'sfx', content.id, 'raw', filename);
+        mediaDir = join(paths.media, 'actors', actor.id, 'sfx', content.id, 'raw');
       } else {
         reply.code(400);
         return { error: `Generation not supported for content type "${content.content_type}"` };
@@ -1001,22 +1014,38 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
 
       const now = new Date().toISOString();
 
-      // Generation params differ for dialogue vs music
-      const generationParams = content.content_type === 'dialogue' && dialogSettingsForMetadata
-        ? {
-            provider: 'elevenlabs',
-            voice_id: dialogSettingsForMetadata.voice_id,
-            stability: dialogSettingsForMetadata.stability,
-            similarity_boost: dialogSettingsForMetadata.similarity_boost,
-            prompt: textPrompt,
-            generated_at: now,
-          }
-        : {
-            provider: 'elevenlabs',
-            model_id: 'music_v1',
-            prompt: textPrompt,
-            generated_at: now,
-          };
+      // Generation params differ for dialogue vs music vs sfx
+      let generationParams: any;
+      if (content.content_type === 'dialogue' && dialogSettingsForMetadata) {
+        generationParams = {
+          provider: 'elevenlabs',
+          voice_id: dialogSettingsForMetadata.voice_id,
+          stability: dialogSettingsForMetadata.stability,
+          similarity_boost: dialogSettingsForMetadata.similarity_boost,
+          prompt: textPrompt,
+          generated_at: now,
+        };
+      } else if (content.content_type === 'music') {
+        generationParams = {
+          provider: 'elevenlabs',
+          model_id: 'music_v1',
+          prompt: textPrompt,
+          generated_at: now,
+        };
+      } else if (content.content_type === 'sfx') {
+        generationParams = {
+          provider: 'elevenlabs',
+          type: 'sfx',
+          prompt: textPrompt,
+          generated_at: now,
+        };
+      } else {
+        generationParams = {
+          provider: 'elevenlabs',
+          prompt: textPrompt,
+          generated_at: now,
+        };
+      }
 
       const take: Take = {
         id: generateId(),

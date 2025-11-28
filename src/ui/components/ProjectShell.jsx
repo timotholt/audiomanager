@@ -128,6 +128,7 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         selectedNode={selectedNode}
         onSelect={setSelectedNode}
         onExpandNode={handleExpandNode}
+        playingContentId={playingContentId}
       />
       <DetailPane
         actors={actors}

@@ -55,21 +55,24 @@ function getSectionStatus(sectionItem, content, takes) {
   if (sectionContent.length === 0) {
     return { status: 'gray', color: 'text.disabled' };
   }
-  
-  // Get worst status among children
-  let worstPriority = -1;
-  let worstStatus = { status: 'gray', color: 'text.disabled' };
-  
+
+  // Aggregate child statuses with explicit precedence:
+  // RED > YELLOW > GREEN > GRAY
+  let hasRed = false;
+  let hasYellow = false;
+  let hasGreen = false;
+
   for (const c of sectionContent) {
     const status = getContentStatus(c, takes);
-    const priority = STATUS_PRIORITY[status.status];
-    if (priority > worstPriority) {
-      worstPriority = priority;
-      worstStatus = status;
-    }
+    if (status.status === 'red') hasRed = true;
+    else if (status.status === 'yellow') hasYellow = true;
+    else if (status.status === 'green') hasGreen = true;
   }
-  
-  return worstStatus;
+
+  if (hasRed) return { status: 'red', color: 'error.main' };
+  if (hasYellow) return { status: 'yellow', color: 'warning.main' };
+  if (hasGreen) return { status: 'green', color: 'success.main' };
+  return { status: 'gray', color: 'text.disabled' };
 }
 
 function getActorStatus(actor, sections, content, takes) {

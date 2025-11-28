@@ -27,6 +27,8 @@ export default function DetailPane({
   onSectionUpdated,
   onContentUpdated,
   onSectionDeleted,
+  onTakesGenerated,
+  onTakeUpdated,
   blankSpaceConversion,
   capitalizationConversion 
 }) {
@@ -129,6 +131,8 @@ export default function DetailPane({
           sectionComplete={contentSectionComplete}
           blankSpaceConversion={blankSpaceConversion}
           capitalizationConversion={capitalizationConversion}
+          onTakesGenerated={onTakesGenerated}
+          onTakeUpdated={onTakeUpdated}
           error={commonError}
         />
       );

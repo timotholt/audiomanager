@@ -65,19 +65,13 @@ export function useDataOperations({
       setCreatingContent(true);
       setError(null);
       
-      // If no prompt provided, use the item ID as the default prompt (with title case)
-      const defaultPrompt = contentItemId
-        .split(',')
-        .map(id => id.trim())
-        .filter(id => id)
-        .map(id => id.charAt(0).toUpperCase() + id.slice(1))
-        .join(', ');
-      
+      // Only send prompt if user explicitly provided one
+      // Server will default each item's prompt to its own item_id
       const result = await createContent({
         actor_id: actorId,
         content_type: contentType,
         item_id: contentItemId,
-        prompt: contentPrompt || defaultPrompt,
+        prompt: contentPrompt || undefined,
       });
       if (result && result.content && onContentCreated) {
         if (Array.isArray(result.content)) {

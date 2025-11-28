@@ -3,12 +3,13 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TreePane from './TreePane.jsx';
 import DetailPane from './DetailPane.jsx';
-import { getActors, getContent, getSections, deleteSection } from '../api/client.js';
+import { getActors, getContent, getSections, getTakes, deleteSection } from '../api/client.js';
 
 export default function ProjectShell({ blankSpaceConversion, capitalizationConversion }) {
   const [actors, setActors] = useState([]);
   const [content, setContent] = useState([]);
   const [sections, setSections] = useState([]); // Track sections separately from content
+  const [takes, setTakes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedNode, setSelectedNode] = useState(null);
@@ -24,15 +25,17 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
     async function load() {
       try {
         setLoading(true);
-        const [actorsRes, contentRes, sectionsRes] = await Promise.all([
+        const [actorsRes, contentRes, sectionsRes, takesRes] = await Promise.all([
           getActors(), 
           getContent(), 
-          getSections()
+          getSections(),
+          getTakes()
         ]);
         if (cancelled) return;
         setActors(actorsRes.actors || []);
         setContent(contentRes.content || []);
         setSections(sectionsRes.sections || []);
+        setTakes(takesRes.takes || []);
         setError(null);
       } catch (err) {
         if (!cancelled) setError(err.message || String(err));
@@ -68,6 +71,7 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         actors={actors}
         content={content}
         sections={sections}
+        takes={takes}
         selectedNode={selectedNode}
         onSelect={setSelectedNode}
         onExpandNode={handleExpandNode}
@@ -99,6 +103,12 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         }}
         onContentUpdated={(updatedContent) => {
           setContent((prev) => prev.map(c => c.id === updatedContent.id ? updatedContent : c));
+        }}
+        onTakesGenerated={(newTakes) => {
+          setTakes((prev) => [...prev, ...newTakes]);
+        }}
+        onTakeUpdated={(updatedTake) => {
+          setTakes((prev) => prev.map(t => t.id === updatedTake.id ? updatedTake : t));
         }}
         onSectionDeleted={async (sectionId) => {
           try {

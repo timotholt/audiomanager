@@ -19,22 +19,83 @@ function nodeKey(type, id) {
   return `${type}:${id}`;
 }
 
-function getContentStatusColor(content) {
-  // RED: Missing item_id OR missing prompt (can't generate)
-  if (!content.item_id?.trim() || !content.prompt?.trim()) {
-    return 'error.main';
-  }
+// Status priority: red (3) > yellow (2) > gray (1) > green (0)
+const STATUS_PRIORITY = { green: 0, gray: 1, yellow: 2, red: 3 };
+
+function getContentStatus(content, takes = []) {
+  const contentTakes = takes.filter(t => t.content_id === content.id);
+  const approvedCount = contentTakes.filter(t => t.status === 'approved').length;
+  const hasRejected = contentTakes.some(t => t.status === 'rejected');
+  const hasTakes = contentTakes.length > 0;
   
-  // GREEN: Complete and approved
+  // GREEN: all_approved flag is set (reached required approval count)
   if (content.all_approved) {
-    return 'success.main';
+    return { status: 'green', color: 'success.main', approvedCount };
   }
   
-  // YELLOW: Has item_id and prompt but needs approval
-  return 'warning.main';
+  // GRAY: No takes generated yet
+  if (!hasTakes) {
+    return { status: 'gray', color: 'text.disabled', approvedCount };
+  }
+  
+  // RED: Has takes but none approved (or only rejected)
+  if (approvedCount === 0) {
+    return { status: 'red', color: 'error.main', approvedCount };
+  }
+  
+  // YELLOW: Has some approved but not complete
+  return { status: 'yellow', color: 'warning.main', approvedCount };
 }
 
-export default function TreePane({ actors, content, sections, selectedNode, onSelect, onExpandNode }) {
+function getSectionStatus(sectionItem, content, takes) {
+  const sectionContent = content.filter(
+    c => c.actor_id === sectionItem.actor_id && c.content_type === sectionItem.content_type
+  );
+  
+  if (sectionContent.length === 0) {
+    return { status: 'gray', color: 'text.disabled' };
+  }
+  
+  // Get worst status among children
+  let worstPriority = -1;
+  let worstStatus = { status: 'gray', color: 'text.disabled' };
+  
+  for (const c of sectionContent) {
+    const status = getContentStatus(c, takes);
+    const priority = STATUS_PRIORITY[status.status];
+    if (priority > worstPriority) {
+      worstPriority = priority;
+      worstStatus = status;
+    }
+  }
+  
+  return worstStatus;
+}
+
+function getActorStatus(actor, sections, content, takes) {
+  const actorSections = sections.filter(s => s.actor_id === actor.id);
+  
+  if (actorSections.length === 0) {
+    return { status: 'gray', color: 'text.disabled' };
+  }
+  
+  // Get worst status among children
+  let worstPriority = -1;
+  let worstStatus = { status: 'gray', color: 'text.disabled' };
+  
+  for (const s of actorSections) {
+    const status = getSectionStatus(s, content, takes);
+    const priority = STATUS_PRIORITY[status.status];
+    if (priority > worstPriority) {
+      worstPriority = priority;
+      worstStatus = status;
+    }
+  }
+  
+  return worstStatus;
+}
+
+export default function TreePane({ actors, content, sections, takes = [], selectedNode, onSelect, onExpandNode }) {
   const selectedId = selectedNode ? nodeKey(selectedNode.type, selectedNode.id) : null;
   
   // Load expanded state from localStorage or use defaults
@@ -112,20 +173,24 @@ export default function TreePane({ actors, content, sections, selectedNode, onSe
       {/* Color Legend */}
       <Box sx={{ px: '1.25rem', pb: '0.625rem', fontSize: '0.7rem', color: 'text.secondary' }}>
         <Typography variant="caption" sx={{ fontSize: '0.65rem', display: 'block', mb: '0.3125rem' }}>
-          Content Status:
+          Status:
         </Typography>
         <Box sx={{ display: 'flex', gap: '0.625rem', flexWrap: 'wrap' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.3125rem' }}>
+            <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'text.disabled' }} />
+            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Not Started</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.3125rem' }}>
             <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'error.main' }} />
-            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Missing</Typography>
+            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>No Approvals</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.3125rem' }}>
             <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'warning.main' }} />
-            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Review</Typography>
+            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>In Progress</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: '0.3125rem' }}>
             <Box sx={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', bgcolor: 'success.main' }} />
-            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Approved</Typography>
+            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Complete</Typography>
           </Box>
         </Box>
       </Box>
@@ -221,6 +286,7 @@ export default function TreePane({ actors, content, sections, selectedNode, onSe
                     // Special handling for actors section
                     actors.map((actor) => {
                       const actorKey = `actor-${actor.id}`;
+                      const actorStatus = getActorStatus(actor, sections, content, takes);
                       return (
                         <Box key={actor.id}>
                           <ListItemButton
@@ -236,9 +302,9 @@ export default function TreePane({ actors, content, sections, selectedNode, onSe
                             onClick={() => handleSelect('actor', actor.id)}
                           >
                             <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                              <PersonIcon sx={{ fontSize: '0.75rem' }} />
+                              <PersonIcon sx={{ fontSize: '0.75rem', color: actorStatus.color }} />
                             </ListItemIcon>
-                            <ListItemText primary={actor.display_name} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem' }} />
+                            <ListItemText primary={actor.display_name} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem', fontWeight: 400, color: actorStatus.color }} />
                             <Box onClick={(e) => { e.stopPropagation(); handleToggle(actorKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
                               {expanded[actorKey] ? <ExpandLess sx={{ fontSize: '0.75rem' }} /> : <ExpandMore sx={{ fontSize: '0.75rem' }} />}
                             </Box>
@@ -247,14 +313,15 @@ export default function TreePane({ actors, content, sections, selectedNode, onSe
                           <Collapse in={expanded[actorKey]} timeout="auto" unmountOnExit>
                             <List component="div" disablePadding>
                               {sections.filter(s => s.actor_id === actor.id).map((sectionItem) => {
-                                const section = sectionItem.content_type;
+                                const sectionType = sectionItem.content_type;
+                                const sectionStatus = getSectionStatus(sectionItem, content, takes);
 
-                                const sectionIcon = section === 'dialogue' ? <RecordVoiceOverIcon sx={{ fontSize: '0.75rem' }} /> :
-                                                  section === 'music' ? <MusicNoteIcon sx={{ fontSize: '0.75rem' }} /> : <GraphicEqIcon sx={{ fontSize: '0.75rem' }} />;
+                                const sectionIcon = sectionType === 'dialogue' ? <RecordVoiceOverIcon sx={{ fontSize: '0.75rem', color: sectionStatus.color }} /> :
+                                                  sectionType === 'music' ? <MusicNoteIcon sx={{ fontSize: '0.75rem', color: sectionStatus.color }} /> : <GraphicEqIcon sx={{ fontSize: '0.75rem', color: sectionStatus.color }} />;
                                 const sectionKey = `section-${sectionItem.id}`;
                                 
                                 // Use the section item for custom name
-                                const displayName = sectionItem?.name || (section.charAt(0).toUpperCase() + section.slice(1));
+                                const displayName = sectionItem?.name || (sectionType.charAt(0).toUpperCase() + sectionType.slice(1));
 
                                 return (
                                   <Box key={sectionItem.id}>
@@ -267,13 +334,13 @@ export default function TreePane({ actors, content, sections, selectedNode, onSe
                                         '& .MuiListItemText-root': { margin: 0 },
                                         '& .MuiListItemIcon-root': { minWidth: 'auto' }
                                       }}
-                                      selected={selectedId === nodeKey(`${section}-section`, sectionItem.id)}
-                                      onClick={() => handleSelect(`${section}-section`, sectionItem.id)}
+                                      selected={selectedId === nodeKey(`${sectionType}-section`, sectionItem.id)}
+                                      onClick={() => handleSelect(`${sectionType}-section`, sectionItem.id)}
                                     >
                                       <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
                                         {sectionIcon}
                                       </ListItemIcon>
-                                      <ListItemText primary={displayName} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem' }} />
+                                      <ListItemText primary={displayName} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem', fontWeight: 400, color: sectionStatus.color }} />
                                       <Box onClick={(e) => { e.stopPropagation(); handleToggle(sectionKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
                                         {expanded[sectionKey] ? <ExpandLess sx={{ fontSize: '0.75rem' }} /> : <ExpandMore sx={{ fontSize: '0.75rem' }} />}
                                       </Box>
@@ -282,9 +349,12 @@ export default function TreePane({ actors, content, sections, selectedNode, onSe
                                     <Collapse in={expanded[sectionKey]} timeout="auto" unmountOnExit>
                                       <List component="div" disablePadding>
                                         {content
-                                          .filter((c) => c.actor_id === actor.id && c.content_type === section)
+                                          .filter((c) => c.actor_id === actor.id && c.content_type === sectionType)
                                           .map((c) => {
-                                            const statusColor = getContentStatusColor(c);
+                                            const contentStatus = getContentStatus(c, takes);
+                                            const displayText = contentStatus.approvedCount > 0 
+                                              ? `${c.item_id || c.id} (${contentStatus.approvedCount})`
+                                              : (c.item_id || c.id);
                                             return (
                                               <ListItemButton
                                                 key={c.id}
@@ -300,14 +370,15 @@ export default function TreePane({ actors, content, sections, selectedNode, onSe
                                                 onClick={() => handleSelect('content', c.id)}
                                               >
                                                 <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                                                  <DescriptionIcon sx={{ fontSize: '0.625rem', color: statusColor }} />
+                                                  <DescriptionIcon sx={{ fontSize: '0.625rem', color: contentStatus.color }} />
                                                 </ListItemIcon>
                                                 <ListItemText 
-                                                  primary={c.item_id || c.id} 
+                                                  primary={displayText} 
                                                   primaryTypographyProps={{ 
                                                     fontSize: '0.9rem',
                                                     lineHeight: '1rem',
-                                                    color: statusColor
+                                                    fontWeight: 400,
+                                                    color: contentStatus.color
                                                   }} 
                                                 />
                                               </ListItemButton>

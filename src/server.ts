@@ -256,12 +256,14 @@ fastify.post('/api/content', async (request, reply) => {
   const createdContent: Content[] = [];
 
   for (const itemId of itemIds) {
+    // Default prompt to the individual item_id (title-cased) if no custom prompt provided
+    const defaultPrompt = itemId.charAt(0).toUpperCase() + itemId.slice(1);
     const content: Content = {
       id: generateId(),
       actor_id: body.actor_id,
       content_type: body.content_type,
       item_id: itemId,
-      prompt: body.prompt || '',
+      prompt: body.prompt || defaultPrompt,
       complete: false,
       all_approved: false,
       tags: body.tags ?? [],
@@ -639,11 +641,14 @@ fastify.put('/api/takes/:id', async (request, reply) => {
   }
 
   // Update the take with new data
+  const now = new Date().toISOString();
   const updatedTake: Take = {
     ...takes[takeIndex],
     ...body,
     id, // Ensure ID doesn't change
-    updated_at: new Date().toISOString(),
+    // Track when status changed
+    status_changed_at: body.status && body.status !== takes[takeIndex].status ? now : takes[takeIndex].status_changed_at,
+    updated_at: now,
   };
 
   // Replace the take in the array
@@ -651,16 +656,60 @@ fastify.put('/api/takes/:id', async (request, reply) => {
 
   // Write back to file
   await ensureJsonlFile(paths.catalog.takes);
-  await import('fs-extra').then(async (fsMod) => {
-    const fs = fsMod.default;
-    await fs.writeFile(
-      paths.catalog.takes,
-      takes.map(t => JSON.stringify(t)).join('\n') + (takes.length ? '\n' : ''),
-      'utf8',
-    );
-  });
+  const fsMod = await import('fs-extra');
+  const fs = fsMod.default;
+  await fs.writeFile(
+    paths.catalog.takes,
+    takes.map(t => JSON.stringify(t)).join('\n') + (takes.length ? '\n' : ''),
+    'utf8',
+  );
 
   return { take: updatedTake };
+});
+
+// Delete a take
+fastify.delete('/api/takes/:id', async (request, reply) => {
+  const projectRoot = getProjectRoot();
+  const paths = getProjectPaths(projectRoot);
+  
+  const { id } = request.params as { id: string };
+
+  const takes = await readJsonl<Take>(paths.catalog.takes);
+  const takeIndex = takes.findIndex(t => t.id === id);
+  
+  if (takeIndex === -1) {
+    reply.code(404);
+    return { error: 'Take not found' };
+  }
+
+  const deletedTake = takes[takeIndex];
+  
+  // Remove the take from the array
+  takes.splice(takeIndex, 1);
+
+  // Write back to file
+  await ensureJsonlFile(paths.catalog.takes);
+  const fsMod = await import('fs-extra');
+  const fs = fsMod.default;
+  await fs.writeFile(
+    paths.catalog.takes,
+    takes.map(t => JSON.stringify(t)).join('\n') + (takes.length ? '\n' : ''),
+    'utf8',
+  );
+
+  // Optionally delete the audio file
+  try {
+    const filePath = join(paths.media, deletedTake.path);
+    if (await fs.pathExists(filePath)) {
+      await fs.remove(filePath);
+    }
+  } catch (err) {
+    // Log but don't fail if file deletion fails
+    console.error('Failed to delete audio file:', err);
+  }
+
+  reply.code(204);
+  return;
 });
 
 fastify.get('/api/jobs', async () => {
@@ -833,7 +882,11 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
     await ensureJsonlFile(paths.catalog.takes);
     const existingTakes = await readJsonl<Take>(paths.catalog.takes);
     const takesForContent = existingTakes.filter(t => t.content_id === content.id);
-    const baseTakeNumber = takesForContent.reduce((max, t) => Math.max(max, t.take_number), 0);
+    
+    // Use next_take_number from content if available, otherwise compute from existing takes
+    // This ensures deleted take numbers are never reused
+    const maxExistingTakeNumber = takesForContent.reduce((max, t) => Math.max(max, t.take_number), 0);
+    const baseTakeNumber = Math.max(content.next_take_number || 0, maxExistingTakeNumber);
 
     const generatedTakes: Take[] = [];
 
@@ -888,13 +941,38 @@ fastify.post('/api/content/:id/generate', async (request, reply) => {
         lufs_integrated: 0,
         peak_dbfs: 0,
         generated_by: 'elevenlabs',
-        generation_params: { provider: 'elevenlabs' },
+        generation_params: {
+          provider: 'elevenlabs',
+          voice_id: providerSettings.voice_id,
+          stability: providerSettings.stability,
+          similarity_boost: providerSettings.similarity_boost,
+          prompt: content.prompt || content.item_id || 'Hello',
+          generated_at: now,
+        },
         created_at: now,
         updated_at: now,
       };
 
       await appendJsonl(paths.catalog.takes, take);
       generatedTakes.push(take);
+    }
+
+    // Update content's next_take_number to prevent reuse of deleted take numbers
+    const newNextTakeNumber = baseTakeNumber + count + 1;
+    const contentIndex = contentItems.findIndex(c => c.id === id);
+    if (contentIndex !== -1) {
+      contentItems[contentIndex] = {
+        ...contentItems[contentIndex],
+        next_take_number: newNextTakeNumber,
+        updated_at: new Date().toISOString(),
+      };
+      const fsMod = await import('fs-extra');
+      const fs = fsMod.default;
+      await fs.writeFile(
+        paths.catalog.content,
+        contentItems.map(c => JSON.stringify(c)).join('\n') + (contentItems.length ? '\n' : ''),
+        'utf8',
+      );
     }
 
     return { takes: generatedTakes };

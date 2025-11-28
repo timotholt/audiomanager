@@ -13,14 +13,30 @@ import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import CircularProgress from '@mui/material/CircularProgress';
+import Collapse from '@mui/material/Collapse';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbDownIcon from '@mui/icons-material/ThumbDown';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { deleteContent, updateContent, getTakes, updateTake, generateTakes } from '../api/client.js';
+import { deleteContent, updateContent, getTakes, updateTake, generateTakes, deleteTake } from '../api/client.js';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
+
+// Helper to format date as "11/27 @ 3:22pm"
+function formatStatusDate(isoString) {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12 || 12;
+  return `${month}/${day} @ ${hours}:${minutes}${ampm}`;
+}
 
 // Helper to apply blank space conversion setting
 function applyBlankSpaceConversion(str, conversion) {
@@ -61,6 +77,8 @@ export default function ContentView({
   sectionComplete,
   blankSpaceConversion = 'underscore',
   capitalizationConversion = 'lowercase',
+  onTakesGenerated,
+  onTakeUpdated,
   error: parentError 
 }) {
   // Build the base filename for this content item
@@ -94,6 +112,8 @@ export default function ContentView({
   const [generatingTakes, setGeneratingTakes] = useState(false);
   const [playingTakeId, setPlayingTakeId] = useState(null);
   const [audioElement, setAudioElement] = useState(null);
+  const [expandedTakes, setExpandedTakes] = useState({});
+  const [playedTakes, setPlayedTakes] = useState({});
 
   // Sync local state when item changes
   useEffect(() => {
@@ -182,6 +202,8 @@ export default function ContentView({
 
     try {
       setPlayingTakeId(take.id);
+      // Mark as played so (new) tag goes away
+      setPlayedTakes(prev => ({ ...prev, [take.id]: true }));
       // Construct audio URL from take path (normalize backslashes for URL)
       const audioPath = take.path.replace(/\\/g, '/');
       const audio = new Audio(`/media/${audioPath}`);
@@ -208,6 +230,14 @@ export default function ContentView({
       const result = await updateTake(takeId, { status });
       if (result.take) {
         setTakes(prev => prev.map(t => t.id === takeId ? result.take : t));
+        // Notify parent to update tree view
+        if (onTakeUpdated) {
+          onTakeUpdated(result.take);
+        }
+        // If content's all_approved status changed, notify parent
+        if (result.content && onContentUpdated) {
+          onContentUpdated(result.content);
+        }
       }
     } catch (err) {
       setError(err.message || String(err));
@@ -223,6 +253,10 @@ export default function ContentView({
       const result = await generateTakes(item.id, count);
       if (result.takes && result.takes.length > 0) {
         setTakes(prev => [...prev, ...result.takes]);
+        // Notify parent to update tree view
+        if (onTakesGenerated) {
+          onTakesGenerated(result.takes);
+        }
       }
     } catch (err) {
       setError(err.message || String(err));
@@ -231,7 +265,21 @@ export default function ContentView({
     }
   };
 
+  const handleDeleteTake = async (takeId) => {
+    if (sectionComplete) return;
+    try {
+      await deleteTake(takeId);
+      setTakes(prev => prev.filter(t => t.id !== takeId));
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  };
+
   const isDisabled = sectionComplete;
+  
+  // Compute approval progress
+  const approvedCount = takes.filter(t => t.status === 'approved').length;
+  const requiredApprovals = actor?.provider_settings?.[item.content_type]?.approval_count_default || 1;
 
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: DESIGN_SYSTEM.spacing.containerPadding, minWidth: 0 }}>
@@ -318,18 +366,38 @@ export default function ContentView({
 
       {/* Takes List */}
       <Box sx={{ mt: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="subtitle2" sx={DESIGN_SYSTEM.typography.sectionTitle}>
-            Takes ({takes.length})
-          </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+          <Box>
+            <Typography variant="subtitle2" sx={DESIGN_SYSTEM.typography.sectionTitle}>
+              Takes ({takes.length})
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem', display: 'block' }}>
+              {approvedCount} of {requiredApprovals} approved takes to be complete
+            </Typography>
+          </Box>
           <Button
-            variant="contained"
+            variant={item.all_approved ? 'outlined' : 'contained'}
             size="small"
-            disabled={isDisabled || generatingTakes}
-            onClick={handleGenerateTakes}
+            color={item.all_approved ? 'success' : 'primary'}
+            disabled={saving}
+            onClick={async () => {
+              // Bypass sectionComplete check for toggling all_approved
+              try {
+                setSaving(true);
+                setError(null);
+                const result = await updateContent(item.id, { all_approved: !item.all_approved });
+                if (result.content && onContentUpdated) {
+                  onContentUpdated(result.content);
+                }
+              } catch (err) {
+                setError(err.message || String(err));
+              } finally {
+                setSaving(false);
+              }
+            }}
             sx={{ ...DESIGN_SYSTEM.typography.small }}
           >
-            {generatingTakes ? 'Generating...' : `Generate ${actor?.provider_settings?.[item.content_type]?.batch_generate || 1} Takes Now!`}
+            {item.all_approved ? 'Completed ✓' : 'Mark As Completed'}
           </Button>
         </Box>
         
@@ -345,68 +413,175 @@ export default function ContentView({
         ) : (
           <List dense disablePadding>
             {takes.map((take) => (
-              <ListItem
-                key={take.id}
-                sx={{ 
-                  py: 0.5, 
-                  px: 1,
-                  borderRadius: 1,
-                  bgcolor: take.status === 'approved' ? 'success.light' : 
-                           take.status === 'rejected' ? 'error.light' : 'transparent',
-                  opacity: take.status === 'rejected' ? 0.6 : 1,
-                  mb: 0.5
-                }}
-              >
-                {/* Play button */}
-                <ListItemIcon sx={{ minWidth: 36 }}>
+              <Box key={take.id} sx={{ mb: 0.5 }}>
+                <ListItem
+                  sx={{ 
+                    py: 0.25, 
+                    px: 0.5,
+                    borderRadius: 1,
+                    bgcolor: take.status === 'approved' ? 'success.dark' : 
+                             take.status === 'rejected' ? 'error.light' : 'action.hover',
+                    opacity: take.status === 'rejected' ? 0.6 : 1,
+                  }}
+                >
+                  {/* Play button */}
+                  <ListItemIcon sx={{ minWidth: 28 }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handlePlayTake(take)}
+                      sx={{ p: 0.25 }}
+                    >
+                      {playingTakeId === take.id ? (
+                        <StopIcon sx={{ fontSize: '1rem' }} />
+                      ) : (
+                        <PlayArrowIcon sx={{ fontSize: '1rem' }} />
+                      )}
+                    </IconButton>
+                  </ListItemIcon>
+                  
+                  {/* Take info - clicking anywhere here also plays the take */}
+                  <Box
+                    sx={{ flexGrow: 1, cursor: 'pointer' }}
+                    onClick={() => handlePlayTake(take)}
+                  >
+                    <ListItemText
+                      primary={`${take.filename || `${effectiveFilename}_${String(take.take_number).padStart(3, '0')}`}${take.status === 'new' && !playedTakes[take.id] ? ' (new)' : ''}`}
+                      secondary={
+                        take.status === 'approved' && take.status_changed_at
+                          ? `${take.duration_sec?.toFixed(1) || '?'}s • approved ${formatStatusDate(take.status_changed_at)}`
+                          : take.status === 'rejected' && take.status_changed_at
+                          ? `${take.duration_sec?.toFixed(1) || '?'}s • rejected ${formatStatusDate(take.status_changed_at)}`
+                          : `${take.duration_sec?.toFixed(1) || '?'}s • generated ${formatStatusDate(take.created_at)}`
+                      }
+                      primaryTypographyProps={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'common.white' }}
+                      secondaryTypographyProps={{ fontSize: '0.65rem' }}
+                      sx={{ my: 0 }}
+                    />
+                  </Box>
+                  
+                  {/* Like/Dislike buttons - bright white when selected, gray when not */}
                   <IconButton
                     size="small"
-                    onClick={() => handlePlayTake(take)}
-                    sx={{ p: 0.5 }}
+                    onClick={() => handleTakeStatus(take.id, take.status === 'approved' ? 'new' : 'approved')}
+                    disabled={isDisabled}
+                    sx={{ 
+                      p: 0.25,
+                      color: take.status === 'approved' ? 'common.white' : 'text.disabled',
+                      '&.Mui-disabled': {
+                        color: take.status === 'approved' ? 'common.white' : 'text.disabled'
+                      }
+                    }}
                   >
-                    {playingTakeId === take.id ? (
-                      <StopIcon sx={{ fontSize: '1.25rem' }} />
+                    <ThumbUpIcon sx={{ fontSize: '0.875rem' }} />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleTakeStatus(take.id, take.status === 'rejected' ? 'new' : 'rejected')}
+                    disabled={isDisabled}
+                    sx={{ 
+                      p: 0.25,
+                      color: take.status === 'rejected' ? 'common.white' : 'text.disabled',
+                      '&.Mui-disabled': {
+                        color: take.status === 'rejected' ? 'common.white' : 'text.disabled'
+                      }
+                    }}
+                  >
+                    <ThumbDownIcon sx={{ fontSize: '0.875rem' }} />
+                  </IconButton>
+                  
+                  {/* Delete button */}
+                  <IconButton
+                    size="small"
+                    onClick={() => handleDeleteTake(take.id)}
+                    disabled={isDisabled}
+                    sx={{ 
+                      p: 0.25,
+                      ml: '0.5rem',
+                      color: 'text.disabled',
+                      '&:hover': {
+                        color: 'error.main'
+                      }
+                    }}
+                  >
+                    <DeleteIcon sx={{ fontSize: '0.875rem' }} />
+                  </IconButton>
+                  
+                  {/* Expand button for generation settings */}
+                  <IconButton
+                    size="small"
+                    onClick={() => setExpandedTakes(prev => ({ ...prev, [take.id]: !prev[take.id] }))}
+                    sx={{ p: 0.25, ml: '0.5rem' }}
+                  >
+                    {expandedTakes[take.id] ? (
+                      <ExpandLessIcon sx={{ fontSize: '0.875rem' }} />
                     ) : (
-                      <PlayArrowIcon sx={{ fontSize: '1.25rem' }} />
+                      <ExpandMoreIcon sx={{ fontSize: '0.875rem' }} />
                     )}
                   </IconButton>
-                </ListItemIcon>
+                </ListItem>
                 
-                {/* Take info */}
-                <ListItemText
-                  primary={`${effectiveFilename}_${String(take.take_number).padStart(3, '0')}`}
-                  secondary={`${take.duration_sec?.toFixed(1) || '?'}s • ${take.status}`}
-                  primaryTypographyProps={{ fontSize: '0.8rem', fontFamily: 'monospace' }}
-                  secondaryTypographyProps={{ fontSize: '0.7rem' }}
-                />
-                
-                {/* Like/Dislike buttons */}
-                <IconButton
-                  size="small"
-                  onClick={() => handleTakeStatus(take.id, take.status === 'approved' ? 'new' : 'approved')}
-                  disabled={isDisabled}
-                  sx={{ 
-                    p: 0.5,
-                    color: take.status === 'approved' ? 'success.main' : 'text.secondary'
-                  }}
-                >
-                  <ThumbUpIcon sx={{ fontSize: '1rem' }} />
-                </IconButton>
-                <IconButton
-                  size="small"
-                  onClick={() => handleTakeStatus(take.id, take.status === 'rejected' ? 'new' : 'rejected')}
-                  disabled={isDisabled}
-                  sx={{ 
-                    p: 0.5,
-                    color: take.status === 'rejected' ? 'error.main' : 'text.secondary'
-                  }}
-                >
-                  <ThumbDownIcon sx={{ fontSize: '1rem' }} />
-                </IconButton>
-              </ListItem>
+                {/* Expandable generation settings */}
+                <Collapse in={expandedTakes[take.id]} timeout="auto" unmountOnExit>
+                  <Box sx={{ 
+                    px: 1, 
+                    py: 0.5, 
+                    ml: 3.5, 
+                    bgcolor: 'action.hover', 
+                    borderRadius: 1,
+                    fontSize: '0.65rem',
+                    fontFamily: 'monospace',
+                    color: 'text.secondary'
+                  }}>
+                    <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block' }}>
+                      <strong>Provider:</strong> {take.generation_params?.provider || take.generated_by || 'unknown'}
+                    </Typography>
+                    {take.generation_params?.voice_id && (
+                      <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block' }}>
+                        <strong>Voice ID:</strong> {take.generation_params.voice_id}
+                      </Typography>
+                    )}
+                    {take.generation_params?.stability !== undefined && (
+                      <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block' }}>
+                        <strong>Stability:</strong> {take.generation_params.stability}
+                      </Typography>
+                    )}
+                    {take.generation_params?.similarity_boost !== undefined && (
+                      <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block' }}>
+                        <strong>Similarity:</strong> {take.generation_params.similarity_boost}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block' }}>
+                      <strong>Prompt:</strong> {take.generation_params?.prompt || item.prompt || item.item_id || 'unknown'}
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block' }}>
+                      <strong>Generated:</strong> {formatStatusDate(take.generation_params?.generated_at || take.created_at)}
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block' }}>
+                      <strong>Format:</strong> {take.format} • {take.sample_rate}Hz • {take.bit_depth}bit • {take.channels}ch
+                    </Typography>
+                    <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block', wordBreak: 'break-all' }}>
+                      <strong>Hash:</strong> {take.hash_sha256 || 'unknown'}
+                    </Typography>
+                  </Box>
+                </Collapse>
+              </Box>
             ))}
           </List>
         )}
+        
+        {/* Generate Takes Button at bottom */}
+        <Box sx={{ mt: 2 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            fullWidth
+            disabled={isDisabled || generatingTakes}
+            onClick={handleGenerateTakes}
+            sx={{ ...DESIGN_SYSTEM.typography.small }}
+          >
+            {generatingTakes ? 'Generating...' : `Generate ${actor?.provider_settings?.[item.content_type]?.batch_generate || 1} Takes Now!`}
+          </Button>
+        </Box>
       </Box>
 
       <Dialog

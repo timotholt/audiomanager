@@ -34,7 +34,7 @@ export default function SectionManagement({
               {sectionsOfType.map(section => (
                 <Box key={section.id} sx={{ display: 'flex', alignItems: 'center', gap: DESIGN_SYSTEM.spacing.elementGap, ml: DESIGN_SYSTEM.spacing.elementGap }}>
                   <Typography variant="body2" sx={{ minWidth: 120, ...DESIGN_SYSTEM.typography.body }}>
-                    {section.name || section.content_type.toUpperCase()}
+                    {section.name || (section.content_type.charAt(0).toUpperCase() + section.content_type.slice(1))}
                   </Typography>
                   <Typography variant="body2" color="success.main" sx={DESIGN_SYSTEM.typography.body}>
                     ✓ Section exists

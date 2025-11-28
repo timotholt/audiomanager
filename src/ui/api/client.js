@@ -42,6 +42,15 @@ export function getTakes(contentId) {
   return fetchJson(`/api/takes${params}`);
 }
 
+export async function deleteTake(id) {
+  const res = await fetch(`/api/takes/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`Failed to delete take: ${await res.text()}`);
+  }
+}
+
 export async function generateTakes(contentId, count = 1) {
   const res = await fetch(`/api/content/${encodeURIComponent(contentId)}/generate`, {
     method: 'POST',

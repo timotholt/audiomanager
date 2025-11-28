@@ -58,6 +58,7 @@ export interface Content {
     complete: boolean;
     all_approved: boolean;
     tags: string[];
+    next_take_number?: number; // Tracks the next take number to use (never decreases)
     created_at: string;
     updated_at: string;
 }
@@ -77,6 +78,7 @@ export interface Take {
     take_number: number;
     filename: string;
     status: 'new' | 'approved' | 'rejected' | 'hidden';
+    status_changed_at?: string;
     path: string;
     hash_sha256: string;
     duration_sec: number;

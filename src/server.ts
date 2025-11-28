@@ -9,6 +9,7 @@ import { runBatchGeneration } from './services/generation.js';
 import { generateId } from './utils/ids.js';
 import { validate } from './utils/validation.js';
 import { getAudioProvider } from './services/provider-factory.js';
+import { registerActorRoutes } from './server/routes/actors.js';
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -29,148 +30,20 @@ function getProjectRoot(): string {
   return process.cwd();
 }
 
+function getProjectContext() {
+  const projectRoot = getProjectRoot();
+  const paths = getProjectPaths(projectRoot);
+  return { projectRoot, paths };
+}
+
 fastify.get('/api/health', async () => {
   return { status: 'ok' };
 });
 
-fastify.get('/api/actors', async () => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
-  const actors = await readJsonl<Actor>(paths.catalog.actors);
-  return { actors };
-});
-
-fastify.post('/api/actors', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
-  await ensureJsonlFile(paths.catalog.actors);
-
-  const body = request.body as Partial<Actor> | undefined;
-  const now = new Date().toISOString();
-
-  // Load global defaults
-  const defaultsPath = join(paths.root, 'defaults.json');
-  let globalDefaults: Record<string, Record<string, unknown>> = {
-    dialogue: { provider: 'elevenlabs', batch_generate: 1, approval_count_default: 1, stability: 0.5, similarity_boost: 0.75 },
-    music: { provider: 'elevenlabs', batch_generate: 1, approval_count_default: 1 },
-    sfx: { provider: 'elevenlabs', batch_generate: 1, approval_count_default: 1 },
-  };
-
-  try {
-    const fs = await import('fs-extra').then(m => m.default);
-    if (await fs.pathExists(defaultsPath)) {
-      globalDefaults = await fs.readJson(defaultsPath);
-    }
-  } catch (err) {
-    fastify.log.warn(err, 'Failed to load global defaults, using hardcoded values');
-  }
-
-  const actor: Actor = {
-    id: generateId(),
-    display_name: body?.display_name ?? 'New Actor',
-    base_filename:
-      body?.base_filename ??
-      `${(body?.display_name ?? 'actor')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')}_`,
-    all_approved: false,
-    provider_settings:
-      (body?.provider_settings as Actor['provider_settings']) ?? globalDefaults,
-    notes: body?.notes ?? '',
-    created_at: now,
-    updated_at: now,
-  };
-
-  const validation = validate('actor', actor);
-  if (!validation.valid) {
-    reply.code(400);
-    return { error: 'Invalid actor', details: validation.errors };
-  }
-
-  await appendJsonl(paths.catalog.actors, actor);
-  return { actor };
-});
-
-fastify.put('/api/actors/:id', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
-  
-  const { id } = request.params as { id: string };
-  const body = request.body as Partial<Actor>;
-  
-  if (!body) {
-    reply.code(400);
-    return { error: 'Request body is required' };
-  }
-
-  const actors = await readJsonl<Actor>(paths.catalog.actors);
-  const actorIndex = actors.findIndex(a => a.id === id);
-  
-  if (actorIndex === -1) {
-    reply.code(404);
-    return { error: 'Actor not found' };
-  }
-
-  // Update the actor with new data
-  const updatedActor: Actor = {
-    ...actors[actorIndex],
-    ...body,
-    id, // Ensure ID doesn't change
-    updated_at: new Date().toISOString(),
-  };
-
-  // Validate the updated actor
-  const validation = validate('actor', updatedActor);
-  if (!validation.valid) {
-    reply.code(400);
-    return { error: 'Invalid actor data', details: validation.errors };
-  }
-
-  // Replace the actor in the array
-  actors[actorIndex] = updatedActor;
-
-  // Write back to file
-  await writeJsonlAll(paths.catalog.actors, actors);
-
-  return { actor: updatedActor };
-});
-
-fastify.delete('/api/actors/:id', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
-
-  const { id } = request.params as { id: string };
-
-  const actors = await readJsonl<Actor>(paths.catalog.actors);
-  const contentItems = await readJsonl<Content>(paths.catalog.content);
-  const takes = await readJsonl<Take>(paths.catalog.takes);
-
-  const remainingActors = actors.filter((a) => a.id !== id);
-  const removedContent = contentItems.filter((c) => c.actor_id === id);
-  const removedContentIds = new Set(removedContent.map((c) => c.id));
-  const remainingContent = contentItems.filter((c) => c.actor_id !== id);
-  const remainingTakes = takes.filter((t) => !removedContentIds.has(t.content_id));
-
-  await ensureJsonlFile(paths.catalog.actors);
-  await ensureJsonlFile(paths.catalog.content);
-  await ensureJsonlFile(paths.catalog.takes);
-
-  await fastify.log.debug?.({ id }, 'Deleting actor and related content/takes');
-
-  await fastify.log.debug?.({ remainingActors: remainingActors.length }, 'Actors after delete');
-
-  await writeJsonlAll(paths.catalog.actors, remainingActors);
-  await writeJsonlAll(paths.catalog.content, remainingContent);
-  await writeJsonlAll(paths.catalog.takes, remainingTakes);
-
-  reply.code(204);
-  return null;
-});
+registerActorRoutes(fastify, getProjectContext);
 
 fastify.get('/api/content', async (request) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   const contentItems = await readJsonl<Content>(paths.catalog.content);
 
   const query = request.query as { actorId?: string; type?: string };
@@ -187,8 +60,7 @@ fastify.get('/api/content', async (request) => {
 });
 
 fastify.post('/api/content', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   await ensureJsonlFile(paths.catalog.content);
 
   const body = request.body as {
@@ -271,8 +143,7 @@ fastify.post('/api/content', async (request, reply) => {
 });
 
 fastify.delete('/api/content/:id', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
 
   const { id } = request.params as { id: string };
 
@@ -293,8 +164,7 @@ fastify.delete('/api/content/:id', async (request, reply) => {
 });
 
 fastify.get('/api/takes', async (request) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   const takes = await readJsonl<Take>(paths.catalog.takes);
 
   const query = request.query as { contentId?: string };
@@ -307,7 +177,7 @@ fastify.get('/api/takes', async (request) => {
 
 fastify.get('/api/voices', async (request, reply) => {
   try {
-    const projectRoot = getProjectRoot();
+    const { projectRoot } = getProjectContext();
     const provider = await getAudioProvider(projectRoot);
     const voices = await provider.getVoices();
     return { voices };
@@ -330,7 +200,7 @@ const voicePreviewCache = new Map<string, string>();
 
 fastify.post('/api/voices/preview', async (request, reply) => {
   try {
-    const projectRoot = getProjectRoot();
+    const { projectRoot } = getProjectContext();
     const provider = await getAudioProvider(projectRoot);
     
     const body = request.body as {
@@ -381,15 +251,13 @@ fastify.post('/api/voices/preview', async (request, reply) => {
 });
 
 fastify.get('/api/sections', async () => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   const sections = await readJsonl<Section>(paths.catalog.sections);
   return { sections };
 });
 
 fastify.post('/api/sections', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   await ensureJsonlFile(paths.catalog.sections);
 
   const body = request.body as {
@@ -418,8 +286,7 @@ fastify.post('/api/sections', async (request, reply) => {
 });
 
 fastify.put('/api/sections/:id', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   
   const { id } = request.params as { id: string };
   const body = request.body as Partial<Section>;
@@ -470,8 +337,7 @@ fastify.put('/api/sections/:id', async (request, reply) => {
 });
 
 fastify.delete('/api/sections/:id', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
 
   const { id } = request.params as { id: string };
 
@@ -512,8 +378,7 @@ fastify.delete('/api/sections/:id', async (request, reply) => {
 });
 
 fastify.put('/api/content/:id', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   
   const { id } = request.params as { id: string };
   const body = request.body as Partial<Content>;
@@ -556,8 +421,7 @@ fastify.put('/api/content/:id', async (request, reply) => {
 });
 
 fastify.put('/api/takes/:id', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   
   const { id } = request.params as { id: string };
   const body = request.body as Partial<Take>;
@@ -597,8 +461,7 @@ fastify.put('/api/takes/:id', async (request, reply) => {
 
 // Delete a take
 fastify.delete('/api/takes/:id', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   
   const { id } = request.params as { id: string };
 
@@ -617,13 +480,10 @@ fastify.delete('/api/takes/:id', async (request, reply) => {
 
   // Write back to file
   await ensureJsonlFile(paths.catalog.takes);
+  await writeJsonlAll(paths.catalog.takes, takes);
+
   const fsMod = await import('fs-extra');
   const fs = fsMod.default;
-  await fs.writeFile(
-    paths.catalog.takes,
-    takes.map(t => JSON.stringify(t)).join('\n') + (takes.length ? '\n' : ''),
-    'utf8',
-  );
 
   // Optionally delete the audio file
   try {
@@ -641,8 +501,7 @@ fastify.delete('/api/takes/:id', async (request, reply) => {
 });
 
 fastify.get('/api/jobs', async () => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   const jobs = await readJsonl<GenerationJob>(paths.catalog.generationJobs);
   return { jobs };
 });
@@ -650,7 +509,7 @@ fastify.get('/api/jobs', async () => {
 // Get provider credits/usage (currently only ElevenLabs)
 fastify.get('/api/provider/credits', async (request, reply) => {
   try {
-    const projectRoot = getProjectRoot();
+    const { projectRoot } = getProjectContext();
     const provider = await getAudioProvider(projectRoot);
     const quota = await provider.getQuota();
 
@@ -680,9 +539,8 @@ fastify.get('/api/provider/credits', async (request, reply) => {
 });
 
 // Global defaults endpoints
-fastify.get('/api/defaults', async () => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+fastify.get('/api/defaults', async (request, reply) => {
+  const { paths } = getProjectContext();
   const defaultsPath = join(paths.root, 'defaults.json');
   
   try {
@@ -716,19 +574,21 @@ fastify.get('/api/defaults', async () => {
     }
   } catch (err) {
     fastify.log.error(err, 'Failed to read defaults');
-    throw new Error('Failed to read defaults');
+    // Return structured 500 error so clients can handle it consistently
+    reply.code(500);
+    return { error: 'Failed to read defaults', details: (err as Error).message };
   }
 });
 
 fastify.put('/api/defaults/:contentType', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { paths } = getProjectContext();
   const defaultsPath = join(paths.root, 'defaults.json');
   const contentType = (request.params as { contentType: string }).contentType as 'dialogue' | 'music' | 'sfx';
   const body = request.body as Record<string, unknown>;
 
   if (!['dialogue', 'music', 'sfx'].includes(contentType)) {
-    return reply.status(400).send({ error: 'Invalid content type' });
+    reply.code(400);
+    return { error: 'Invalid content type' };
   }
 
   try {
@@ -769,12 +629,13 @@ fastify.put('/api/defaults/:contentType', async (request, reply) => {
     return { defaults };
   } catch (err) {
     fastify.log.error(err, 'Failed to update defaults');
-    throw new Error('Failed to update defaults');
+    reply.code(500);
+    return { error: 'Failed to update defaults', details: (err as Error).message };
   }
 });
 
 fastify.post('/api/generation/batch', async (request, reply) => {
-  const projectRoot = getProjectRoot();
+  const { projectRoot } = getProjectContext();
   const body = request.body as {
     actorId?: string;
     contentType?: 'dialogue' | 'music' | 'sfx';
@@ -798,8 +659,7 @@ fastify.post('/api/generation/batch', async (request, reply) => {
 
 // Generate takes for a specific content item
 fastify.post('/api/content/:id/generate', async (request, reply) => {
-  const projectRoot = getProjectRoot();
-  const paths = getProjectPaths(projectRoot);
+  const { projectRoot, paths } = getProjectContext();
   const { id } = request.params as { id: string };
   const body = request.body as { count?: number } | undefined;
   const count = body?.count || 1;

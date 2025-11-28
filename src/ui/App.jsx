@@ -103,9 +103,11 @@ export default function App() {
     }
   }, []);
 
-  // Load credits on startup
+  // Load credits on startup and refresh every 15 seconds
   useEffect(() => {
     refreshCredits();
+    const interval = setInterval(refreshCredits, 15000);
+    return () => clearInterval(interval);
   }, [refreshCredits]);
 
   // Create theme based on settings

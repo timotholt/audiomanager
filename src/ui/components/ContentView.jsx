@@ -274,8 +274,10 @@ export default function ContentView({
     } finally {
       setGeneratingTakes(false);
       if (onStatusChange) onStatusChange('');
-      // Refresh credits after generation
-      if (onCreditsRefresh) onCreditsRefresh();
+      // Refresh credits after generation (small delay for ElevenLabs API to update)
+      if (onCreditsRefresh) {
+        setTimeout(() => onCreditsRefresh(), 1000);
+      }
     }
   };
 

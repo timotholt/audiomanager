@@ -58,7 +58,7 @@ export default function ActorHeader({
 
   return (
     <>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
         {editingDisplayName ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
             <TextField
@@ -118,10 +118,10 @@ export default function ActorHeader({
       </Box>
       
       {/* Editable Base Filename */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
         {editingBaseFilename ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" sx={DESIGN_SYSTEM.typography.body}>Base filename:</Typography>
+            <Typography variant="body2" color="text.secondary" sx={DESIGN_SYSTEM.typography.body}>Base filename:</Typography>
             <TextField
               size="small"
               value={baseFilename}
@@ -154,7 +154,7 @@ export default function ActorHeader({
           </Box>
         ) : (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography variant="body2" sx={DESIGN_SYSTEM.typography.body}>
+            <Typography variant="body2" color="text.secondary" sx={DESIGN_SYSTEM.typography.body}>
               Base filename: {actor.base_filename}
             </Typography>
             <Button

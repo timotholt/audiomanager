@@ -6,10 +6,10 @@ import { DESIGN_SYSTEM } from '../../theme/designSystem.js';
 export default function DefaultsView() {
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: DESIGN_SYSTEM.spacing.containerPadding, minWidth: 0 }}>
-      <Typography variant="h6" gutterBottom sx={DESIGN_SYSTEM.typography.pageTitle}>
+      <Typography variant="h6" sx={{ ...DESIGN_SYSTEM.typography.pageTitle, mb: 0.5 }}>
         Provider Defaults
       </Typography>
-      <Typography variant="body2" color="text.secondary" gutterBottom sx={DESIGN_SYSTEM.typography.body}>
+      <Typography variant="body2" color="text.secondary" sx={{ ...DESIGN_SYSTEM.typography.body, mb: 0.5 }}>
         Configure default settings for all content types. Individual actors can inherit these settings or override with custom values.
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mt: DESIGN_SYSTEM.spacing.elementGap, ...DESIGN_SYSTEM.typography.body }}>

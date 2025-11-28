@@ -3,6 +3,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import ProviderSettingsEditor from './ProviderSettingsEditor.jsx';
+import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 import { useGlobalDefaults } from '../hooks/useGlobalDefaults.js';
 
 export default function ProviderDefaultsView({ 
@@ -56,11 +57,11 @@ export default function ProviderDefaultsView({
 
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, minWidth: 0 }}>
-      <Typography variant="h6" gutterBottom sx={{ fontSize: '1.1rem' }}>
+      <Typography variant="h6" sx={{ ...DESIGN_SYSTEM.typography.pageTitle, mb: 0.5 }}>
         {getContentTypeTitle(contentType)} Defaults
       </Typography>
       
-      <Typography variant="body2" color="text.secondary" gutterBottom sx={{ mb: 3 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ ...DESIGN_SYSTEM.typography.body, mb: 0.5 }}>
         {getContentTypeDescription(contentType)}
       </Typography>
 

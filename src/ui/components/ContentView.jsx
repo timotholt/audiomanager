@@ -403,7 +403,7 @@ export default function ContentView({
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: DESIGN_SYSTEM.spacing.containerPadding, minWidth: 0 }}>
       {/* Header with delete button */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
         <Typography variant="h6" sx={{ flexGrow: 1, ...DESIGN_SYSTEM.typography.pageTitle }}>
           {item.content_type === 'dialogue' ? 'Dialogue Cue' : item.content_type === 'music' ? 'Music Cue' : 'Sound Effect'}
         </Typography>

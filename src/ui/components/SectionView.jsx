@@ -132,8 +132,8 @@ export default function SectionView({
         </IconButton>
       </Box>
 
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="body2" sx={DESIGN_SYSTEM.typography.body}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+        <Typography variant="body2" color="text.secondary" sx={DESIGN_SYSTEM.typography.body}>
           Actor: {actor.display_name} • Type: {toTitleCase(contentType)}
         </Typography>
         <Tooltip 

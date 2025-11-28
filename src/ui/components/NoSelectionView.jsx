@@ -1,14 +1,15 @@
 import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 
 export default function NoSelectionView({ error }) {
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, minWidth: 0 }}>
-      <Typography variant="h6" gutterBottom sx={{ fontSize: '1.1rem' }}>
+      <Typography variant="h6" sx={{ ...DESIGN_SYSTEM.typography.pageTitle, mb: 0.5 }}>
         Welcome to Audio Manager
       </Typography>
-      <Typography variant="body1" gutterBottom sx={{ mb: 2 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ ...DESIGN_SYSTEM.typography.body, mb: 0.5 }}>
         Select an item from the tree on the left to get started:
       </Typography>
       

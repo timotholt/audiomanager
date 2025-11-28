@@ -4,20 +4,21 @@ import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
+import { DESIGN_SYSTEM } from '../../theme/designSystem.js';
 
 export default function RootView({ actorOps, error }) {
   const [actorName, setActorName] = useState('');
 
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, minWidth: 0 }}>
-      <Typography variant="h6" gutterBottom>
+      <Typography variant="h6" sx={{ ...DESIGN_SYSTEM.typography.pageTitle, mb: 0.5 }}>
         Actors
       </Typography>
-      <Typography variant="body2" color="text.secondary" gutterBottom>
+      <Typography variant="body2" color="text.secondary" sx={{ ...DESIGN_SYSTEM.typography.body, mb: 0.5 }}>
         Manage voice actors and their content.
       </Typography>
 
-      <Box sx={{ mt: 3 }}>
+      <Box sx={{ mt: 2 }}>
         <Typography variant="subtitle2" gutterBottom>
           Add New Actor
         </Typography>

@@ -35,6 +35,21 @@ export default function AudioPlayerBar({
   const [isMuted, setIsMuted] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
+  // Immediately stop and destroy previous WaveSurfer when audioUrl changes
+  // This runs synchronously before the new effect, preventing audio overlap
+  const prevAudioUrlRef = useRef(null);
+  if (audioUrl !== prevAudioUrlRef.current) {
+    if (wavesurferRef.current) {
+      if (DEBUG_AUDIO_PLAYER) {
+        console.log('[AudioPlayerBar] Stopping previous audio before loading new');
+      }
+      wavesurferRef.current.stop();
+      wavesurferRef.current.destroy();
+      wavesurferRef.current = null;
+    }
+    prevAudioUrlRef.current = audioUrl;
+  }
+
   // Reset state when audioUrl changes
   useEffect(() => {
     if (!audioUrl) {
@@ -51,12 +66,6 @@ export default function AudioPlayerBar({
 
     if (DEBUG_AUDIO_PLAYER) {
       console.log('[AudioPlayerBar] Initializing WaveSurfer with URL:', audioUrl);
-    }
-
-    // Destroy previous instance
-    if (wavesurferRef.current) {
-      wavesurferRef.current.destroy();
-      wavesurferRef.current = null;
     }
 
     // Clear container before creating new instance

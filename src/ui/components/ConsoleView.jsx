@@ -7,9 +7,8 @@ import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
 import InfoIcon from '@mui/icons-material/Info';
 import UndoIcon from '@mui/icons-material/Undo';
-import RedoIcon from '@mui/icons-material/Redo';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
-import { LogType, EntryType } from '../commands/types.js';
+import { LOG_TYPE } from '../hooks/useAppLog.js';
 
 function formatTime(isoString) {
   const date = new Date(isoString);
@@ -19,37 +18,24 @@ function formatTime(isoString) {
   return `${hours}:${minutes}:${seconds}`;
 }
 
-function LogIcon({ type, entryType }) {
+function LogIcon({ type }) {
   const iconSx = { fontSize: '0.875rem' };
   
-  // Special icons for undo/redo entries
-  if (entryType === EntryType.UNDO) {
-    return <UndoIcon sx={{ ...iconSx, color: 'text.secondary' }} />;
-  }
-  if (entryType === EntryType.REDO) {
-    return <RedoIcon sx={{ ...iconSx, color: 'text.secondary' }} />;
-  }
-  
   switch (type) {
-    case LogType.SUCCESS:
+    case LOG_TYPE.SUCCESS:
       return <CheckCircleIcon sx={{ ...iconSx, color: 'success.main' }} />;
-    case LogType.ERROR:
+    case LOG_TYPE.ERROR:
       return <ErrorIcon sx={{ ...iconSx, color: 'error.main' }} />;
-    case LogType.WARNING:
+    case LOG_TYPE.WARNING:
       return <WarningIcon sx={{ ...iconSx, color: 'warning.main' }} />;
-    case LogType.INFO:
+    case LOG_TYPE.INFO:
     default:
       return <InfoIcon sx={{ ...iconSx, color: 'info.main' }} />;
   }
 }
 
-function LogEntry({ entry, onUndo, onRedo }) {
+function LogEntry({ entry }) {
   const [expanded, setExpanded] = React.useState(false);
-  
-  // Determine if this entry can be undone/redone
-  const isUndoable = entry.entryType === EntryType.OPERATION && entry.command && !entry.undone;
-  const isRedoable = entry.entryType === EntryType.OPERATION && entry.command && entry.undone;
-  const isUndone = entry.undone;
 
   return (
     <Box
@@ -60,13 +46,11 @@ function LogEntry({ entry, onUndo, onRedo }) {
         borderColor: 'divider',
         '&:hover': { bgcolor: 'action.hover' },
         cursor: entry.details ? 'pointer' : 'default',
-        opacity: isUndone ? 0.5 : 1,
-        textDecoration: isUndone ? 'line-through' : 'none',
       }}
       onClick={() => entry.details && setExpanded(!expanded)}
     >
       <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-        <LogIcon type={entry.type} entryType={entry.entryType} />
+        <LogIcon type={entry.type} />
         <Typography
           variant="caption"
           color="text.secondary"
@@ -80,31 +64,11 @@ function LogEntry({ entry, onUndo, onRedo }) {
             fontSize: '0.75rem',
             wordBreak: 'break-word',
             flexGrow: 1,
-            color: entry.type === LogType.ERROR ? 'error.main' : 'text.primary',
+            color: entry.type === LOG_TYPE.ERROR ? 'error.main' : 'text.primary',
           }}
         >
           {entry.message}
         </Typography>
-        {isUndoable && (
-          <Button
-            size="small"
-            variant="text"
-            onClick={(e) => { e.stopPropagation(); onUndo(entry.id); }}
-            sx={{ minWidth: 'auto', px: 1, py: 0, fontSize: '0.65rem' }}
-          >
-            Undo
-          </Button>
-        )}
-        {isRedoable && (
-          <Button
-            size="small"
-            variant="text"
-            onClick={(e) => { e.stopPropagation(); onRedo(entry.id); }}
-            sx={{ minWidth: 'auto', px: 1, py: 0, fontSize: '0.65rem' }}
-          >
-            Redo
-          </Button>
-        )}
       </Box>
       {expanded && entry.details && (
         <Box
@@ -129,16 +93,32 @@ function LogEntry({ entry, onUndo, onRedo }) {
   );
 }
 
-export default function ConsoleView({ history, onUndo, onRedo, loading }) {
+export default function ConsoleView({ logs, canUndo, lastUndoTimestamp, onUndo, undoing }) {
+  const formatTimestamp = (ts) => {
+    if (!ts) return '';
+    return new Date(ts).toLocaleTimeString();
+  };
+
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: DESIGN_SYSTEM.spacing.containerPadding, minWidth: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
         <Typography variant="h6" sx={{ ...DESIGN_SYSTEM.typography.pageTitle, flexGrow: 1 }}>
           Console
         </Typography>
+        {canUndo && (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<UndoIcon />}
+            onClick={onUndo}
+            disabled={undoing}
+          >
+            {undoing ? 'Undoing...' : 'Undo'}
+          </Button>
+        )}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ ...DESIGN_SYSTEM.typography.body, mb: 0.5 }}>
-        Operation history with undo/redo support
+        {canUndo ? `Can undo to ${formatTimestamp(lastUndoTimestamp)}` : 'Activity log'}
       </Typography>
 
       <Box
@@ -152,26 +132,15 @@ export default function ConsoleView({ history, onUndo, onRedo, loading }) {
           bgcolor: 'background.paper',
         }}
       >
-        {loading ? (
+        {logs.length === 0 ? (
           <Box sx={{ p: 2, textAlign: 'center' }}>
             <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-              Loading history...
-            </Typography>
-          </Box>
-        ) : history.length === 0 ? (
-          <Box sx={{ p: 2, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-              No history yet. Operations will appear here.
+              No activity yet. Operations will appear here.
             </Typography>
           </Box>
         ) : (
-          history.map((entry) => (
-            <LogEntry 
-              key={entry.id} 
-              entry={entry} 
-              onUndo={onUndo}
-              onRedo={onRedo}
-            />
+          logs.map((entry) => (
+            <LogEntry key={entry.id} entry={entry} />
           ))
         )}
       </Box>

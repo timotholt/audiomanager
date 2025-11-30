@@ -36,8 +36,9 @@ export default function ActorHeader({
   };
 
   const handleSaveDisplayName = () => {
-    if (onUpdateDisplayName) {
-      onUpdateDisplayName(actor.id, displayName || actor.display_name);
+    const newName = displayName || actor.display_name;
+    if (onUpdateDisplayName && newName !== actor.display_name) {
+      onUpdateDisplayName(actor.id, newName, actor.display_name);
     }
     setEditingDisplayName(false);
     setDisplayName('');

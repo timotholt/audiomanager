@@ -3,3 +3,5 @@
 {"id":"019aca01-47a7-7a09-ac7a-b987fa628c0c","actor_id":"019ac9fc-db85-70ec-9dd2-0bd3948eb318","content_type":"dialogue","created_at":"2025-11-28T10:27:52.871Z","updated_at":"2025-11-30T22:29:04.989Z","name":"Dialogue"}
 {"id":"019aca01-deb3-7fa6-b061-0c5979d82715","actor_id":"019ac9fc-0d86-7fc5-a510-231aa3307344","content_type":"sfx","created_at":"2025-11-28T10:28:31.539Z","updated_at":"2025-11-28T10:28:31.539Z"}
 {"id":"019aca03-482a-79ed-ba65-9b4886aa7b43","actor_id":"019ac9fc-0d86-7fc5-a510-231aa3307344","content_type":"music","created_at":"2025-11-28T10:30:04.074Z","updated_at":"2025-11-28T10:30:56.347Z","provider_settings":{"provider":"elevenlabs","batch_generate":1,"approval_count_default":1,"duration_seconds":6}}
+{"id":"019ad70f-3343-72a6-9c54-2b92627f9feb","actor_id":"019ad70f-2a79-702f-a087-54ff0165e8ba","content_type":"dialogue","created_at":"2025-11-30T23:18:08.963Z","updated_at":"2025-11-30T23:18:08.963Z"}
+{"id":"019ad70f-3ad5-7ff7-8dd6-85878ac9f2e7","actor_id":"019ad70f-2a79-702f-a087-54ff0165e8ba","content_type":"dialogue","created_at":"2025-11-30T23:18:10.901Z","updated_at":"2025-11-30T23:18:15.394Z","name":"Dialogue2"}

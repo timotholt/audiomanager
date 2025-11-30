@@ -204,9 +204,11 @@ export default function ContentView({
       setSaving(true);
       setError(null);
       if (onStatusChange) onStatusChange('Processing');
+      
+      const oldCueId = field === 'cue_id' ? item.cue_id : null;
       const result = await updateContent(item.id, { [field]: value });
       if (result.content && onContentUpdated) {
-        onContentUpdated(result.content);
+        onContentUpdated(result.content, oldCueId);
       }
     } catch (err) {
       setError(err.message || String(err));

@@ -5,6 +5,7 @@ import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../ut
 import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
 import { getAudioProvider } from '../../services/provider-factory.js';
+import { saveSnapshotBeforeWrite } from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -41,6 +42,9 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
     }
     const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.content);
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths);
 
     const body = request.body as {
       actor_id: string;
@@ -139,6 +143,9 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'Request body is required' };
     }
 
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths);
+
     const contentItems = await readJsonl<Content>(paths.catalog.content);
     const contentIndex = contentItems.findIndex(c => c.id === id);
     
@@ -180,6 +187,9 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
     const { paths } = ctx;
 
     const { id } = request.params as { id: string };
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths);
 
     const contentItems = await readJsonl<Content>(paths.catalog.content);
     const takes = await readJsonl<Take>(paths.catalog.takes);

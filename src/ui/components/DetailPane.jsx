@@ -43,18 +43,16 @@ export default function DetailPane({
   onClearLogs,
   onLogError,
   onLogInfo,
-  history,
-  historyLoading,
+  canUndo,
+  lastUndoTimestamp,
   onUndo,
-  onRedo,
-  dispatch
+  undoing
 }) {
   const actorOps = useActorOperations({ 
     onActorCreated, 
     onActorUpdated, 
     onActorDeleted, 
-    expandNode,
-    dispatch
+    expandNode
   });
   
   const dataOps = useDataOperations({ 
@@ -65,7 +63,7 @@ export default function DetailPane({
     onContentCreated, 
     onSectionCreated, 
     onActorUpdated, 
-    onSectionUpdated 
+    onSectionUpdated
   });
 
   const { view, data } = useViewRouter({ selectedNode, actors, content, sections });
@@ -186,10 +184,11 @@ export default function DetailPane({
     case 'console':
       return (
         <ConsoleView 
-          history={history} 
-          loading={historyLoading}
+          logs={logs}
+          canUndo={canUndo}
+          lastUndoTimestamp={lastUndoTimestamp}
           onUndo={onUndo}
-          onRedo={onRedo}
+          undoing={undoing}
         />
       );
 

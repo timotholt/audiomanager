@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Section, Content, Take } from '../../types/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
+import { saveSnapshotBeforeWrite } from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -25,6 +26,9 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
     }
     const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.sections);
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths);
 
     const body = request.body as {
       actor_id: string;
@@ -66,6 +70,9 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       reply.code(400);
       return { error: 'Request body is required' };
     }
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths);
 
     const sections = await readJsonl<Section>(paths.catalog.sections);
     const sectionIndex = sections.findIndex(s => s.id === id);
@@ -116,6 +123,9 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
     const { paths } = ctx;
 
     const { id } = request.params as { id: string };
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths);
 
     const sections = await readJsonl<Section>(paths.catalog.sections);
     const contentItems = await readJsonl<Content>(paths.catalog.content);

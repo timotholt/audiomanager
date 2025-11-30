@@ -30,7 +30,7 @@ export default function ActorView({
 
   const handleConfirmDelete = async () => {
     try {
-      await actorOps.deleteActor(actor.id);
+      await actorOps.deleteActor(actor.id, actor.display_name);
       setConfirmDeleteOpen(false);
     } catch (err) {
       // Error handled by hook

@@ -10,3 +10,22 @@
 {"id":"1764543199162-7vfwshsau","entryType":"undo","timestamp":"2025-11-30T22:53:19.162Z","type":"info","message":"Undid: Actor created: tim3","undoOf":"1764543193578-pn9bxpo5j"}
 {"id":"1764543201138-5u1fjwqms","entryType":"redo","timestamp":"2025-11-30T22:53:21.138Z","type":"info","message":"Redid: Created 2 actor(s): tim4, tim5","redoOf":"1764543133865-au9gc7w11"}
 {"id":"1764543201197-f30o8k9gx","entryType":"redo","timestamp":"2025-11-30T22:53:21.197Z","type":"info","message":"Redid: Actor created: tim3","redoOf":"1764543193578-pn9bxpo5j"}
+{"id":"1764544572773-tvq0xgy0h","timestamp":"2025-11-30T23:16:12.773Z","type":"info","message":"Actor deleted: tim9","details":null}
+{"id":"1764544587298-ukd9826we","timestamp":"2025-11-30T23:16:27.298Z","type":"info","message":"Actor deleted: tim2","details":null}
+{"id":"1764544590324-5nlw3s2uw","timestamp":"2025-11-30T23:16:30.324Z","type":"info","message":"Actor deleted: tim4","details":null}
+{"id":"1764544600175-fdpspdvme","timestamp":"2025-11-30T23:16:40.175Z","type":"info","message":"Undid: Delete actor: tim4","details":null}
+{"id":"1764544605783-stkvkfky5","timestamp":"2025-11-30T23:16:45.783Z","type":"info","message":"Undid: Delete actor: tim2","details":null}
+{"id":"1764544610275-7dqvke3vn","timestamp":"2025-11-30T23:16:50.275Z","type":"info","message":"Undid: Delete actor: tim9","details":null}
+{"id":"1764544622266-ywh5feg9l","timestamp":"2025-11-30T23:17:02.266Z","type":"info","message":"Actor deleted: tim9","details":null}
+{"id":"1764544625105-ytr93kcx7","timestamp":"2025-11-30T23:17:05.105Z","type":"info","message":"Undid: Delete actor: tim9","details":null}
+{"id":"1764544629203-k94vq0tfm","timestamp":"2025-11-30T23:17:09.203Z","type":"info","message":"Actor deleted: tim2","details":null}
+{"id":"1764544632399-z9s0ldpi5","timestamp":"2025-11-30T23:17:12.399Z","type":"info","message":"Undid: Delete actor: tim2","details":null}
+{"id":"1764544652229-6g2z3i1oc","timestamp":"2025-11-30T23:17:32.229Z","type":"info","message":"Actor deleted: tim2","details":null}
+{"id":"1764544655594-nijmwnqzl","timestamp":"2025-11-30T23:17:35.594Z","type":"info","message":"Actor deleted: tim9","details":null}
+{"id":"1764544658972-xykek218d","timestamp":"2025-11-30T23:17:38.972Z","type":"info","message":"Actor deleted: tim4","details":null}
+{"id":"1764544686734-r0j3fny1e","timestamp":"2025-11-30T23:18:06.734Z","type":"info","message":"Actor created: tim3","details":null}
+{"id":"1764544686734-83vw3aa34","timestamp":"2025-11-30T23:18:06.734Z","type":"info","message":"Actor created: tim2","details":null}
+{"id":"1764544688979-j915b9jox","timestamp":"2025-11-30T23:18:08.979Z","type":"info","message":"Section created: dialogue","details":null}
+{"id":"1764544690907-wnm6cukjr","timestamp":"2025-11-30T23:18:10.907Z","type":"info","message":"Section created: dialogue","details":null}
+{"id":"1764544700311-ax327vy45","timestamp":"2025-11-30T23:18:20.311Z","type":"info","message":"Section deleted: Dialogue2","details":null}
+{"id":"1764544703643-6vskbn8ca","timestamp":"2025-11-30T23:18:23.643Z","type":"info","message":"Undid: Delete section: Dialogue2","details":null}

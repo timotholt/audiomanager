@@ -5,8 +5,7 @@ import TreePane from './TreePane.jsx';
 import DetailPane from './DetailPane.jsx';
 import { getActors, getContent, getSections, getTakes, deleteSection } from '../api/client.js';
 import { useAppLog } from '../hooks/useAppLog.js';
-import { useCommandHistory } from '../hooks/useCommandHistory.js';
-import { CommandType } from '../commands/types.js';
+import { useUndoStack } from '../hooks/useUndoStack.js';
 
 export default function ProjectShell({ blankSpaceConversion, capitalizationConversion, onStatusChange, onCreditsRefresh, onPlayTake, onStopPlayback, currentPlayingTakeId }) {
   const [actors, setActors] = useState([]);
@@ -39,57 +38,21 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef(null);
 
-  // Application logging (legacy - still used for non-command operations)
-  const { logs, logInfo, logSuccess, logError, logWarning, clearLogs } = useAppLog();
+  // Application logging (persisted to server)
+  const { logs, loading: logsLoading, logInfo, logSuccess, logError, logWarning, clearLogs, reloadLogs } = useAppLog();
 
-  // Handle state changes from command execution
-  const handleCommandStateChange = useCallback((commandType, result) => {
-    switch (commandType) {
-      case CommandType.CREATE_ACTOR:
-        // Handle batch creation (actors array) or single creation (actor)
-        if (result.actors && result.actors.length > 0) {
-          setActors(prev => [...prev, ...result.actors]);
-        } else if (result.actor) {
-          setActors(prev => [...prev, result.actor]);
-        }
-        break;
-      case CommandType.DELETE_ACTOR:
-      case `UNDO_${CommandType.CREATE_ACTOR}`:
-        // Handle batch undo (actorIds array) or single undo (actorId)
-        if (result.actorIds && result.actorIds.length > 0) {
-          const idsToRemove = new Set(result.actorIds);
-          setActors(prev => prev.filter(a => !idsToRemove.has(a.id)));
-          setContent(prev => prev.filter(c => !idsToRemove.has(c.actor_id)));
-          setSections(prev => prev.filter(s => !idsToRemove.has(s.actor_id)));
-        } else if (result.actorId) {
-          setActors(prev => prev.filter(a => a.id !== result.actorId));
-          setContent(prev => prev.filter(c => c.actor_id !== result.actorId));
-          setSections(prev => prev.filter(s => s.actor_id !== result.actorId));
-        }
-        break;
-      case `UNDO_${CommandType.DELETE_ACTOR}`:
-        // Restore actor, sections, and content
-        if (result.actor) {
-          setActors(prev => [...prev, result.actor]);
-        }
-        if (result.sections) {
-          setSections(prev => [...prev, ...result.sections]);
-        }
-        if (result.content) {
-          setContent(prev => [...prev, ...result.content]);
-        }
-        break;
-      default:
-        break;
-    }
-  }, []);
+  // Handle state restored from undo
+  const handleStateRestored = useCallback((restoredState) => {
+    setActors(restoredState.actors);
+    setSections(restoredState.sections);
+    setContent(restoredState.content);
+    setSelectedNode(null);
+    logInfo(restoredState.message);
+  }, [logInfo]);
 
-  // Command history with undo/redo
-  const commandHistory = useCommandHistory({
-    actors,
-    sections,
-    content,
-    onStateChange: handleCommandStateChange,
+  // Snapshot-based undo stack
+  const undoStack = useUndoStack({
+    onStateRestored: handleStateRestored,
   });
 
   // Memoize the callback to prevent unnecessary re-renders
@@ -169,8 +132,9 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         setSections(sectionsRes.sections || []);
         setTakes(takesRes.takes || []);
         setError(null);
-        // Reload command history after project data loads
-        commandHistory.reloadHistory();
+        // Refresh undo state and logs after project data loads
+        undoStack.refreshUndoState();
+        reloadLogs();
       } catch (err) {
         if (!cancelled) setError(err.message || String(err));
       } finally {
@@ -236,20 +200,31 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         onActorCreated={(actor) => {
           setActors((prev) => [...prev, actor]);
           logInfo(`Actor created: ${actor.display_name}`);
+          undoStack.refreshUndoState();
         }}
         onContentCreated={(item) => {
           setContent((prev) => [...prev, item]);
           logInfo(`Content created: ${item.cue_id} (${item.content_type})`);
+          undoStack.refreshUndoState();
         }}
         onSectionCreated={(section) => {
           setSections((prev) => [...prev, section]);
           logInfo(`Section created: ${section.name || section.content_type}`);
+          undoStack.refreshUndoState();
         }}
-        onActorUpdated={(updatedActor) => {
+        onActorUpdated={(updatedActor, oldName) => {
           setActors((prev) => prev.map(a => a.id === updatedActor.id ? updatedActor : a));
+          if (oldName && oldName !== updatedActor.display_name) {
+            logInfo(`Actor renamed: ${oldName} → ${updatedActor.display_name}`);
+            undoStack.refreshUndoState();
+          }
         }}
-        onSectionUpdated={(updatedSection) => {
+        onSectionUpdated={(updatedSection, oldName) => {
           setSections((prev) => prev.map(s => s.id === updatedSection.id ? updatedSection : s));
+          if (oldName && oldName !== updatedSection.name) {
+            logInfo(`Section renamed: ${oldName} → ${updatedSection.name}`);
+            undoStack.refreshUndoState();
+          }
         }}
         onActorDeleted={(id) => {
           const actor = actors.find(a => a.id === id);
@@ -258,15 +233,21 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
           setSections((prev) => prev.filter((s) => s.actor_id !== id));
           setSelectedNode(null);
           logInfo(`Actor deleted: ${actor?.display_name || id}`);
+          undoStack.refreshUndoState();
         }}
         onContentDeleted={(id) => {
           const item = content.find(c => c.id === id);
           setContent((prev) => prev.filter((c) => c.id !== id));
           setSelectedNode(null);
           logInfo(`Content deleted: ${item?.cue_id || id}`);
+          undoStack.refreshUndoState();
         }}
-        onContentUpdated={(updatedContent) => {
+        onContentUpdated={(updatedContent, oldCueId) => {
           setContent((prev) => prev.map(c => c.id === updatedContent.id ? updatedContent : c));
+          if (oldCueId && oldCueId !== updatedContent.cue_id) {
+            logInfo(`Cue renamed: ${oldCueId} → ${updatedContent.cue_id}`);
+            undoStack.refreshUndoState();
+          }
         }}
         onTakesGenerated={(newTakes) => {
           setTakes((prev) => [...prev, ...newTakes]);
@@ -287,6 +268,7 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
             setContent((prev) => prev.filter((c) => c.section_id !== sectionId));
             if (selectedNode?.id === sectionId) setSelectedNode(null);
             logInfo(`Section deleted: ${section?.name || sectionId}`);
+            undoStack.refreshUndoState();
           } catch (err) {
             setError(err.message || String(err));
             logError(`Failed to delete section: ${err.message || err}`);
@@ -305,11 +287,10 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         onClearLogs={clearLogs}
         onLogError={logError}
         onLogInfo={logInfo}
-        history={commandHistory.history}
-        historyLoading={commandHistory.loading}
-        onUndo={commandHistory.undo}
-        onRedo={commandHistory.redo}
-        dispatch={commandHistory.dispatch}
+        canUndo={undoStack.canUndo}
+        lastUndoTimestamp={undoStack.lastTimestamp}
+        onUndo={undoStack.undo}
+        undoing={undoStack.undoing}
       />
     </Box>
   );

@@ -4,6 +4,7 @@ import type { Actor, Content, Take, Section } from '../../types/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
+import { saveSnapshotBeforeWrite } from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -27,6 +28,9 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     }
     const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.actors);
+    
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths);
 
     const body = request.body as Partial<Actor> | undefined;
     const now = new Date().toISOString();
@@ -128,6 +132,9 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'Request body is required' };
     }
 
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths);
+
     const actors = await readJsonl<Actor>(paths.catalog.actors);
     const actorIndex = actors.findIndex(a => a.id === id);
     
@@ -169,6 +176,9 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     const { paths } = ctx;
 
     const { id } = request.params as { id: string };
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths);
 
     const actors = await readJsonl<Actor>(paths.catalog.actors);
     const sections = await readJsonl<Section>(paths.catalog.sections);

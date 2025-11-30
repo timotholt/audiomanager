@@ -9,7 +9,7 @@ export function useDataOperations({
   onContentCreated, 
   onSectionCreated, 
   onActorUpdated, 
-  onSectionUpdated 
+  onSectionUpdated
 }) {
   const [contentPrompt, setContentPrompt] = useState('');
   const [contentCueId, setContentCueId] = useState('');
@@ -207,11 +207,11 @@ export function useDataOperations({
     }
   };
 
-  const updateSectionName = async (sectionId, newName) => {
+  const updateSectionName = async (sectionId, newName, oldName) => {
     try {
       const result = await updateSection(sectionId, { name: newName });
       if (result && result.section && onSectionUpdated) {
-        onSectionUpdated(result.section);
+        onSectionUpdated(result.section, oldName);
       }
     } catch (err) {
       setError(err.message || String(err));
@@ -229,11 +229,11 @@ export function useDataOperations({
     }
   };
 
-  const updateDisplayName = async (actorId, newDisplayName) => {
+  const updateDisplayName = async (actorId, newDisplayName, oldDisplayName) => {
     try {
       const result = await updateActor(actorId, { display_name: newDisplayName });
       if (result && result.actor && onActorUpdated) {
-        onActorUpdated(result.actor);
+        onActorUpdated(result.actor, oldDisplayName);
       }
     } catch (err) {
       setError(err.message || String(err));

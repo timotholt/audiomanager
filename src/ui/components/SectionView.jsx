@@ -57,7 +57,10 @@ export default function SectionView({
   const providerSettings = sectionData?.provider_settings || { provider: 'inherit' };
 
   const handleSaveSectionName = () => {
-    onUpdateSectionName(sectionData.id, sectionName || currentSectionName);
+    const newName = sectionName || currentSectionName;
+    if (newName !== currentSectionName) {
+      onUpdateSectionName(sectionData.id, newName, currentSectionName);
+    }
     setEditingSectionName(false);
     setSectionName('');
   };

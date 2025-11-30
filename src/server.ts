@@ -11,6 +11,7 @@ import { registerDefaultsRoutes } from './server/routes/defaults.js';
 import { registerProviderRoutes } from './server/routes/provider.js';
 import { registerGenerationRoutes } from './server/routes/generation.js';
 import { registerHistoryRoutes } from './server/routes/history.js';
+import { registerSnapshotRoutes } from './server/routes/snapshots.js';
 import llmRoutes from './server/routes/llm.js';
 import projectRoutes, { setCurrentProject, getCurrentProjectPath } from './server/routes/projects.js';
 
@@ -72,6 +73,7 @@ registerDefaultsRoutes(fastify, getProjectContextNullable);
 registerProviderRoutes(fastify, getProjectContextNullable);
 registerGenerationRoutes(fastify, getProjectContextNullable);
 registerHistoryRoutes(fastify, getProjectContextNullable);
+registerSnapshotRoutes(fastify, getProjectContextNullable);
 fastify.register(llmRoutes);
 fastify.register(projectRoutes);
 

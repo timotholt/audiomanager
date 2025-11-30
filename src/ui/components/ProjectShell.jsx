@@ -5,6 +5,8 @@ import TreePane from './TreePane.jsx';
 import DetailPane from './DetailPane.jsx';
 import { getActors, getContent, getSections, getTakes, deleteSection } from '../api/client.js';
 import { useAppLog } from '../hooks/useAppLog.js';
+import { useCommandHistory } from '../hooks/useCommandHistory.js';
+import { CommandType } from '../commands/types.js';
 
 export default function ProjectShell({ blankSpaceConversion, capitalizationConversion, onStatusChange, onCreditsRefresh, onPlayTake, onStopPlayback, currentPlayingTakeId }) {
   const [actors, setActors] = useState([]);
@@ -37,8 +39,58 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef(null);
 
-  // Application logging
+  // Application logging (legacy - still used for non-command operations)
   const { logs, logInfo, logSuccess, logError, logWarning, clearLogs } = useAppLog();
+
+  // Handle state changes from command execution
+  const handleCommandStateChange = useCallback((commandType, result) => {
+    switch (commandType) {
+      case CommandType.CREATE_ACTOR:
+        // Handle batch creation (actors array) or single creation (actor)
+        if (result.actors && result.actors.length > 0) {
+          setActors(prev => [...prev, ...result.actors]);
+        } else if (result.actor) {
+          setActors(prev => [...prev, result.actor]);
+        }
+        break;
+      case CommandType.DELETE_ACTOR:
+      case `UNDO_${CommandType.CREATE_ACTOR}`:
+        // Handle batch undo (actorIds array) or single undo (actorId)
+        if (result.actorIds && result.actorIds.length > 0) {
+          const idsToRemove = new Set(result.actorIds);
+          setActors(prev => prev.filter(a => !idsToRemove.has(a.id)));
+          setContent(prev => prev.filter(c => !idsToRemove.has(c.actor_id)));
+          setSections(prev => prev.filter(s => !idsToRemove.has(s.actor_id)));
+        } else if (result.actorId) {
+          setActors(prev => prev.filter(a => a.id !== result.actorId));
+          setContent(prev => prev.filter(c => c.actor_id !== result.actorId));
+          setSections(prev => prev.filter(s => s.actor_id !== result.actorId));
+        }
+        break;
+      case `UNDO_${CommandType.DELETE_ACTOR}`:
+        // Restore actor, sections, and content
+        if (result.actor) {
+          setActors(prev => [...prev, result.actor]);
+        }
+        if (result.sections) {
+          setSections(prev => [...prev, ...result.sections]);
+        }
+        if (result.content) {
+          setContent(prev => [...prev, ...result.content]);
+        }
+        break;
+      default:
+        break;
+    }
+  }, []);
+
+  // Command history with undo/redo
+  const commandHistory = useCommandHistory({
+    actors,
+    sections,
+    content,
+    onStateChange: handleCommandStateChange,
+  });
 
   // Memoize the callback to prevent unnecessary re-renders
   const handleExpandNode = useCallback((expandNodeFunction) => {
@@ -117,6 +169,8 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         setSections(sectionsRes.sections || []);
         setTakes(takesRes.takes || []);
         setError(null);
+        // Reload command history after project data loads
+        commandHistory.reloadHistory();
       } catch (err) {
         if (!cancelled) setError(err.message || String(err));
       } finally {
@@ -251,6 +305,11 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         onClearLogs={clearLogs}
         onLogError={logError}
         onLogInfo={logInfo}
+        history={commandHistory.history}
+        historyLoading={commandHistory.loading}
+        onUndo={commandHistory.undo}
+        onRedo={commandHistory.redo}
+        dispatch={commandHistory.dispatch}
       />
     </Box>
   );

@@ -1,12 +1,45 @@
 import { useState } from 'react';
 import { createActor, updateActor, deleteActor } from '../api/client.js';
+import { CommandType } from '../commands/types.js';
 
-export function useActorOperations({ onActorCreated, onActorUpdated, onActorDeleted, expandNode }) {
+export function useActorOperations({ onActorCreated, onActorUpdated, onActorDeleted, expandNode, dispatch }) {
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState(null);
 
   const createActorWithExpansion = async (actorData) => {
+    // If dispatch is available, use command pattern for single actor creation
+    if (dispatch && actorData.display_name && !actorData.actors) {
+      try {
+        setCreating(true);
+        setError(null);
+        
+        const result = await dispatch({
+          type: CommandType.CREATE_ACTOR,
+          payload: {
+            displayName: actorData.display_name,
+            baseFilename: actorData.base_filename,
+          },
+        });
+        
+        if (result.success && expandNode) {
+          expandNode('actors');
+        }
+        
+        if (!result.success) {
+          setError(result.error);
+        }
+        
+        return result.success ? { actor: result.result?.actor } : null;
+      } catch (err) {
+        setError(err.message || String(err));
+        throw err;
+      } finally {
+        setCreating(false);
+      }
+    }
+    
+    // Fallback to legacy behavior for batch creation or when dispatch not available
     try {
       setCreating(true);
       setError(null);

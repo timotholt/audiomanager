@@ -42,13 +42,19 @@ export default function DetailPane({
   logs,
   onClearLogs,
   onLogError,
-  onLogInfo
+  onLogInfo,
+  history,
+  historyLoading,
+  onUndo,
+  onRedo,
+  dispatch
 }) {
   const actorOps = useActorOperations({ 
     onActorCreated, 
     onActorUpdated, 
     onActorDeleted, 
-    expandNode 
+    expandNode,
+    dispatch
   });
   
   const dataOps = useDataOperations({ 
@@ -178,7 +184,14 @@ export default function DetailPane({
       return <RootView actorOps={actorOps} error={commonError} />;
 
     case 'console':
-      return <ConsoleView logs={logs} onClear={onClearLogs} />;
+      return (
+        <ConsoleView 
+          history={history} 
+          loading={historyLoading}
+          onUndo={onUndo}
+          onRedo={onRedo}
+        />
+      );
 
     default:
       return (

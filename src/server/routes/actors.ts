@@ -199,4 +199,52 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     reply.code(204);
     return null;
   });
+
+  // Restore an actor with all related data (for undo)
+  fastify.post('/api/actors/restore', async (request: FastifyRequest, reply: FastifyReply) => {
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
+
+    const body = request.body as {
+      actor: Actor;
+      sections: Section[];
+      content: Content[];
+    };
+
+    if (!body.actor) {
+      reply.code(400);
+      return { error: 'Actor data is required' };
+    }
+
+    await ensureJsonlFile(paths.catalog.actors);
+    await ensureJsonlFile(paths.catalog.sections);
+    await ensureJsonlFile(paths.catalog.content);
+
+    // Append actor
+    await appendJsonl(paths.catalog.actors, body.actor);
+
+    // Append sections
+    if (body.sections && body.sections.length > 0) {
+      for (const section of body.sections) {
+        await appendJsonl(paths.catalog.sections, section);
+      }
+    }
+
+    // Append content
+    if (body.content && body.content.length > 0) {
+      for (const item of body.content) {
+        await appendJsonl(paths.catalog.content, item);
+      }
+    }
+
+    return {
+      actor: body.actor,
+      sections: body.sections || [],
+      content: body.content || [],
+    };
+  });
 }

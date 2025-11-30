@@ -35,6 +35,10 @@ export function useViewRouter({ selectedNode, actors, content, sections }) {
       return { view: 'root' };
     }
 
+    if (selectedNode.type === 'console') {
+      return { view: 'console' };
+    }
+
     return { view: 'fallback' };
   }, [selectedNode, actors, content, sections]);
 }

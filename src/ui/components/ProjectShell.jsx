@@ -4,6 +4,7 @@ import Typography from '@mui/material/Typography';
 import TreePane from './TreePane.jsx';
 import DetailPane from './DetailPane.jsx';
 import { getActors, getContent, getSections, getTakes, deleteSection } from '../api/client.js';
+import { useAppLog } from '../hooks/useAppLog.js';
 
 export default function ProjectShell({ blankSpaceConversion, capitalizationConversion, onStatusChange, onCreditsRefresh, onPlayTake, onStopPlayback, currentPlayingTakeId }) {
   const [actors, setActors] = useState([]);
@@ -35,6 +36,9 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
   });
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef(null);
+
+  // Application logging
+  const { logs, logInfo, logSuccess, logError, logWarning, clearLogs } = useAppLog();
 
   // Memoize the callback to prevent unnecessary re-renders
   const handleExpandNode = useCallback((expandNodeFunction) => {
@@ -175,9 +179,18 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         sections={sections}
         selectedNode={selectedNode}
         expandNode={expandNode}
-        onActorCreated={(actor) => setActors((prev) => [...prev, actor])}
-        onContentCreated={(item) => setContent((prev) => [...prev, item])}
-        onSectionCreated={(section) => setSections((prev) => [...prev, section])}
+        onActorCreated={(actor) => {
+          setActors((prev) => [...prev, actor]);
+          logInfo(`Actor created: ${actor.display_name}`);
+        }}
+        onContentCreated={(item) => {
+          setContent((prev) => [...prev, item]);
+          logInfo(`Content created: ${item.cue_id} (${item.content_type})`);
+        }}
+        onSectionCreated={(section) => {
+          setSections((prev) => [...prev, section]);
+          logInfo(`Section created: ${section.name || section.content_type}`);
+        }}
         onActorUpdated={(updatedActor) => {
           setActors((prev) => prev.map(a => a.id === updatedActor.id ? updatedActor : a));
         }}
@@ -185,20 +198,28 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
           setSections((prev) => prev.map(s => s.id === updatedSection.id ? updatedSection : s));
         }}
         onActorDeleted={(id) => {
+          const actor = actors.find(a => a.id === id);
           setActors((prev) => prev.filter((a) => a.id !== id));
           setContent((prev) => prev.filter((c) => c.actor_id !== id));
           setSections((prev) => prev.filter((s) => s.actor_id !== id));
           setSelectedNode(null);
+          logInfo(`Actor deleted: ${actor?.display_name || id}`);
         }}
         onContentDeleted={(id) => {
+          const item = content.find(c => c.id === id);
           setContent((prev) => prev.filter((c) => c.id !== id));
           setSelectedNode(null);
+          logInfo(`Content deleted: ${item?.cue_id || id}`);
         }}
         onContentUpdated={(updatedContent) => {
           setContent((prev) => prev.map(c => c.id === updatedContent.id ? updatedContent : c));
         }}
         onTakesGenerated={(newTakes) => {
           setTakes((prev) => [...prev, ...newTakes]);
+          if (newTakes.length > 0) {
+            const take = newTakes[0];
+            logSuccess(`Generated ${newTakes.length} take(s)`, { filename: take.filename, content_id: take.content_id });
+          }
         }}
         onTakeUpdated={(updatedTake) => {
           setTakes((prev) => prev.map(t => t.id === updatedTake.id ? updatedTake : t));
@@ -208,12 +229,13 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
             const section = sections.find(s => s.id === sectionId);
             await deleteSection(sectionId);
             setSections((prev) => prev.filter((s) => s.id !== sectionId));
-            if (section) {
-              setContent((prev) => prev.filter((c) => !(c.actor_id === section.actor_id && c.content_type === section.content_type)));
-            }
+            // Only delete content belonging to THIS specific section
+            setContent((prev) => prev.filter((c) => c.section_id !== sectionId));
             if (selectedNode?.id === sectionId) setSelectedNode(null);
+            logInfo(`Section deleted: ${section?.name || sectionId}`);
           } catch (err) {
             setError(err.message || String(err));
+            logError(`Failed to delete section: ${err.message || err}`);
           }
         }}
         blankSpaceConversion={blankSpaceConversion}
@@ -225,6 +247,10 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         playedTakes={playedTakes}
         onTakePlayed={(takeId) => setPlayedTakes((prev) => ({ ...prev, [takeId]: true }))}
         onCreditsRefresh={onCreditsRefresh}
+        logs={logs}
+        onClearLogs={clearLogs}
+        onLogError={logError}
+        onLogInfo={logInfo}
       />
     </Box>
   );

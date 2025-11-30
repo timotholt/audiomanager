@@ -1,6 +1,6 @@
 import { join } from 'path';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Actor, Content, Take } from '../../types/index.js';
+import type { Actor, Content, Take, Section } from '../../types/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
@@ -171,24 +171,28 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     const { id } = request.params as { id: string };
 
     const actors = await readJsonl<Actor>(paths.catalog.actors);
+    const sections = await readJsonl<Section>(paths.catalog.sections);
     const contentItems = await readJsonl<Content>(paths.catalog.content);
     const takes = await readJsonl<Take>(paths.catalog.takes);
 
     const remainingActors = actors.filter((a) => a.id !== id);
+    const remainingSections = sections.filter((s) => s.actor_id !== id);
     const removedContent = contentItems.filter((c) => c.actor_id === id);
     const removedContentIds = new Set(removedContent.map((c) => c.id));
     const remainingContent = contentItems.filter((c) => c.actor_id !== id);
     const remainingTakes = takes.filter((t) => !removedContentIds.has(t.content_id));
 
     await ensureJsonlFile(paths.catalog.actors);
+    await ensureJsonlFile(paths.catalog.sections);
     await ensureJsonlFile(paths.catalog.content);
     await ensureJsonlFile(paths.catalog.takes);
 
-    await fastify.log.debug?.({ id }, 'Deleting actor and related content/takes');
+    await fastify.log.debug?.({ id }, 'Deleting actor and related sections/content/takes');
 
     await fastify.log.debug?.({ remainingActors: remainingActors.length }, 'Actors after delete');
 
     await writeJsonlAll(paths.catalog.actors, remainingActors);
+    await writeJsonlAll(paths.catalog.sections, remainingSections);
     await writeJsonlAll(paths.catalog.content, remainingContent);
     await writeJsonlAll(paths.catalog.takes, remainingTakes);
 

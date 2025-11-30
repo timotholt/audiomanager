@@ -14,6 +14,7 @@ import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import DescriptionIcon from '@mui/icons-material/Description';
+import TerminalIcon from '@mui/icons-material/Terminal';
 
 function nodeKey(type, id) {
   return `${type}:${id}`;
@@ -204,9 +205,18 @@ export default function TreePane({ width, actors, content, sections, takes = [],
               nodeId: 'project',
               order: 1, // Alphabetical after Defaults
               children: null // Special handling for actors
+            },
+            {
+              id: 'console',
+              name: 'Console',
+              icon: <TerminalIcon sx={{ fontSize: '0.875rem' }} />,
+              nodeType: 'console',
+              nodeId: 'logs',
+              order: 2, // After Actors
+              children: null, // No children
+              noExpand: true // Don't show expand/collapse
             }
             // Future sections like 'Master', 'Templates', etc. can be added here
-            // They will automatically sort alphabetically after Defaults
           ];
 
           // Sort sections: Defaults first (order: 0), then alphabetically by name
@@ -233,11 +243,14 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                   {section.icon}
                 </ListItemIcon>
                 <ListItemText primary={section.name} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem' }} />
-                <Box onClick={(e) => { e.stopPropagation(); handleToggle(section.id); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
-                  {expanded[section.id] ? <ExpandLess sx={{ fontSize: '0.75rem' }} /> : <ExpandMore sx={{ fontSize: '0.75rem' }} />}
-                </Box>
+                {!section.noExpand && (
+                  <Box onClick={(e) => { e.stopPropagation(); handleToggle(section.id); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
+                    {expanded[section.id] ? <ExpandLess sx={{ fontSize: '0.75rem' }} /> : <ExpandMore sx={{ fontSize: '0.75rem' }} />}
+                  </Box>
+                )}
               </ListItemButton>
 
+              {!section.noExpand && (
               <Collapse in={expanded[section.id]} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
                   {section.children ? (
@@ -401,6 +414,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                   ) : null}
                 </List>
               </Collapse>
+              )}
             </React.Fragment>
           ));
         })()}

@@ -8,6 +8,7 @@ import ProviderDefaultsView from './ProviderDefaultsView.jsx';
 import ActorView from './views/ActorView.jsx';
 import RootView from './views/RootView.jsx';
 import DefaultsView from './views/DefaultsView.jsx';
+import ConsoleView from './ConsoleView.jsx';
 import { useActorOperations } from '../hooks/useActorOperations.js';
 import { useDataOperations } from '../hooks/useDataOperations.js';
 import { useViewRouter } from '../hooks/useViewRouter.js';
@@ -37,7 +38,11 @@ export default function DetailPane({
   onStopRequest,
   playedTakes,
   onTakePlayed,
-  onCreditsRefresh
+  onCreditsRefresh,
+  logs,
+  onClearLogs,
+  onLogError,
+  onLogInfo
 }) {
   const actorOps = useActorOperations({ 
     onActorCreated, 
@@ -84,9 +89,11 @@ export default function DetailPane({
           </Box>
         );
       }
-      // Check if all content in this section is complete
+      // Check if all content in this specific section is complete
       const sectionContent = content.filter(c => 
-        c.actor_id === data.actor.id && c.content_type === data.contentType
+        c.actor_id === data.actor.id && 
+        c.content_type === data.contentType &&
+        c.section_id === data.sectionData.id
       );
       const sectionComplete = sectionContent.length > 0 && sectionContent.every(c => c.all_approved);
       
@@ -148,6 +155,8 @@ export default function DetailPane({
           playedTakes={playedTakes}
           onTakePlayed={onTakePlayed}
           onCreditsRefresh={onCreditsRefresh}
+          onLogError={onLogError}
+          onLogInfo={onLogInfo}
           error={commonError}
         />
       );
@@ -167,6 +176,9 @@ export default function DetailPane({
 
     case 'root':
       return <RootView actorOps={actorOps} error={commonError} />;
+
+    case 'console':
+      return <ConsoleView logs={logs} onClear={onClearLogs} />;
 
     default:
       return (

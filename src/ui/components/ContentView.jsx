@@ -93,6 +93,8 @@ export default function ContentView({
   playedTakes = {},
   onTakePlayed,
   onCreditsRefresh,
+  onLogError,
+  onLogInfo,
   error: parentError 
 }) {
   // Build the base filename for this content item
@@ -270,7 +272,11 @@ export default function ContentView({
         }
       }
     } catch (err) {
-      setError(err.message || String(err));
+      const errorMsg = err.message || String(err);
+      setError(errorMsg);
+      if (onLogError) {
+        onLogError(`Generation failed: ${errorMsg}`, { content_id: item.id, cue_id: item.cue_id });
+      }
     } finally {
       setGeneratingTakes(false);
       if (onStatusChange) onStatusChange('');
@@ -285,10 +291,18 @@ export default function ContentView({
     if (sectionComplete) return;
     try {
       if (onStatusChange) onStatusChange('Processing');
+      const take = takes.find(t => t.id === takeId);
       await deleteTake(takeId);
       setTakes(prev => prev.filter(t => t.id !== takeId));
+      if (onLogInfo) {
+        onLogInfo(`Take deleted: ${take?.filename || takeId}`);
+      }
     } catch (err) {
-      setError(err.message || String(err));
+      const errorMsg = err.message || String(err);
+      setError(errorMsg);
+      if (onLogError) {
+        onLogError(`Failed to delete take: ${errorMsg}`);
+      }
     } finally {
       if (onStatusChange) onStatusChange('');
     }

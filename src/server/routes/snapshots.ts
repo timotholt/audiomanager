@@ -107,6 +107,10 @@ export function registerSnapshotRoutes(fastify: FastifyInstance, getProjectConte
     
     const snapshots = await readJsonl<Snapshot>(snapshotPath);
     
+    if (DEBUG_SNAPSHOT) {
+      console.log('[Snapshot] Undo requested, total snapshots:', snapshots.length);
+    }
+    
     if (snapshots.length === 0) {
       reply.code(400);
       return { error: 'Nothing to undo' };
@@ -114,6 +118,13 @@ export function registerSnapshotRoutes(fastify: FastifyInstance, getProjectConte
     
     // Pop the last snapshot
     const snapshot = snapshots.pop()!;
+    
+    if (DEBUG_SNAPSHOT) {
+      console.log('[Snapshot] Restoring snapshot from:', snapshot.timestamp);
+      console.log('[Snapshot] Actors:', snapshot.actors.length);
+      console.log('[Snapshot] Sections:', snapshot.sections.length);
+      console.log('[Snapshot] Content:', snapshot.content.length);
+    }
     
     // Restore state from snapshot
     await writeJsonlAll(paths.catalog.actors, snapshot.actors);

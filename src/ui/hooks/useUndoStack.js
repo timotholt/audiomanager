@@ -41,7 +41,7 @@ export function useUndoStack({ onStateRestored }) {
       
       // Update undo state
       setCanUndo(data.remainingSnapshots > 0);
-      setLastMessage(null); // Will be refreshed on next check
+      setLastTimestamp(null); // Will be refreshed on next check
       
       // Notify parent to update UI state
       if (onStateRestored) {

@@ -6,6 +6,7 @@ import DetailPane from './DetailPane.jsx';
 import { getActors, getContent, getSections, getTakes, deleteSection } from '../api/client.js';
 import { useAppLog } from '../hooks/useAppLog.js';
 import { useUndoStack } from '../hooks/useUndoStack.js';
+import { useConsoleCapture } from '../hooks/useConsoleCapture.js';
 import { 
   buildActorPath, 
   buildSectionPath, 
@@ -48,7 +49,10 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
   // Application logging (persisted to server)
   const { logs, loading: logsLoading, logInfo, logSuccess, logError, logWarning, clearLogs, reloadLogs } = useAppLog();
 
-  // Handle state restored from undo - keep console selected
+  // Browser console capture
+  const { entries: consoleEntries, clearEntries: clearConsole } = useConsoleCapture();
+
+  // Handle state restored from undo - keep history selected
   const handleStateRestored = useCallback((restoredState) => {
     setActors(restoredState.actors);
     setSections(restoredState.sections);
@@ -309,6 +313,8 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         onLogError={logError}
         onLogInfo={logInfo}
         undoRedo={undoStack}
+        consoleEntries={consoleEntries}
+        onClearConsole={clearConsole}
       />
     </Box>
   );

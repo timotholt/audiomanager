@@ -8,7 +8,8 @@ import ProviderDefaultsView from './ProviderDefaultsView.jsx';
 import ActorView from './views/ActorView.jsx';
 import RootView from './views/RootView.jsx';
 import DefaultsView from './views/DefaultsView.jsx';
-import ConsoleView from './ConsoleView.jsx';
+import HistoryView from './ConsoleView.jsx';
+import BrowserConsoleView from './BrowserConsoleView.jsx';
 import { useActorOperations } from '../hooks/useActorOperations.js';
 import { useDataOperations } from '../hooks/useDataOperations.js';
 import { useViewRouter } from '../hooks/useViewRouter.js';
@@ -43,7 +44,9 @@ export default function DetailPane({
   onClearLogs,
   onLogError,
   onLogInfo,
-  undoRedo
+  undoRedo,
+  consoleEntries,
+  onClearConsole
 }) {
   const actorOps = useActorOperations({ 
     onActorCreated, 
@@ -193,7 +196,15 @@ export default function DetailPane({
 
     case 'console':
       return (
-        <ConsoleView 
+        <BrowserConsoleView 
+          entries={consoleEntries}
+          onClear={onClearConsole}
+        />
+      );
+
+    case 'history':
+      return (
+        <HistoryView 
           logs={logs}
           undoRedo={undoRedo}
           onClearLogs={onClearLogs}

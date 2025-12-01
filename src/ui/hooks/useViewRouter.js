@@ -39,6 +39,10 @@ export function useViewRouter({ selectedNode, actors, content, sections }) {
       return { view: 'console' };
     }
 
+    if (selectedNode.type === 'history') {
+      return { view: 'history' };
+    }
+
     return { view: 'fallback' };
   }, [selectedNode, actors, content, sections]);
 }

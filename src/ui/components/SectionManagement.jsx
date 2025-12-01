@@ -17,27 +17,51 @@ export default function SectionManagement({
         Content Sections
       </Typography>
       <Typography variant="body2" color="text.secondary" gutterBottom sx={DESIGN_SYSTEM.typography.body}>
-        Create multiple sections for different types of content (e.g., Combat Dialog, Story Music, etc.)
+        Create multiple sections for different types of content (e.g., combat dialog, story music, etc.)
       </Typography>
       
       <Stack spacing={DESIGN_SYSTEM.spacing.elementGap} sx={{ mt: DESIGN_SYSTEM.spacing.elementGap }}>
         {/* Show existing sections categorized by type */}
-        {['dialogue', 'music', 'sfx'].map(contentType => {
-          const sectionsOfType = sections.filter(s => s.actor_id === actor.id && s.content_type === contentType);
+        {['dialogue', 'music', 'sfx'].map((contentType) => {
+          const sectionsOfType = sections.filter(
+            (s) => s.actor_id === actor.id && s.content_type === contentType
+          );
           if (sectionsOfType.length === 0) return null;
           
           return (
             <Box key={contentType}>
-              <Typography variant="body2" sx={{ ...DESIGN_SYSTEM.typography.body, fontWeight: 500, mb: DESIGN_SYSTEM.spacing.tightGap }}>
-                {contentType.charAt(0).toUpperCase() + contentType.slice(1)} Sections:
+              <Typography
+                variant="body2"
+                sx={{
+                  ...DESIGN_SYSTEM.typography.body,
+                  fontWeight: 500,
+                  mb: DESIGN_SYSTEM.spacing.tightGap,
+                }}
+              >
+                {contentType} sections:
               </Typography>
-              {sectionsOfType.map(section => (
-                <Box key={section.id} sx={{ display: 'flex', alignItems: 'center', gap: DESIGN_SYSTEM.spacing.elementGap, ml: DESIGN_SYSTEM.spacing.elementGap }}>
-                  <Typography variant="body2" sx={{ minWidth: 120, ...DESIGN_SYSTEM.typography.body }}>
-                    {section.name || (section.content_type.charAt(0).toUpperCase() + section.content_type.slice(1))}
+              {sectionsOfType.map((section) => (
+                <Box
+                  key={section.id}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: DESIGN_SYSTEM.spacing.elementGap,
+                    ml: DESIGN_SYSTEM.spacing.elementGap,
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    sx={{ minWidth: 120, ...DESIGN_SYSTEM.typography.body }}
+                  >
+                    {section.name || section.content_type}
                   </Typography>
-                  <Typography variant="body2" color="success.main" sx={DESIGN_SYSTEM.typography.body}>
-                    ✓ Section exists
+                  <Typography
+                    variant="body2"
+                    color="success.main"
+                    sx={DESIGN_SYSTEM.typography.body}
+                  >
+                    ✓ section exists
                   </Typography>
                 </Box>
               ))}
@@ -46,7 +70,14 @@ export default function SectionManagement({
         })}
         
         {/* Add new section buttons */}
-        <Box sx={{ display: 'flex', gap: DESIGN_SYSTEM.spacing.componentGap, flexWrap: 'wrap', mt: DESIGN_SYSTEM.spacing.elementGap }}>
+        <Box
+          sx={{
+            display: 'flex',
+            gap: DESIGN_SYSTEM.spacing.componentGap,
+            flexWrap: 'wrap',
+            mt: DESIGN_SYSTEM.spacing.elementGap,
+          }}
+        >
           <Button
             size="small"
             variant="outlined"
@@ -54,7 +85,7 @@ export default function SectionManagement({
             disabled={creatingContent}
             sx={DESIGN_SYSTEM.typography.small}
           >
-            + Add Dialogue Section
+            + Add dialogue section
           </Button>
           <Button
             size="small"
@@ -63,7 +94,7 @@ export default function SectionManagement({
             disabled={creatingContent}
             sx={DESIGN_SYSTEM.typography.small}
           >
-            + Add Music Section
+            + Add music section
           </Button>
           <Button
             size="small"
@@ -72,7 +103,7 @@ export default function SectionManagement({
             disabled={creatingContent}
             sx={DESIGN_SYSTEM.typography.small}
           >
-            + Add SFX Section
+            + Add sfx section
           </Button>
         </Box>
       </Stack>

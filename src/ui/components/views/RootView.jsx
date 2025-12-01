@@ -12,7 +12,7 @@ export default function RootView({ actorOps, error }) {
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, minWidth: 0 }}>
       <Typography variant="h6" sx={{ ...DESIGN_SYSTEM.typography.pageTitle, mb: 0.5 }}>
-        Actors
+        actors
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ ...DESIGN_SYSTEM.typography.body, mb: 0.5 }}>
         Manage voice actors and their content.

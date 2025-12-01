@@ -18,12 +18,8 @@ import LockIcon from '@mui/icons-material/Lock';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ProviderSettingsEditor from './ProviderSettingsEditor.jsx';
 import CompleteButton from './CompleteButton.jsx';
+import DetailHeader from './DetailHeader.jsx';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
-
-// Helper to convert content type to title case
-function toTitleCase(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-}
 
 export default function SectionView({ 
   sectionData,
@@ -42,7 +38,8 @@ export default function SectionView({
   sectionComplete,
   onToggleSectionComplete,
   onDeleteSection,
-  error
+  error,
+  canCompleteSection = true,
 }) {
   const [editingSectionName, setEditingSectionName] = useState(false);
   const [sectionName, setSectionName] = useState('');
@@ -50,7 +47,11 @@ export default function SectionView({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [suffix, setSuffix] = useState(sectionData?.suffix || contentType);
 
-  const currentSectionName = sectionData?.name || toTitleCase(contentType);
+  // When section is complete, lock all controls except the Complete button in the header
+  const isLocked = !!sectionComplete;
+
+  // Use the exact name stored in sectionData, or fallback to contentType (lowercase)
+  const currentSectionName = sectionData?.name || contentType;
   
   // Build the base filename: actor_base_filename + suffix
   const baseFilename = `${actor.base_filename}_${suffix}`;
@@ -72,16 +73,18 @@ export default function SectionView({
   };
 
   const handleStartEditSectionName = () => {
+    if (isLocked) return;
     setEditingSectionName(true);
     setSectionName(currentSectionName);
   };
 
+  const subtitle = `actor: ${actor?.display_name || 'unknown'} • type: ${contentType}`;
+
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: DESIGN_SYSTEM.spacing.containerPadding, minWidth: 0 }}>
-      {/* Editable Section Name Header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-        {editingSectionName ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
+      {editingSectionName ? (
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <TextField
               size="small"
               value={sectionName}
@@ -93,7 +96,7 @@ export default function SectionView({
                   handleSaveSectionName();
                 }
               }}
-              sx={DESIGN_SYSTEM.components.formControl}
+              sx={{ flexGrow: 1, ...DESIGN_SYSTEM.components.formControl }}
             />
             <Button
               size="small"
@@ -110,42 +113,29 @@ export default function SectionView({
               Cancel
             </Button>
           </Box>
-        ) : (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1 }}>
-            <Typography variant="subtitle1" sx={DESIGN_SYSTEM.typography.pageTitle}>
-              {currentSectionName}
-            </Typography>
-            <Button
-              size="small"
-              variant="text"
-              onClick={handleStartEditSectionName}
-              sx={DESIGN_SYSTEM.typography.small}
-            >
-              Edit Name
-            </Button>
-          </Box>
-        )}
-        <IconButton
-          size="small"
-          color="error"
-          onClick={() => setConfirmDeleteOpen(true)}
-          title="Delete section"
-        >
-          <DeleteIcon fontSize="small" />
-        </IconButton>
-      </Box>
-
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-        <Typography variant="body2" color="text.secondary" sx={DESIGN_SYSTEM.typography.body}>
-          Actor: {actor.display_name} • Type: {toTitleCase(contentType)}
-        </Typography>
-        <CompleteButton
-          isComplete={sectionComplete}
-          onToggle={() => onToggleSectionComplete && onToggleSectionComplete(sectionData.id, !sectionComplete)}
-          itemType="section"
+        </Box>
+      ) : (
+        <DetailHeader
+          title={currentSectionName}
+          subtitle={subtitle}
+          onEdit={handleStartEditSectionName}
+          onDelete={() => setConfirmDeleteOpen(true)}
+          editTooltip="Edit section name"
+          deleteTooltip="Delete section"
+          editDisabled={isLocked}
+          deleteDisabled={isLocked}
+          rightActions={
+            <CompleteButton
+              isComplete={sectionComplete}
+              onToggle={() => onToggleSectionComplete && onToggleSectionComplete(sectionData.id, !sectionComplete)}
+              disabled={!sectionComplete && !canCompleteSection}
+              itemType="section"
+            />
+          }
         />
-      </Box>
-
+      )}
+      {/* Lock all body controls when section is complete */}
+      <Box sx={{ opacity: isLocked ? 0.6 : 1, pointerEvents: isLocked ? 'none' : 'auto' }}>
 
       {/* Settings - collapsible with Provider and Filename subgroups */}
       <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
@@ -210,7 +200,7 @@ export default function SectionView({
       {/* Add content section */}
       <Box sx={{ mt: 3 }}>
         <Typography variant="subtitle2" gutterBottom sx={DESIGN_SYSTEM.typography.sectionTitle}>
-          Add New {toTitleCase(contentType)} Content
+          Add New {contentType} content
         </Typography>
         <TextField
           fullWidth
@@ -227,7 +217,7 @@ export default function SectionView({
           size="small"
           multiline
           rows={3}
-          label={`${toTitleCase(contentType)} Prompt (optional)`}
+          label={`${contentType} prompt (optional)`}
           placeholder={`${contentType} prompt or description`}
           value={contentPrompt}
           onChange={onContentPromptChange}
@@ -239,7 +229,7 @@ export default function SectionView({
           disabled={!contentCueId.trim() || creatingContent}
           onClick={() => onCreateContent(sectionData.actor_id, sectionData.content_type, sectionData.id)}
         >
-          {creatingContent ? 'Creating…' : `Add ${toTitleCase(contentType)} Content`}
+          {creatingContent ? 'Creating…' : `Add ${contentType} content`}
         </Button>
       </Box>
 
@@ -248,6 +238,8 @@ export default function SectionView({
           {error}
         </Typography>
       )}
+
+      </Box>
 
       {/* Delete Section Confirmation Dialog */}
       <Dialog

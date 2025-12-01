@@ -246,6 +246,23 @@ export function useDataOperations({
       if (result && result.section && onSectionUpdated) {
         onSectionUpdated(result.section);
       }
+
+      // If a section is being marked incomplete, also mark its parent actor as incomplete
+      if (newCompleteValue === false) {
+        const section = sections.find((s) => s.id === sectionId);
+        if (section) {
+          const actorId = section.actor_id;
+          try {
+            const actorResult = await updateActor(actorId, { actor_complete: false });
+            if (actorResult && actorResult.actor && onActorUpdated) {
+              onActorUpdated(actorResult.actor);
+            }
+          } catch (actorErr) {
+            // Surface actor update errors through the same error channel
+            setError(actorErr.message || String(actorErr));
+          }
+        }
+      }
     } catch (err) {
       setError(err.message || String(err));
     }

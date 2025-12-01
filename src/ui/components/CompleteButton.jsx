@@ -40,14 +40,22 @@ export default function CompleteButton({
     >
       <span>
         <Button
-          variant={isComplete ? 'outlined' : 'contained'}
+          variant={isComplete ? 'contained' : 'outlined'}
           size="small"
-          color={isComplete ? 'success' : 'primary'}
+          color="success"
           disabled={isDisabled}
           onClick={onToggle}
-          sx={{ ...DESIGN_SYSTEM.typography.small }}
+          sx={{ 
+            ...DESIGN_SYSTEM.typography.small,
+            textTransform: 'none',
+            fontWeight: 500,
+            // Completed: solid green background, bright white text (like approved take)
+            ...(isComplete && {
+              color: 'common.white',
+            }),
+          }}
         >
-          {isComplete ? 'Completed ✓' : `Mark ${itemType.charAt(0).toUpperCase() + itemType.slice(1)} As Completed`}
+          {isComplete ? 'completed ✓' : `mark ${itemType} as completed`}
         </Button>
       </span>
     </Tooltip>

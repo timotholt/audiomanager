@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import Button from '@mui/material/Button';
-import ActorHeader from '../ActorHeader.jsx';
+import DetailHeader from '../DetailHeader.jsx';
 import ProviderSettingsDisplay from '../ProviderSettingsDisplay.jsx';
 import SectionManagement from '../SectionManagement.jsx';
 import CompleteButton from '../CompleteButton.jsx';
@@ -17,9 +18,12 @@ export default function ActorView({
   sections, 
   actorOps, 
   dataOps, 
-  error 
+  error,
+  canCompleteActor = true,
 }) {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [editingDisplayName, setEditingDisplayName] = useState(false);
+  const [displayName, setDisplayName] = useState('');
 
   if (!actor) {
     return (
@@ -28,6 +32,9 @@ export default function ActorView({
       </Box>
     );
   }
+
+  // When actor is complete, lock all controls except the Complete button in the header
+  const isLocked = !!actor.actor_complete;
 
   const handleConfirmDelete = async () => {
     try {
@@ -38,45 +45,103 @@ export default function ActorView({
     }
   };
 
+  const handleSaveDisplayName = () => {
+    const newName = displayName || actor.display_name;
+    if (dataOps.updateDisplayName && newName !== actor.display_name) {
+      dataOps.updateDisplayName(actor.id, newName, actor.display_name);
+    }
+    setEditingDisplayName(false);
+    setDisplayName('');
+  };
+
+  const handleStartEditDisplayName = () => {
+    if (isLocked) return;
+    setEditingDisplayName(true);
+    setDisplayName(actor.display_name);
+  };
+
+  const subtitle = `type: actor`;
+
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: DESIGN_SYSTEM.spacing.containerPadding, minWidth: 0 }}>
-      <ActorHeader 
-        actor={actor}
-        onDelete={() => setConfirmDeleteOpen(true)}
-        onUpdateBaseFilename={dataOps.updateBaseFilename}
-        onUpdateDisplayName={dataOps.updateDisplayName}
-        error={error || actorOps.error}
-      />
-
-      <Box sx={{ mb: 2 }}>
-        <CompleteButton
-          isComplete={actor.actor_complete}
-          onToggle={async () => {
-            try {
-              await actorOps.updateActor(actor.id, { actor_complete: !actor.actor_complete });
-            } catch (err) {
-              // Error handled by hook
-            }
-          }}
-          disabled={actorOps.deleting}
-          itemType="actor"
+      {editingDisplayName ? (
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TextField
+              size="small"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder={actor.display_name}
+              autoFocus
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleSaveDisplayName();
+                }
+              }}
+              sx={{ flexGrow: 1, ...DESIGN_SYSTEM.components.formControl }}
+            />
+            <Button
+              size="small"
+              variant="contained"
+              onClick={handleSaveDisplayName}
+            >
+              Save
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                setEditingDisplayName(false);
+                setDisplayName('');
+              }}
+            >
+              Cancel
+            </Button>
+          </Box>
+        </Box>
+      ) : (
+        <DetailHeader
+          title={actor.display_name}
+          subtitle={subtitle}
+          onEdit={handleStartEditDisplayName}
+          onDelete={() => setConfirmDeleteOpen(true)}
+          editTooltip="Edit actor name"
+          deleteTooltip="Delete actor"
+          editDisabled={isLocked}
+          deleteDisabled={isLocked || actorOps.deleting}
+          rightActions={
+            <CompleteButton
+              isComplete={actor.actor_complete}
+              onToggle={async () => {
+                try {
+                  await actorOps.updateActor(actor.id, { actor_complete: !actor.actor_complete });
+                } catch (err) {
+                  // Error handled by hook
+                }
+              }}
+              disabled={actorOps.deleting || (!actor.actor_complete && !canCompleteActor)}
+              itemType="actor"
+            />
+          }
         />
-      </Box>
-
-      <ProviderSettingsDisplay actor={actor} />
-
-      <SectionManagement 
-        actor={actor}
-        sections={sections}
-        onCreateSection={dataOps.createSection}
-        creatingContent={dataOps.creatingContent}
-      />
-
-      {error && (
-        <Typography color="error" variant="body2" sx={{ mt: 1 }}>
-          {error}
-        </Typography>
       )}
+      {/* Lock all body controls when actor is complete */}
+      <Box sx={{ opacity: isLocked ? 0.6 : 1, pointerEvents: isLocked ? 'none' : 'auto' }}>
+        <ProviderSettingsDisplay actor={actor} />
+
+        <SectionManagement 
+          actor={actor}
+          sections={sections}
+          onCreateSection={dataOps.createSection}
+          creatingContent={dataOps.creatingContent}
+        />
+
+        {error && (
+          <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+            {error}
+          </Typography>
+        )}
+      </Box>
 
       <Dialog
         open={confirmDeleteOpen}

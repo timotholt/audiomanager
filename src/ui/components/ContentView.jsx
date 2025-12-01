@@ -26,8 +26,9 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
-import { deleteContent, updateContent, getTakes, updateTake, generateTakes, deleteTake } from '../api/client.js';
+import { deleteContent, updateContent, updateSection, updateActor, getTakes, updateTake, generateTakes, deleteTake } from '../api/client.js';
 import CompleteButton from './CompleteButton.jsx';
+import DetailHeader from './DetailHeader.jsx';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 
 // Local storage key for LLM settings (same as SettingsDialog)
@@ -82,6 +83,8 @@ export default function ContentView({
   actor,
   onContentDeleted,
   onContentUpdated,
+  onSectionUpdated,
+  onActorUpdated,
   sectionComplete,
   blankSpaceConversion = 'underscore',
   capitalizationConversion = 'lowercase',
@@ -132,6 +135,10 @@ export default function ContentView({
   const [loadingTakes, setLoadingTakes] = useState(false);
   const [generatingTakes, setGeneratingTakes] = useState(false);
   const [expandedTakes, setExpandedTakes] = useState({});
+  const [editingCueId, setEditingCueId] = useState(false);
+
+  // When a cue is marked complete (all_approved), lock all controls except the Complete button
+  const isDisabled = !!item.all_approved;
 
   // Sync local state when item changes
   useEffect(() => {
@@ -308,8 +315,6 @@ export default function ContentView({
     }
   };
 
-  const isDisabled = false;
-
   // AI prompt handlers
   const getLLMSettings = () => {
     try {
@@ -414,100 +419,120 @@ export default function ContentView({
   const approvedCount = takes.filter(t => t.status === 'approved').length;
   const requiredApprovals = actor?.provider_settings?.[item.content_type]?.approval_count_default || 1;
 
+  const contentTypeLabel = item.content_type === 'dialogue' ? 'dialogue' : item.content_type === 'music' ? 'music' : 'sfx';
+  const subtitle = `actor: ${actor?.display_name || 'unknown'} • type: ${contentTypeLabel}`;
+
+  const handleSaveCueId = () => {
+    if (cueId !== item.cue_id) {
+      handleSaveField('cue_id', cueId);
+    }
+    setEditingCueId(false);
+  };
+
+  const handleStartEditCueId = () => {
+    setEditingCueId(true);
+    setCueId(item.cue_id || '');
+  };
+
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: DESIGN_SYSTEM.spacing.containerPadding, minWidth: 0 }}>
-      {/* Header with delete button */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-        <Typography variant="h6" sx={{ flexGrow: 1, ...DESIGN_SYSTEM.typography.pageTitle }}>
-          {item.content_type === 'dialogue' ? 'Dialogue Cue' : item.content_type === 'music' ? 'Music Cue' : 'Sound Effect'}
-        </Typography>
-        <IconButton
-          size="small"
-          color="error"
-          aria-label="Delete content"
-          onClick={() => setConfirmDeleteContentOpen(true)}
-          disabled={isDisabled}
-        >
-          <DeleteIcon fontSize="small" />
-        </IconButton>
-      </Box>
-
-      {/* Editable Item ID */}
-      <TextField
-        fullWidth
-        size="small"
-        label="Cue ID"
-        value={cueId}
-        onChange={(e) => setCueId(e.target.value)}
-        onBlur={() => cueId !== item.cue_id && handleSaveField('cue_id', cueId)}
-        disabled={isDisabled || saving}
-        sx={{ mb: DESIGN_SYSTEM.spacing.elementGap, ...DESIGN_SYSTEM.components.formControl }}
-      />
-
-      {/* Editable Prompt with AI toolbar */}
-      <Box sx={{ mb: DESIGN_SYSTEM.spacing.elementGap }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-          <Typography variant="caption" color="text.secondary">Prompt</Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            {aiLoading && <CircularProgress size={16} />}
-            <Tooltip title="Generate prompt with AI">
-              <span>
-                <IconButton
-                  size="small"
-                  onClick={handleAIGenerate}
-                  disabled={isDisabled || aiLoading}
-                  sx={{ p: 0.5 }}
-                >
-                  <AutoAwesomeIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Improve prompt with AI">
-              <span>
-                <IconButton
-                  size="small"
-                  onClick={handleAIImprove}
-                  disabled={isDisabled || aiLoading || !prompt.trim()}
-                  sx={{ p: 0.5 }}
-                >
-                  <AutoFixHighIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Reset to default">
-              <span>
-                <IconButton
-                  size="small"
-                  onClick={handleResetPrompt}
-                  disabled={isDisabled}
-                  sx={{ p: 0.5 }}
-                >
-                  <RestartAltIcon fontSize="small" />
-                </IconButton>
-              </span>
-            </Tooltip>
+      {editingCueId ? (
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <TextField
+              size="small"
+              value={cueId}
+              onChange={(e) => setCueId(e.target.value)}
+              placeholder={item.cue_id || 'untitled'}
+              autoFocus
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleSaveCueId();
+                }
+              }}
+              sx={{ flexGrow: 1, ...DESIGN_SYSTEM.components.formControl }}
+            />
+            <Button
+              size="small"
+              variant="contained"
+              onClick={handleSaveCueId}
+            >
+              Save
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                setEditingCueId(false);
+                setCueId(item.cue_id || '');
+              }}
+            >
+              Cancel
+            </Button>
           </Box>
         </Box>
-        <TextField
-          fullWidth
-          size="small"
-          multiline
-          rows={3}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onBlur={() => prompt !== item.prompt && handleSaveField('prompt', prompt)}
-          disabled={isDisabled || saving}
-          sx={DESIGN_SYSTEM.components.formControl}
+      ) : (
+        <DetailHeader
+          title={item.cue_id || 'untitled'}
+          subtitle={subtitle}
+          onEdit={handleStartEditCueId}
+          onDelete={() => setConfirmDeleteContentOpen(true)}
+          editDisabled={isDisabled}
+          deleteDisabled={isDisabled}
+          editTooltip="Edit cue ID"
+          deleteTooltip="Delete content"
+          rightActions={
+            <CompleteButton
+              isComplete={item.all_approved}
+              onToggle={async () => {
+                try {
+                  setSaving(true);
+                  setError(null);
+
+                  const nextAllApproved = !item.all_approved;
+                  const result = await updateContent(item.id, { all_approved: nextAllApproved });
+
+                  if (result.content && onContentUpdated) {
+                    onContentUpdated(result.content);
+                  }
+
+                  // If this cue is being marked incomplete, also mark its parent
+                  // section and actor as incomplete, to keep the hierarchy in sync.
+                  if (!nextAllApproved) {
+                    try {
+                      if (item.section_id) {
+                        const sectionResult = await updateSection(item.section_id, { section_complete: false });
+                        if (sectionResult && sectionResult.section && onSectionUpdated) {
+                          onSectionUpdated(sectionResult.section);
+                        }
+                      }
+                      if (item.actor_id) {
+                        const actorResult = await updateActor(item.actor_id, { actor_complete: false });
+                        if (actorResult && actorResult.actor && onActorUpdated) {
+                          onActorUpdated(actorResult.actor);
+                        }
+                      }
+                    } catch (hierarchyErr) {
+                      // Surface any hierarchy update issues through the same error channel
+                      setError(hierarchyErr.message || String(hierarchyErr));
+                    }
+                  }
+                } catch (err) {
+                  setError(err.message || String(err));
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              itemType="cue"
+              approvedCount={approvedCount}
+            />
+          }
         />
-        {aiError && (
-          <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
-            {aiError}
-          </Typography>
-        )}
-      </Box>
+      )}
 
       {/* Editable Filename */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: DESIGN_SYSTEM.spacing.elementGap }}>
         <TextField
           size="small"
           label="Filename"
@@ -528,7 +553,6 @@ export default function ContentView({
           size="small"
           onClick={() => {
             setFilename(baseFilename);
-            // Also save so the server uses this exact base filename
             handleSaveField('filename', baseFilename);
           }}
           disabled={isDisabled || saving || filename === baseFilename}
@@ -537,6 +561,80 @@ export default function ContentView({
         >
           <RefreshIcon sx={{ fontSize: '1rem' }} />
         </IconButton>
+      </Box>
+
+      {/* Editable Prompt with AI toolbar */}
+      <Box sx={{ mb: DESIGN_SYSTEM.spacing.elementGap }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', mb: 0.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {aiLoading && <CircularProgress size={16} />}
+            <Tooltip title="Generate prompt with AI">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={handleAIGenerate}
+                  disabled={isDisabled || aiLoading}
+                  sx={{ 
+                    p: 0.5,
+                    color: 'text.disabled',
+                    '&:hover': { color: 'text.secondary' }
+                  }}
+                >
+                  <AutoAwesomeIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Improve prompt with AI">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={handleAIImprove}
+                  disabled={isDisabled || aiLoading || !prompt.trim()}
+                  sx={{ 
+                    p: 0.5,
+                    color: 'text.disabled',
+                    '&:hover': { color: 'text.secondary' }
+                  }}
+                >
+                  <AutoFixHighIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Reset to default">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={handleResetPrompt}
+                  disabled={isDisabled}
+                  sx={{ 
+                    p: 0.5,
+                    color: 'text.disabled',
+                    '&:hover': { color: 'text.secondary' }
+                  }}
+                >
+                  <RestartAltIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>
+        </Box>
+        <TextField
+          fullWidth
+          size="small"
+          label="Prompt"
+          multiline
+          rows={3}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          onBlur={() => prompt !== item.prompt && handleSaveField('prompt', prompt)}
+          disabled={isDisabled || saving}
+          sx={DESIGN_SYSTEM.components.formControl}
+        />
+        {aiError && (
+          <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+            {aiError}
+          </Typography>
+        )}
       </Box>
       
       {(error || parentError) && (
@@ -556,26 +654,6 @@ export default function ContentView({
               {approvedCount} of {requiredApprovals} approved takes to be complete
             </Typography>
           </Box>
-          <CompleteButton
-            isComplete={item.all_approved}
-            onToggle={async () => {
-              try {
-                setSaving(true);
-                setError(null);
-                const result = await updateContent(item.id, { all_approved: !item.all_approved });
-                if (result.content && onContentUpdated) {
-                  onContentUpdated(result.content);
-                }
-              } catch (err) {
-                setError(err.message || String(err));
-              } finally {
-                setSaving(false);
-              }
-            }}
-            disabled={saving}
-            itemType="cue"
-            approvedCount={approvedCount}
-          />
         </Box>
         
         {loadingTakes ? (

@@ -71,7 +71,10 @@ export default function DetailPane({
     case 'welcome':
       return <NoSelectionView error={commonError} />;
 
-    case 'actor':
+    case 'actor': {
+      // Actor can only be completed if all of its cues are complete
+      const actorContent = content.filter(c => c.actor_id === data.actor.id);
+      const canCompleteActor = actorContent.length === 0 || actorContent.every(c => c.all_approved);
       return (
         <ActorView 
           actor={data.actor}
@@ -79,10 +82,12 @@ export default function DetailPane({
           actorOps={actorOps}
           dataOps={dataOps}
           error={commonError}
+          canCompleteActor={canCompleteActor}
         />
       );
+    }
 
-    case 'section':
+    case 'section': {
       if (!data.sectionData || !data.actor) {
         return (
           <Box sx={{ flexGrow: 1, overflow: 'auto', p: 2, minWidth: 0 }}>
@@ -90,6 +95,11 @@ export default function DetailPane({
           </Box>
         );
       }
+
+      // Section can only be completed if all of its cues are complete
+      const sectionContent = content.filter(c => c.section_id === data.sectionData.id);
+      const canCompleteSection = sectionContent.length === 0 || sectionContent.every(c => c.all_approved);
+
       return (
         <SectionView
           sectionData={data.sectionData}
@@ -109,8 +119,10 @@ export default function DetailPane({
           onToggleSectionComplete={dataOps.toggleSectionComplete}
           onDeleteSection={() => onSectionDeleted && onSectionDeleted(data.sectionData.id)}
           error={commonError}
+          canCompleteSection={canCompleteSection}
         />
       );
+    }
 
     case 'content':
       if (!data.item) {
@@ -132,6 +144,8 @@ export default function DetailPane({
           actor={contentActor}
           onContentDeleted={onContentDeleted}
           onContentUpdated={onContentUpdated}
+          onSectionUpdated={onSectionUpdated}
+          onActorUpdated={onActorUpdated}
           sectionComplete={contentSectionComplete}
           blankSpaceConversion={blankSpaceConversion}
           capitalizationConversion={capitalizationConversion}

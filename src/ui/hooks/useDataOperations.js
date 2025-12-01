@@ -1,6 +1,14 @@
-import { useState, useEffect } from 'react';
-import { createContent, createSection, getVoices, updateActor, updateSection } from '../api/client.js';
+import { useState, useCallback } from 'react';
+import { updateActor } from '../api/client.js';
+import { useVoices } from './useVoices.js';
+import { useSectionOperations } from './useSectionOperations.js';
+import { useContentOperations } from './useContentOperations.js';
 
+/**
+ * Composite hook for data operations
+ * Combines voices, section, and content operations into a single interface
+ * for backward compatibility with existing components
+ */
 export function useDataOperations({ 
   actors, 
   sections, 
@@ -11,283 +19,75 @@ export function useDataOperations({
   onActorUpdated, 
   onSectionUpdated
 }) {
-  const [contentPrompt, setContentPrompt] = useState('');
-  const [contentCueId, setContentCueId] = useState('');
-  const [creatingContent, setCreatingContent] = useState(false);
-  const [voices, setVoices] = useState([]);
-  const [loadingVoices, setLoadingVoices] = useState(false);
-  const [error, setError] = useState(null);
+  const [actorError, setActorError] = useState(null);
 
-  // Auto-load voices when needed:
-  // - when a content section is selected
-  // - when the Provider Defaults screen is active
-  useEffect(() => {
-    const needsVoices = () => {
-      if (selectedNode?.type === 'provider-default') {
-        // Defaults screen may need voices for dialogue voice selection
-        return true;
-      }
+  // Compose smaller hooks
+  const voiceOps = useVoices({ selectedNode, actors, sections });
+  
+  const sectionOps = useSectionOperations({ 
+    sections, 
+    expandNode, 
+    onSectionCreated, 
+    onSectionUpdated,
+    onActorUpdated
+  });
+  
+  const contentOps = useContentOperations({ 
+    expandNode, 
+    onContentCreated 
+  });
 
-      if (selectedNode?.type?.endsWith('-section')) {
-        const contentType = selectedNode.type.replace('-section', '');
-        const sectionData = sections.find(s => s.id === selectedNode.id);
-        if (sectionData) {
-          const actor = actors.find((a) => a.id === sectionData.actor_id);
-          const providerSettings = actor?.provider_settings?.[contentType];
-          return providerSettings?.provider === 'elevenlabs';
-        }
-      }
-
-      return false;
-    };
-
-    if (needsVoices() && voices.length === 0 && !loadingVoices) {
-      loadVoices();
-    }
-  }, [selectedNode, actors, sections, voices.length, loadingVoices]);
-
-  const loadVoices = async () => {
-    try {
-      setLoadingVoices(true);
-      setError(null);
-      const result = await getVoices();
-      // Debug: log voice data to see what fields are available
-      if (result.voices?.length > 0) {
-        console.log('[useDataOperations] Sample voice data:', result.voices[0]);
-        console.log('[useDataOperations] high_quality_base_model_ids:', result.voices[0].high_quality_base_model_ids);
-      }
-      setVoices(result.voices || []);
-      if (!result.voices || result.voices.length === 0) {
-        setError('No voices available from ElevenLabs');
-      }
-    } catch (err) {
-      console.error('Failed to load voices:', err);
-      let errorMessage = err.message || String(err);
-      
-      if (errorMessage.includes('missing_permissions') || errorMessage.includes('voices_read')) {
-        errorMessage = 'ElevenLabs API key is missing voices_read permission. Please check your API key permissions in the ElevenLabs dashboard.';
-      } else if (errorMessage.includes('Failed to fetch voices')) {
-        errorMessage = 'Cannot connect to ElevenLabs API. Check your internet connection and API key configuration.';
-      }
-      
-      setError(`Failed to load voices: ${errorMessage}`);
-      setVoices([]);
-    } finally {
-      setLoadingVoices(false);
-    }
-  };
-
-  const createContentItem = async (actorId, contentType, sectionId) => {
-    try {
-      setCreatingContent(true);
-      setError(null);
-      
-      // Only send prompt if user explicitly provided one
-      // Server will default each item's prompt to its own cue_id
-      const result = await createContent({
-        actor_id: actorId,
-        content_type: contentType,
-        section_id: sectionId,
-        cue_id: contentCueId,
-        prompt: contentPrompt || undefined,
-      });
-      if (result && result.content && onContentCreated) {
-        if (Array.isArray(result.content)) {
-          result.content.forEach(item => onContentCreated(item));
-        } else {
-          onContentCreated(result.content);
-        }
-        
-        // Auto-expand to show the new content
-        if (expandNode) {
-          expandNode('actors');
-          expandNode(`actor-${actorId}`);
-          if (sectionId) {
-            expandNode(`section-${sectionId}`);
-          }
-        }
-        
-        if (result.message) {
-          setError(result.message);
-        }
-      }
-      setContentPrompt('');
-      setContentCueId('');
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setCreatingContent(false);
-    }
-  };
-
-  const createSectionForActor = async (actorId, contentType, customName = null) => {
-    try {
-      setCreatingContent(true);
-      setError(null);
-      
-      const sectionData = {
-        actor_id: actorId,
-        content_type: contentType,
-      };
-      
-      if (customName) {
-        sectionData.name = customName;
-      }
-      
-      const result = await createSection(sectionData);
-      
-      if (result && result.section && onSectionCreated) {
-        onSectionCreated(result.section);
-        
-        if (expandNode) {
-          expandNode('actors');
-          expandNode(`actor-${actorId}`);
-        }
-      }
-    } catch (err) {
-      setError(err.message || String(err));
-    } finally {
-      setCreatingContent(false);
-    }
-  };
-
-  // Sanitize provider settings to only include valid schema properties
-  const sanitizeProviderSettings = (settings, contentType) => {
-    if (!settings || settings.provider === 'inherit') {
-      return { provider: 'inherit' };
-    }
-    
-    // Valid keys per content type
-    let validKeys;
-    if (contentType === 'dialogue') {
-      validKeys = ['provider', 'voice_id', 'model_id', 'batch_generate', 'approval_count_default', 'stability', 'similarity_boost'];
-    } else if (contentType === 'music') {
-      validKeys = ['provider', 'batch_generate', 'approval_count_default', 'duration_seconds'];
-    } else {
-      validKeys = ['provider', 'batch_generate', 'approval_count_default'];
-    }
-    
-    const sanitized = {};
-    for (const key of validKeys) {
-      if (settings[key] !== undefined) {
-        sanitized[key] = settings[key];
-      }
-    }
-    return sanitized;
-  };
-
-  // Update provider settings on a SECTION (not actor)
-  // Each section has its own provider_settings, independent of other sections
-  const updateSectionProviderSettings = async (sectionId, newSettings) => {
-    try {
-      console.log('[useDataOperations] updateSectionProviderSettings called:', { sectionId, newSettings });
-      
-      // Find the section to get its content type for sanitization
-      const section = sections.find(s => s.id === sectionId);
-      if (!section) {
-        console.error('[useDataOperations] Section not found:', sectionId);
-        return;
-      }
-
-      // Sanitize the settings based on content type
-      const sanitizedSettings = sanitizeProviderSettings(newSettings, section.content_type);
-
-      console.log('[useDataOperations] Sending to API:', { provider_settings: sanitizedSettings });
-      const result = await updateSection(sectionId, {
-        provider_settings: sanitizedSettings
-      });
-
-      console.log('[useDataOperations] API result:', result);
-      if (result && result.section && onSectionUpdated) {
-        onSectionUpdated(result.section);
-      }
-    } catch (err) {
-      console.error('[useDataOperations] Error:', err);
-      setError(err.message || String(err));
-    }
-  };
-
-  const updateSectionName = async (sectionId, newName, oldName) => {
-    try {
-      const result = await updateSection(sectionId, { name: newName });
-      if (result && result.section && onSectionUpdated) {
-        onSectionUpdated(result.section, oldName);
-      }
-    } catch (err) {
-      setError(err.message || String(err));
-    }
-  };
-
-  const updateBaseFilename = async (actorId, newBaseFilename) => {
+  // Actor-specific operations (kept here as they're simple)
+  const updateBaseFilename = useCallback(async (actorId, newBaseFilename) => {
     try {
       const result = await updateActor(actorId, { base_filename: newBaseFilename });
       if (result && result.actor && onActorUpdated) {
         onActorUpdated(result.actor);
       }
     } catch (err) {
-      setError(err.message || String(err));
+      setActorError(err.message || String(err));
     }
-  };
+  }, [onActorUpdated]);
 
-  const updateDisplayName = async (actorId, newDisplayName, oldDisplayName) => {
+  const updateDisplayName = useCallback(async (actorId, newDisplayName, oldDisplayName) => {
     try {
       const result = await updateActor(actorId, { display_name: newDisplayName });
       if (result && result.actor && onActorUpdated) {
         onActorUpdated(result.actor, oldDisplayName);
       }
     } catch (err) {
-      setError(err.message || String(err));
+      setActorError(err.message || String(err));
     }
-  };
+  }, [onActorUpdated]);
 
-  const toggleSectionComplete = async (sectionId, newCompleteValue) => {
-    try {
-      const result = await updateSection(sectionId, { section_complete: newCompleteValue });
-      if (result && result.section && onSectionUpdated) {
-        onSectionUpdated(result.section);
-      }
-
-      // If a section is being marked incomplete, also mark its parent actor as incomplete
-      if (newCompleteValue === false) {
-        const section = sections.find((s) => s.id === sectionId);
-        if (section) {
-          const actorId = section.actor_id;
-          try {
-            const actorResult = await updateActor(actorId, { actor_complete: false });
-            if (actorResult && actorResult.actor && onActorUpdated) {
-              onActorUpdated(actorResult.actor);
-              // Note: We don't log cascaded changes here - the diff describer handles that.
-            }
-          } catch (actorErr) {
-            // Surface actor update errors through the same error channel
-            setError(actorErr.message || String(actorErr));
-          }
-        }
-      }
-    } catch (err) {
-      setError(err.message || String(err));
-    }
-  };
+  // Combine errors from all sources
+  const error = actorError || sectionOps.error || contentOps.error || voiceOps.voiceError;
+  
+  const setError = useCallback((err) => {
+    setActorError(err);
+    sectionOps.setError(err);
+    contentOps.setError(err);
+  }, [sectionOps, contentOps]);
 
   return {
-    // State
-    contentPrompt,
-    contentCueId,
-    creatingContent,
-    voices,
-    loadingVoices,
+    // State (backward compatible interface)
+    contentPrompt: contentOps.contentPrompt,
+    contentCueId: contentOps.contentCueId,
+    creatingContent: contentOps.creating || sectionOps.creating,
+    voices: voiceOps.voices,
+    loadingVoices: voiceOps.loadingVoices,
     error,
     setError,
     
-    // Handlers
-    setContentPrompt,
-    setContentCueId,
-    createContent: createContentItem,
-    createSection: createSectionForActor,
-    updateProviderSettings: updateSectionProviderSettings,
-    updateSectionName,
+    // Handlers (backward compatible interface)
+    setContentPrompt: contentOps.setContentPrompt,
+    setContentCueId: contentOps.setContentCueId,
+    createContent: contentOps.createContent,
+    createSection: sectionOps.createSection,
+    updateProviderSettings: sectionOps.updateProviderSettings,
+    updateSectionName: sectionOps.updateSectionName,
     updateBaseFilename,
     updateDisplayName,
-    toggleSectionComplete
+    toggleSectionComplete: sectionOps.toggleSectionComplete
   };
 }

@@ -171,7 +171,6 @@ export default function DetailPane({
         <ConsoleView 
           logs={logs}
           undoRedo={undoRedo}
-          logInfo={onLogInfo}
         />
       );
 

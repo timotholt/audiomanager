@@ -126,6 +126,12 @@ export default function App() {
     return createTheme({
       palette: {
         mode: themeMode,
+        ...(themeMode === 'dark' && {
+          text: {
+            primary: 'rgba(255, 255, 255, 0.7)', // Soft white as default
+            secondary: 'rgba(255, 255, 255, 0.7)', // Soft white
+          },
+        }),
       },
       typography: {
         fontSize: 14 * scale,

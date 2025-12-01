@@ -144,3 +144,36 @@
 {"id":"1764561724428-kuxxg3dfg","timestamp":"2025-12-01T04:02:04.428Z","type":"info","message":"Created: Actors → august → dialogue","details":null}
 {"id":"1764561736811-riv8oqt4j","timestamp":"2025-12-01T04:02:16.811Z","type":"info","message":"Created: Actors → august → dialogue → 1","details":null}
 {"id":"1764561736812-thghv9m9v","timestamp":"2025-12-01T04:02:16.812Z","type":"info","message":"Created: Actors → august → dialogue → 2","details":null}
+{"id":"1764562820037-o90bzzk22","timestamp":"2025-12-01T04:20:20.037Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562820037-jp7yby3ne","timestamp":"2025-12-01T04:20:20.037Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562826292-x6y7ga8os","timestamp":"2025-12-01T04:20:26.292Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562826292-ymvej47im","timestamp":"2025-12-01T04:20:26.292Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562828833-5u6r2sj3h","timestamp":"2025-12-01T04:20:28.833Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562828834-b89ems2ph","timestamp":"2025-12-01T04:20:28.834Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562831381-9sosk9w14","timestamp":"2025-12-01T04:20:31.381Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562831381-mla7xlzo0","timestamp":"2025-12-01T04:20:31.381Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562880586-uzurpywml","timestamp":"2025-12-01T04:21:20.586Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562880586-i38wcdf2c","timestamp":"2025-12-01T04:21:20.586Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562881629-ilq1q14ef","timestamp":"2025-12-01T04:21:21.629Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562881629-qbflu91qu","timestamp":"2025-12-01T04:21:21.629Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562887296-gl3p9djbu","timestamp":"2025-12-01T04:21:27.296Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562887297-m1yv135d1","timestamp":"2025-12-01T04:21:27.297Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562889824-x6rv8m2ra","timestamp":"2025-12-01T04:21:29.824Z","type":"info","message":"Undid: june: Marked actor as complete","details":null}
+{"id":"1764562889824-7vxk36rgl","timestamp":"2025-12-01T04:21:29.824Z","type":"info","message":"Undid: june: Marked actor as complete","details":null}
+{"id":"1764562891055-lcuno9z0e","timestamp":"2025-12-01T04:21:31.055Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562891054-p92v3wc48","timestamp":"2025-12-01T04:21:31.054Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562892458-adcumrke1","timestamp":"2025-12-01T04:21:32.458Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562892458-srb2ybvoq","timestamp":"2025-12-01T04:21:32.458Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562892745-ip41b3tfh","timestamp":"2025-12-01T04:21:32.745Z","type":"info","message":"Redid: june: Marked actor as complete","details":null}
+{"id":"1764562892745-sl5b1bbnw","timestamp":"2025-12-01T04:21:32.745Z","type":"info","message":"Redid: june: Marked actor as complete","details":null}
+{"id":"1764562892909-luttamqm1","timestamp":"2025-12-01T04:21:32.909Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562892910-ngpex91w2","timestamp":"2025-12-01T04:21:32.910Z","type":"info","message":"Redid: june: Marked actor as incomplete","details":null}
+{"id":"1764562893225-o954t7dmi","timestamp":"2025-12-01T04:21:33.225Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764562893225-vyel5ul0t","timestamp":"2025-12-01T04:21:33.225Z","type":"info","message":"Undid: june: Marked actor as incomplete","details":null}
+{"id":"1764563062863-gaas2vvei","entryType":"log","timestamp":"2025-12-01T04:24:22.863Z","type":"info","message":"may → combat dialogue: Marked section as complete"}
+{"id":"1764563165173-fesl1ytte","entryType":"log","timestamp":"2025-12-01T04:26:05.173Z","type":"info","message":"may → combat dialogue: Marked section as incomplete"}
+{"id":"1764563172964-178z9kh7v","entryType":"log","timestamp":"2025-12-01T04:26:12.964Z","type":"info","message":"may → combat dialogue: Marked section as complete"}
+{"id":"1764563301630-9o21d434f","entryType":"log","timestamp":"2025-12-01T04:28:21.630Z","type":"info","message":"may → combat dialogue: Marked section as incomplete"}
+{"id":"1764563303526-yfycxfgbm","entryType":"log","timestamp":"2025-12-01T04:28:23.526Z","type":"info","message":"may → combat dialogue: Marked section as complete"}
+{"id":"1764563311937-rc9bqrydj","entryType":"log","timestamp":"2025-12-01T04:28:31.938Z","type":"info","message":"may: Marked actor as complete"}
+{"id":"1764563312862-odny4mlgp","entryType":"log","timestamp":"2025-12-01T04:28:32.863Z","type":"info","message":"may: Marked actor as incomplete"}

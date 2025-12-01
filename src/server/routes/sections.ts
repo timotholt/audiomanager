@@ -1,3 +1,4 @@
+import { join } from 'path';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Section, Content, Take } from '../../types/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
@@ -124,6 +125,18 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       updatedSection as unknown as Record<string, unknown>
     );
     await saveSnapshot(paths, snapshotMessage, catalog);
+    
+    // Add history log entry for the update
+    const historyEntry = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      entryType: 'log',
+      timestamp: new Date().toISOString(),
+      type: 'info',
+      message: snapshotMessage,
+    };
+    const historyPath = join(paths.root, 'history.jsonl');
+    await ensureJsonlFile(historyPath);
+    await appendJsonl(historyPath, historyEntry);
 
     // Replace the section in the array and write back
     catalog.sections[sectionIndex] = updatedSection;

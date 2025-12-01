@@ -224,16 +224,18 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
           setActors((prev) => prev.map(a => a.id === updatedActor.id ? updatedActor : a));
           if (oldName && oldName !== updatedActor.display_name) {
             logInfo(`Renamed: ${buildActorPath(oldName)} → ${updatedActor.display_name}`);
-            undoStack.refreshUndoState();
           }
+          undoStack.refreshUndoState();
+          reloadLogs(); // Reload to show server-generated history entries
         }}
         onSectionUpdated={(updatedSection, oldName) => {
           setSections((prev) => prev.map(s => s.id === updatedSection.id ? updatedSection : s));
           if (oldName && oldName !== updatedSection.name) {
             const actorName = getActorName(updatedSection.actor_id, actors);
             logInfo(`Renamed: ${buildSectionPath(actorName, oldName)} → ${updatedSection.name}`);
-            undoStack.refreshUndoState();
           }
+          undoStack.refreshUndoState();
+          reloadLogs(); // Reload to show server-generated history entries
         }}
         onActorDeleted={(id) => {
           const actor = actors.find(a => a.id === id);

@@ -45,7 +45,12 @@ function LogEntry({ entry }) {
         px: 1,
         borderBottom: 1,
         borderColor: 'divider',
-        '&:hover': { bgcolor: 'action.hover' },
+        '&:hover': { 
+          bgcolor: 'action.hover',
+          '& .log-message': {
+            color: entry.type === LOG_TYPE.ERROR ? 'error.main' : 'common.white',
+          },
+        },
         cursor: entry.details ? 'pointer' : 'default',
       }}
       onClick={() => entry.details && setExpanded(!expanded)}
@@ -61,11 +66,13 @@ function LogEntry({ entry }) {
         </Typography>
         <Typography
           variant="body2"
+          className="log-message"
           sx={{
             fontSize: '0.75rem',
             wordBreak: 'break-word',
             flexGrow: 1,
-            color: entry.type === LOG_TYPE.ERROR ? 'error.main' : 'text.primary',
+            color: entry.type === LOG_TYPE.ERROR ? 'error.main' : 'text.secondary',
+            transition: 'color 0.2s',
           }}
         >
           {entry.message}
@@ -94,16 +101,8 @@ function LogEntry({ entry }) {
   );
 }
 
-export default function ConsoleView({ logs, undoRedo, logInfo }) {
+export default function ConsoleView({ logs, undoRedo }) {
   const { canUndo, canRedo, undoMessage, redoMessage, undo, redo, undoing } = undoRedo;
-  
-  const handleUndo = () => {
-    undo(logInfo);
-  };
-  
-  const handleRedo = () => {
-    redo(logInfo);
-  };
   
   return (
     <Box sx={{ 
@@ -123,7 +122,7 @@ export default function ConsoleView({ logs, undoRedo, logInfo }) {
             variant="outlined"
             size="small"
             startIcon={<UndoIcon />}
-            onClick={handleUndo}
+            onClick={undo}
             disabled={undoing}
             title={undoMessage ? `Undo: ${undoMessage}` : 'Undo'}
           >
@@ -135,7 +134,7 @@ export default function ConsoleView({ logs, undoRedo, logInfo }) {
             variant="outlined"
             size="small"
             startIcon={<RedoIcon />}
-            onClick={handleRedo}
+            onClick={redo}
             disabled={undoing}
             title={redoMessage ? `Redo: ${redoMessage}` : 'Redo'}
           >

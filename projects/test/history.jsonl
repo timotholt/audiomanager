@@ -59,3 +59,16 @@
 {"id":"1764579779166-4ju28bjeh","entryType":"log","timestamp":"2025-12-01T09:02:59.166Z","type":"info","message":"system marked actor → ppo as complete"}
 {"id":"1764579779181-00jtt265g","timestamp":"2025-12-01T09:02:59.181Z","type":"info","message":"user marked actor → ppo as complete","details":null}
 {"id":"1764579780190-eqvefbzfj","timestamp":"2025-12-01T09:03:00.190Z","type":"info","message":"All actors in this project are complete.","details":null}
+{"id":"1764580019419-ddvvxmyoy","timestamp":"2025-12-01T09:06:59.419Z","type":"info","message":"user marked actor → ppo → dialogue → no as incomplete","details":null}
+{"id":"1764580019448-qzshj225y","entryType":"log","timestamp":"2025-12-01T09:06:59.448Z","type":"info","message":"system marked actor → ppo → dialogue as incomplete"}
+{"id":"1764580019519-ntjbvqyx4","entryType":"log","timestamp":"2025-12-01T09:06:59.519Z","type":"info","message":"system marked actor → ppo as incomplete"}
+{"id":"1764580020839-5izjypzau","timestamp":"2025-12-01T09:07:00.839Z","type":"info","message":"user unapproved actor → ppo → dialogue → no → ppo_dialogue_no_v001.wav","details":null}
+{"id":"1764580035588-cxf6y53bg","timestamp":"2025-12-01T09:07:15.588Z","type":"info","message":"user rejected actor → ppo → dialogue → no → ppo_dialogue_no_v001.wav","details":null}
+{"id":"1764580039788-zf0x8w642","timestamp":"2025-12-01T09:07:19.788Z","type":"info","message":"user unrejected actor → ppo → dialogue → no → ppo_dialogue_no_v001.wav","details":null}
+{"id":"1764580040353-9z4ixa7b7","timestamp":"2025-12-01T09:07:20.353Z","type":"info","message":"user approved actor → ppo → dialogue → no → ppo_dialogue_no_v001.wav","details":null}
+{"id":"1764580051539-pg7ra1ynf","timestamp":"2025-12-01T09:07:31.539Z","type":"info","message":"user marked actor → ppo → dialogue → no as complete","details":null}
+{"id":"1764580053493-1xqjisum0","entryType":"log","timestamp":"2025-12-01T09:07:33.493Z","type":"info","message":"system marked actor → ppo → dialogue as complete"}
+{"id":"1764580053499-cd9xf58j4","timestamp":"2025-12-01T09:07:33.499Z","type":"info","message":"user marked actor → ppo → dialogue as complete","details":null}
+{"id":"1764580055967-8yfxekx8w","entryType":"log","timestamp":"2025-12-01T09:07:35.967Z","type":"info","message":"system marked actor → ppo as complete"}
+{"id":"1764580055975-2vzi51yvs","timestamp":"2025-12-01T09:07:35.975Z","type":"info","message":"user marked actor → ppo as complete","details":null}
+{"id":"1764580056977-p0wsvu5tf","timestamp":"2025-12-01T09:07:36.977Z","type":"info","message":"All actors in this project are complete.","details":null}

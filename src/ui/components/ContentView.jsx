@@ -256,16 +256,20 @@ export default function ContentView({
         if (result.content && onContentUpdated) {
           onContentUpdated(result.content);
         }
-        // Log the status change to history
+        // Log the status change to history with full path
         const filename = result.take.filename || takeId;
+        const actorName = actor?.display_name || 'Unknown';
+        const sectionName = getSectionName(item.section_id, sections);
+        const cueName = item.cue_id || item.id;
+        const path = buildContentPath(actorName, sectionName, cueName);
         if (status === 'approved') {
-          logInfo(`Approved take: ${filename}`);
+          logInfo(`user approved ${path} → ${filename}`);
         } else if (status === 'rejected') {
-          logInfo(`Rejected take: ${filename}`);
+          logInfo(`user rejected ${path} → ${filename}`);
         } else if (status === 'new' && previousStatus === 'approved') {
-          logInfo(`Unapproved take: ${filename}`);
+          logInfo(`user unapproved ${path} → ${filename}`);
         } else if (status === 'new' && previousStatus === 'rejected') {
-          logInfo(`Unrejected take: ${filename}`);
+          logInfo(`user unrejected ${path} → ${filename}`);
         }
       }
     } catch (err) {

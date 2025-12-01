@@ -74,10 +74,10 @@ function LogIcon({ type, message }) {
   }
   
   // Thumb icons for take approval/rejection
-  const isApproved = message && /^Approved take:/i.test(message);
-  const isRejected = message && /^Rejected take:/i.test(message);
-  const isUnapproved = message && /^Unapproved take:/i.test(message);
-  const isUnrejected = message && /^Unrejected take:/i.test(message);
+  const isApproved = message && /^user approved /i.test(message);
+  const isRejected = message && /^user rejected /i.test(message);
+  const isUnapproved = message && /^user unapproved /i.test(message);
+  const isUnrejected = message && /^user unrejected /i.test(message);
   
   if (isApproved) {
     return <ThumbUpIcon sx={{ ...iconSx, color: 'success.main' }} />;

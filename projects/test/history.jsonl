@@ -67,3 +67,23 @@
 {"id":"1764547409693-a7ozs2a49","timestamp":"2025-12-01T00:03:29.693Z","type":"info","message":"Section created: dialogue","details":null}
 {"id":"1764547411129-2u8fttbpc","timestamp":"2025-12-01T00:03:31.129Z","type":"info","message":"Section created: dialogue","details":null}
 {"id":"1764547416030-pm266nx14","timestamp":"2025-12-01T00:03:36.030Z","type":"info","message":"Section deleted: dialogue (tim6)","details":null}
+{"id":"1764547762315-7ntbt7wxf","timestamp":"2025-12-01T00:09:22.315Z","type":"info","message":"Created: Actors → tim6 → dialogue → 1","details":null}
+{"id":"1764547762317-e8gz7oo7w","timestamp":"2025-12-01T00:09:22.317Z","type":"info","message":"Created: Actors → tim6 → dialogue → 2","details":null}
+{"id":"1764547762319-aqgz52ee5","timestamp":"2025-12-01T00:09:22.319Z","type":"info","message":"Created: Actors → tim6 → dialogue → 3","details":null}
+{"id":"1764547762320-s97p2e4oc","timestamp":"2025-12-01T00:09:22.320Z","type":"info","message":"Created: Actors → tim6 → dialogue → 4","details":null}
+{"id":"1764547762324-ptbouyzos","timestamp":"2025-12-01T00:09:22.324Z","type":"info","message":"Created: Actors → tim6 → dialogue → 5","details":null}
+{"id":"1764547772704-hjr9gksel","timestamp":"2025-12-01T00:09:32.704Z","type":"info","message":"Restored to 4:09:26 PM","details":null}
+{"id":"1764554648438-5mrcxn3gf","timestamp":"2025-12-01T02:04:08.438Z","type":"info","message":"Deleted: Actors → tim6 → dialogue → 5","details":null}
+{"id":"1764554672036-baw6dba6w","timestamp":"2025-12-01T02:04:32.036Z","type":"info","message":"Deleted: Actors → tim6 → dialogue → 4","details":null}
+{"id":"1764554675120-73yvtd26l","timestamp":"2025-12-01T02:04:35.120Z","type":"info","message":"Restored to 6:04:31 PM","details":null}
+{"id":"1764554716658-kmfxbu9ki","timestamp":"2025-12-01T02:05:16.658Z","type":"info","message":"Undid: undefined","details":null}
+{"id":"1764554729414-9r9rneu22","timestamp":"2025-12-01T02:05:29.414Z","type":"info","message":"Deleted: Actors → tim2","details":null}
+{"id":"1764554732791-o8ah5d649","timestamp":"2025-12-01T02:05:32.791Z","type":"info","message":"Deleted: Actors → tim3","details":null}
+{"id":"1764554735654-dy5nbp202","timestamp":"2025-12-01T02:05:35.654Z","type":"info","message":"Deleted: Actors → tim5","details":null}
+{"id":"1764554738588-9iew84unc","timestamp":"2025-12-01T02:05:38.588Z","type":"info","message":"Deleted: Actors → tim4","details":null}
+{"id":"1764554742010-8fm6fbn4f","timestamp":"2025-12-01T02:05:42.010Z","type":"info","message":"Deleted: Actors → tim6","details":null}
+{"id":"1764554747042-bo34aahq1","timestamp":"2025-12-01T02:05:47.042Z","type":"info","message":"Undid: Delete actor: tim6","details":null}
+{"id":"1764554769663-6wqh1vxrm","timestamp":"2025-12-01T02:06:09.663Z","type":"info","message":"Redid: Delete actor: tim6","details":null}
+{"id":"1764554774404-mqgibdlyq","timestamp":"2025-12-01T02:06:14.404Z","type":"info","message":"Undid: Delete actor: tim6","details":null}
+{"id":"1764554777970-vrcykj4p6","timestamp":"2025-12-01T02:06:17.970Z","type":"info","message":"Redid: Delete actor: tim6","details":null}
+{"id":"1764554780658-jiunc3kcd","timestamp":"2025-12-01T02:06:20.658Z","type":"info","message":"Undid: Delete actor: tim6","details":null}

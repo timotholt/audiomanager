@@ -44,8 +44,11 @@ export default function DetailPane({
   onLogError,
   onLogInfo,
   canUndo,
-  lastUndoTimestamp,
+  canRedo,
+  undoMessage,
+  redoMessage,
   onUndo,
+  onRedo,
   undoing
 }) {
   const actorOps = useActorOperations({ 
@@ -186,8 +189,11 @@ export default function DetailPane({
         <ConsoleView 
           logs={logs}
           canUndo={canUndo}
-          lastUndoTimestamp={lastUndoTimestamp}
+          canRedo={canRedo}
+          undoMessage={undoMessage}
+          redoMessage={redoMessage}
           onUndo={onUndo}
+          onRedo={onRedo}
           undoing={undoing}
         />
       );

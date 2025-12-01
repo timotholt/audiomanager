@@ -7,6 +7,7 @@ import ErrorIcon from '@mui/icons-material/Error';
 import WarningIcon from '@mui/icons-material/Warning';
 import InfoIcon from '@mui/icons-material/Info';
 import UndoIcon from '@mui/icons-material/Undo';
+import RedoIcon from '@mui/icons-material/Redo';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 import { LOG_TYPE } from '../hooks/useAppLog.js';
 
@@ -93,12 +94,16 @@ function LogEntry({ entry }) {
   );
 }
 
-export default function ConsoleView({ logs, canUndo, lastUndoTimestamp, onUndo, undoing }) {
-  const formatTimestamp = (ts) => {
-    if (!ts) return '';
-    return new Date(ts).toLocaleTimeString();
-  };
-
+export default function ConsoleView({ 
+  logs, 
+  canUndo, 
+  canRedo, 
+  undoMessage, 
+  redoMessage, 
+  onUndo, 
+  onRedo, 
+  undoing 
+}) {
   return (
     <Box sx={{ flexGrow: 1, overflow: 'auto', p: DESIGN_SYSTEM.spacing.containerPadding, minWidth: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
@@ -112,13 +117,26 @@ export default function ConsoleView({ logs, canUndo, lastUndoTimestamp, onUndo, 
             startIcon={<UndoIcon />}
             onClick={onUndo}
             disabled={undoing}
+            title={undoMessage ? `Undo: ${undoMessage}` : 'Undo'}
           >
-            {undoing ? 'Undoing...' : 'Undo'}
+            {undoing ? '...' : 'Undo'}
+          </Button>
+        )}
+        {canRedo && (
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<RedoIcon />}
+            onClick={onRedo}
+            disabled={undoing}
+            title={redoMessage ? `Redo: ${redoMessage}` : 'Redo'}
+          >
+            {undoing ? '...' : 'Redo'}
           </Button>
         )}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ ...DESIGN_SYSTEM.typography.body, mb: 0.5 }}>
-        {canUndo ? `Can undo to ${formatTimestamp(lastUndoTimestamp)}` : 'Activity log'}
+        {canUndo ? `Undo: ${undoMessage || 'last action'}` : canRedo ? `Redo: ${redoMessage || 'last action'}` : 'Activity log'}
       </Typography>
 
       <Box

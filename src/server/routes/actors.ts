@@ -28,12 +28,19 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     }
     const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.actors);
-    
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths);
 
     const body = request.body as Partial<Actor> | undefined;
     const now = new Date().toISOString();
+    
+    // Get actor name(s) for snapshot message
+    const displayNameInput = body?.display_name ?? 'New Actor';
+    const allNames = displayNameInput.split(',').map((n: string) => n.trim()).filter((n: string) => n.length > 0);
+    const snapshotMessage = allNames.length === 1 
+      ? `Create actor: ${allNames[0]}`
+      : `Create actors: ${allNames.join(', ')}`;
+    
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths, snapshotMessage);
 
     // Load global defaults
     const defaultsPath = join(paths.root, 'defaults.json');
@@ -51,10 +58,6 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     } catch (err) {
       fastify.log.warn(err, 'Failed to load global defaults, using hardcoded values');
     }
-
-    // Support batch creation by splitting comma-separated display_names
-    const displayNameInput = body?.display_name ?? 'New Actor';
-    const allNames = displayNameInput.split(',').map((n: string) => n.trim()).filter((n: string) => n.length > 0);
 
     if (allNames.length === 0) {
       reply.code(400);
@@ -132,9 +135,6 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'Request body is required' };
     }
 
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths);
-
     const actors = await readJsonl<Actor>(paths.catalog.actors);
     const actorIndex = actors.findIndex(a => a.id === id);
     
@@ -142,6 +142,16 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       reply.code(404);
       return { error: 'Actor not found' };
     }
+    
+    // Build descriptive message
+    const currentActor = actors[actorIndex];
+    let snapshotMessage = `Update actor: ${currentActor.display_name}`;
+    if (body.display_name && body.display_name !== currentActor.display_name) {
+      snapshotMessage = `Rename actor: ${currentActor.display_name} → ${body.display_name}`;
+    }
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths, snapshotMessage);
 
     // Update the actor with new data
     const updatedActor: Actor = {
@@ -177,10 +187,12 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     const { id } = request.params as { id: string };
 
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths);
-
     const actors = await readJsonl<Actor>(paths.catalog.actors);
+    const actorToDelete = actors.find(a => a.id === id);
+    const actorName = actorToDelete?.display_name || id;
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths, `Delete actor: ${actorName}`);
     const sections = await readJsonl<Section>(paths.catalog.sections);
     const contentItems = await readJsonl<Content>(paths.catalog.content);
     const takes = await readJsonl<Take>(paths.catalog.takes);

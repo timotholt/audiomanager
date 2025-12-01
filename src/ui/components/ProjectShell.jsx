@@ -315,8 +315,11 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         onLogError={logError}
         onLogInfo={logInfo}
         canUndo={undoStack.canUndo}
-        lastUndoTimestamp={undoStack.lastTimestamp}
+        canRedo={undoStack.canRedo}
+        undoMessage={undoStack.undoMessage}
+        redoMessage={undoStack.redoMessage}
         onUndo={undoStack.undo}
+        onRedo={undoStack.redo}
         undoing={undoStack.undoing}
       />
     </Box>

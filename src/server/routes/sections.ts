@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Section, Content, Take } from '../../types/index.js';
+import type { Actor, Section, Content, Take } from '../../types/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { saveSnapshotBeforeWrite } from './snapshots.js';
@@ -27,9 +27,6 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
     const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.sections);
 
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths);
-
     const body = request.body as {
       actor_id: string;
       content_type: 'dialogue' | 'music' | 'sfx';
@@ -40,6 +37,15 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       reply.code(400);
       return { error: 'actor_id and content_type are required' };
     }
+
+    // Get actor name for message
+    const actors = await readJsonl<Actor>(paths.catalog.actors);
+    const actor = actors.find(a => a.id === body.actor_id);
+    const actorName = actor?.display_name || 'Unknown';
+    const sectionName = body.name || body.content_type;
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths, `Create section: ${actorName} → ${sectionName}`);
 
     const now = new Date().toISOString();
     const section: Section = {
@@ -71,9 +77,6 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'Request body is required' };
     }
 
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths);
-
     const sections = await readJsonl<Section>(paths.catalog.sections);
     const sectionIndex = sections.findIndex(s => s.id === id);
     
@@ -83,8 +86,8 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
     }
 
     // Check for duplicate section names if name is being updated
+    const currentSection = sections[sectionIndex];
     if (body.name) {
-      const currentSection = sections[sectionIndex];
       const duplicateSection = sections.find(s => 
         s.id !== id && 
         s.actor_id === currentSection.actor_id && 
@@ -96,6 +99,18 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
         return { error: `A section with the name "${body.name}" already exists for this actor` };
       }
     }
+
+    // Build descriptive message
+    const actors = await readJsonl<Actor>(paths.catalog.actors);
+    const actor = actors.find(a => a.id === currentSection.actor_id);
+    const actorName = actor?.display_name || 'Unknown';
+    let snapshotMessage = `Update section: ${actorName} → ${currentSection.name || currentSection.content_type}`;
+    if (body.name && body.name !== currentSection.name) {
+      snapshotMessage = `Rename section: ${actorName} → ${currentSection.name || currentSection.content_type} → ${body.name}`;
+    }
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths, snapshotMessage);
 
     // Update the section with new data
     const updatedSection: Section = {
@@ -124,19 +139,24 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
 
     const { id } = request.params as { id: string };
 
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths);
-
     const sections = await readJsonl<Section>(paths.catalog.sections);
-    const contentItems = await readJsonl<Content>(paths.catalog.content);
-    const takes = await readJsonl<Take>(paths.catalog.takes);
-
-    // Find the section to get actor_id and content_type
     const section = sections.find(s => s.id === id);
     if (!section) {
       reply.code(404);
       return { error: 'Section not found' };
     }
+
+    // Build descriptive message
+    const actors = await readJsonl<Actor>(paths.catalog.actors);
+    const actor = actors.find(a => a.id === section.actor_id);
+    const actorName = actor?.display_name || 'Unknown';
+    const sectionName = section.name || section.content_type;
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths, `Delete section: ${actorName} → ${sectionName}`);
+
+    const contentItems = await readJsonl<Content>(paths.catalog.content);
+    const takes = await readJsonl<Take>(paths.catalog.takes);
 
     // Remove section
     const remainingSections = sections.filter(s => s.id !== id);

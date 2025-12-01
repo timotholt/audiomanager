@@ -43,9 +43,6 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
     const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.content);
 
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths);
-
     const body = request.body as {
       actor_id: string;
       content_type: Content['content_type'];
@@ -64,6 +61,18 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
 
     // Support batch creation by splitting comma-separated cue_ids
     const allCueIds = body.cue_id.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
+
+    // Build descriptive message
+    const actors = await readJsonl<Actor>(paths.catalog.actors);
+    const sections = await readJsonl<Section>(paths.catalog.sections);
+    const actor = actors.find(a => a.id === body.actor_id);
+    const section = sections.find(s => s.id === body.section_id);
+    const actorName = actor?.display_name || 'Unknown';
+    const sectionName = section?.name || body.content_type;
+    const cueNames = allCueIds.length === 1 ? allCueIds[0] : `${allCueIds.length} cues`;
+    
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths, `Create content: ${actorName} → ${sectionName} → ${cueNames}`);
     
     if (allCueIds.length === 0) {
       reply.code(400);
@@ -143,9 +152,6 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'Request body is required' };
     }
 
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths);
-
     const contentItems = await readJsonl<Content>(paths.catalog.content);
     const contentIndex = contentItems.findIndex(c => c.id === id);
     
@@ -153,6 +159,22 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       reply.code(404);
       return { error: 'Content not found' };
     }
+
+    // Build descriptive message
+    const currentContent = contentItems[contentIndex];
+    const actors = await readJsonl<Actor>(paths.catalog.actors);
+    const sections = await readJsonl<Section>(paths.catalog.sections);
+    const actor = actors.find(a => a.id === currentContent.actor_id);
+    const section = sections.find(s => s.id === currentContent.section_id);
+    const actorName = actor?.display_name || 'Unknown';
+    const sectionName = section?.name || currentContent.content_type;
+    let snapshotMessage = `Update content: ${actorName} → ${sectionName} → ${currentContent.cue_id}`;
+    if (body.cue_id && body.cue_id !== currentContent.cue_id) {
+      snapshotMessage = `Rename cue: ${actorName} → ${sectionName} → ${currentContent.cue_id} → ${body.cue_id}`;
+    }
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths, snapshotMessage);
 
     // Update the content with new data
     const updatedContent: Content = {
@@ -188,10 +210,21 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
 
     const { id } = request.params as { id: string };
 
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths);
-
     const contentItems = await readJsonl<Content>(paths.catalog.content);
+    const contentToDelete = contentItems.find(c => c.id === id);
+    
+    // Build descriptive message
+    const actors = await readJsonl<Actor>(paths.catalog.actors);
+    const sections = await readJsonl<Section>(paths.catalog.sections);
+    const actor = actors.find(a => a.id === contentToDelete?.actor_id);
+    const section = sections.find(s => s.id === contentToDelete?.section_id);
+    const actorName = actor?.display_name || 'Unknown';
+    const sectionName = section?.name || contentToDelete?.content_type || 'Unknown';
+    const cueName = contentToDelete?.cue_id || id;
+
+    // Save snapshot before mutation
+    await saveSnapshotBeforeWrite(paths, `Delete content: ${actorName} → ${sectionName} → ${cueName}`);
+
     const takes = await readJsonl<Take>(paths.catalog.takes);
 
     const remainingContent = contentItems.filter((c) => c.id !== id);

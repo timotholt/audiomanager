@@ -43,12 +43,12 @@ export function useActorOperations({ onActorCreated, onActorUpdated, onActorDele
     }
   };
 
-  const updateActorData = async (actorId, updates) => {
+  const updateActorData = async (actorId, updates, oldName) => {
     try {
       setError(null);
       const result = await updateActor(actorId, updates);
-      if (result && result.actor && onActorUpdated) {
-        onActorUpdated(result.actor);
+      if (result.actor && onActorUpdated) {
+        onActorUpdated(result.actor, oldName);
       }
       return result;
     } catch (err) {

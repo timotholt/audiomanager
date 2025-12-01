@@ -16,6 +16,9 @@
         "all_approved": {
             "type": "boolean"
         },
+        "actor_complete": {
+            "type": "boolean"
+        },
         "provider_settings": {
             "type": "object",
             "properties": {

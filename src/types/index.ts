@@ -71,6 +71,7 @@ export interface Section {
     actor_id: string;
     content_type: ContentType;
     name?: string; // Custom section name like "Story Dialog", "Combat Dialog"
+    section_complete?: boolean;
     provider_settings?: {
         provider: 'elevenlabs' | 'manual' | 'inherit';
         voice_id?: string;

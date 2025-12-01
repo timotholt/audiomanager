@@ -128,7 +128,6 @@ export default function SectionView({
           size="small"
           color="error"
           onClick={() => setConfirmDeleteOpen(true)}
-          disabled={sectionComplete}
           title="Delete section"
         >
           <DeleteIcon fontSize="small" />
@@ -140,49 +139,27 @@ export default function SectionView({
           Actor: {actor.display_name} • Type: {toTitleCase(contentType)}
         </Typography>
         <Tooltip 
-          title="When checked, all content items in this section are marked as complete and locked from editing"
+          title={sectionComplete ? "Mark section as incomplete" : "Mark this section as complete"}
           arrow
           placement="left"
         >
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={sectionComplete || false}
-                onChange={(e) => onToggleSectionComplete && onToggleSectionComplete(e.target.checked)}
-                size="small"
-              />
-            }
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                {sectionComplete && <LockIcon sx={{ fontSize: '0.875rem' }} />}
-                <Typography variant="body2" sx={DESIGN_SYSTEM.typography.body}>
-                  Complete
-                </Typography>
-              </Box>
-            }
-          />
+          <span>
+            <Button
+              variant={sectionComplete ? 'outlined' : 'contained'}
+              size="small"
+              color={sectionComplete ? 'success' : 'primary'}
+              onClick={() => onToggleSectionComplete && onToggleSectionComplete(sectionData.id, !sectionComplete)}
+              sx={{ ...DESIGN_SYSTEM.typography.small }}
+            >
+              {sectionComplete ? 'Completed ✓' : 'Mark Section As Completed'}
+            </Button>
+          </span>
         </Tooltip>
       </Box>
 
-      {sectionComplete && (
-        <Box sx={{ 
-          p: 2, 
-          mb: 2, 
-          bgcolor: 'action.disabledBackground', 
-          borderRadius: 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1
-        }}>
-          <LockIcon sx={{ fontSize: '1rem', color: 'text.secondary' }} />
-          <Typography variant="body2" color="text.secondary">
-            This section is marked complete. Uncheck "Complete" to make changes.
-          </Typography>
-        </Box>
-      )}
 
       {/* Settings - collapsible with Provider and Filename subgroups */}
-      <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, opacity: sectionComplete ? 0.5 : 1, pointerEvents: sectionComplete ? 'none' : 'auto' }}>
+      <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
         <Box 
           sx={{ 
             p: 1, 
@@ -230,7 +207,6 @@ export default function SectionView({
                   label="Suffix"
                   value={suffix}
                   onChange={(e) => setSuffix(e.target.value)}
-                  disabled={sectionComplete}
                   sx={{ width: 150, ...DESIGN_SYSTEM.components.formControl }}
                 />
                 <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>
@@ -242,8 +218,8 @@ export default function SectionView({
         </Collapse>
       </Box>
 
-      {/* Add content section - disabled when complete */}
-      <Box sx={{ mt: 3, opacity: sectionComplete ? 0.5 : 1, pointerEvents: sectionComplete ? 'none' : 'auto' }}>
+      {/* Add content section */}
+      <Box sx={{ mt: 3 }}>
         <Typography variant="subtitle2" gutterBottom sx={DESIGN_SYSTEM.typography.sectionTitle}>
           Add New {toTitleCase(contentType)} Content
         </Typography>
@@ -255,7 +231,6 @@ export default function SectionView({
           value={contentCueId}
           onChange={onContentCueIdChange}
           required
-          disabled={sectionComplete}
           sx={{ mb: DESIGN_SYSTEM.spacing.tightGap, ...DESIGN_SYSTEM.components.formControl }}
         />
         <TextField
@@ -267,13 +242,12 @@ export default function SectionView({
           placeholder={`${contentType} prompt or description`}
           value={contentPrompt}
           onChange={onContentPromptChange}
-          disabled={sectionComplete}
           sx={{ mb: DESIGN_SYSTEM.spacing.elementGap, ...DESIGN_SYSTEM.components.formControl }}
         />
         <Button
           variant="contained"
           size="small"
-          disabled={sectionComplete || !contentCueId.trim() || creatingContent}
+          disabled={!contentCueId.trim() || creatingContent}
           onClick={() => onCreateContent(sectionData.actor_id, sectionData.content_type, sectionData.id)}
         >
           {creatingContent ? 'Creating…' : `Add ${toTitleCase(contentType)} Content`}

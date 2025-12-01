@@ -148,11 +148,38 @@ export function snapshotMessageForActorUpdate(
   
   // For single change, be specific
   if (diff.changes.length === 1) {
-    return `Actor ${actorName}: ${diff.changes[0]}`;
+    return `${actorName}: ${diff.changes[0]}`;
   }
   
   // For multiple changes, use summary
-  return `Update actor: ${actorName} (${diff.summary.toLowerCase()})`;
+  return `Update: ${actorName} (${diff.summary.toLowerCase()})`;
+}
+
+/**
+ * Build snapshot message for content update with diff details
+ */
+export function snapshotMessageForContentUpdate(
+  actorId: string,
+  sectionId: string,
+  cueName: string,
+  ctx: PathContext,
+  oldContent: Record<string, unknown>,
+  newContent: Record<string, unknown>
+): string {
+  const path = buildContentPath(actorId, sectionId, cueName, ctx).replace('Actors → ', '');
+  const diff = describeChanges(oldContent, newContent);
+  
+  if (!diff.hasChanges) {
+    return `Update: ${path} (no changes)`;
+  }
+  
+  // For single change, be specific
+  if (diff.changes.length === 1) {
+    return `${path}: ${diff.changes[0]}`;
+  }
+  
+  // For multiple changes, use summary
+  return `Update: ${path} (${diff.summary.toLowerCase()})`;
 }
 
 /**

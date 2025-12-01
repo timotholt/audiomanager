@@ -8,7 +8,8 @@ import { getAudioProvider } from '../../services/provider-factory.js';
 import { 
   readCatalog, 
   saveSnapshot, 
-  snapshotMessageForContent 
+  snapshotMessageForContent,
+  snapshotMessageForContentUpdate
 } from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
@@ -161,21 +162,27 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'Content not found' };
     }
 
-    // Build descriptive message and save snapshot
     const currentContent = catalog.content[contentIndex];
-    const isRename = body.cue_id && body.cue_id !== currentContent.cue_id;
-    const snapshotMessage = isRename
-      ? snapshotMessageForContent('rename', currentContent.actor_id, currentContent.section_id, currentContent.cue_id, catalog, body.cue_id)
-      : snapshotMessageForContent('update', currentContent.actor_id, currentContent.section_id, currentContent.cue_id, catalog);
-    await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Update the content with new data
+    // Build the updated content first so we can diff
     const updatedContent: Content = {
       ...catalog.content[contentIndex],
       ...body,
       id, // Ensure ID doesn't change
       updated_at: new Date().toISOString(),
     };
+
+    // Build descriptive message with diff and save snapshot
+    const currentCueName = currentContent.cue_id || currentContent.id;
+    const snapshotMessage = snapshotMessageForContentUpdate(
+      currentContent.actor_id,
+      currentContent.section_id,
+      currentCueName,
+      catalog,
+      currentContent as unknown as Record<string, unknown>,
+      updatedContent as unknown as Record<string, unknown>
+    );
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
     // Validate the updated content
     const validation = validate('content', updatedContent);

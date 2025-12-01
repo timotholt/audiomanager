@@ -240,6 +240,17 @@ export function useDataOperations({
     }
   };
 
+  const toggleSectionComplete = async (sectionId, newCompleteValue) => {
+    try {
+      const result = await updateSection(sectionId, { section_complete: newCompleteValue });
+      if (result && result.section && onSectionUpdated) {
+        onSectionUpdated(result.section);
+      }
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  };
+
   return {
     // State
     contentPrompt,
@@ -258,6 +269,7 @@ export function useDataOperations({
     updateProviderSettings: updateSectionProviderSettings,
     updateSectionName,
     updateBaseFilename,
-    updateDisplayName
+    updateDisplayName,
+    toggleSectionComplete
   };
 }

@@ -47,6 +47,25 @@ export default function ActorView({
         error={error || actorOps.error}
       />
 
+      <Box sx={{ mb: 2 }}>
+        <Button
+          variant={actor.actor_complete ? 'outlined' : 'contained'}
+          size="small"
+          color={actor.actor_complete ? 'success' : 'primary'}
+          disabled={actorOps.deleting}
+          onClick={async () => {
+            try {
+              await actorOps.updateActor(actor.id, { actor_complete: !actor.actor_complete });
+            } catch (err) {
+              // Error handled by hook
+            }
+          }}
+          sx={{ ...DESIGN_SYSTEM.typography.small }}
+        >
+          {actor.actor_complete ? 'Completed ✓' : 'Mark Actor As Completed'}
+        </Button>
+      </Box>
+
       <ProviderSettingsDisplay actor={actor} />
 
       <SectionManagement 

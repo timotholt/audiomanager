@@ -199,7 +199,6 @@ export default function ContentView({
   };
 
   const handleSaveField = async (field, value) => {
-    if (sectionComplete) return;
     try {
       setSaving(true);
       setError(null);
@@ -236,7 +235,6 @@ export default function ContentView({
   };
 
   const handleTakeStatus = async (takeId, status) => {
-    if (sectionComplete) return;
     try {
       if (onStatusChange) onStatusChange('Processing');
       const result = await updateTake(takeId, { status });
@@ -290,7 +288,6 @@ export default function ContentView({
   };
 
   const handleDeleteTake = async (takeId) => {
-    if (sectionComplete) return;
     try {
       if (onStatusChange) onStatusChange('Processing');
       const take = takes.find(t => t.id === takeId);
@@ -310,7 +307,7 @@ export default function ContentView({
     }
   };
 
-  const isDisabled = sectionComplete;
+  const isDisabled = false;
 
   // AI prompt handlers
   const getLLMSettings = () => {
@@ -569,7 +566,6 @@ export default function ContentView({
                 color={item.all_approved ? 'success' : 'primary'}
                 disabled={saving || (approvedCount === 0 && !item.all_approved)}
                 onClick={async () => {
-                  // Bypass sectionComplete check for toggling all_approved
                   try {
                     setSaving(true);
                     setError(null);

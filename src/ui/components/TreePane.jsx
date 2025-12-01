@@ -50,6 +50,11 @@ function getContentStatus(content, takes = []) {
 }
 
 function getSectionStatus(sectionItem, content, takes) {
+  // If section is explicitly marked complete, it's green
+  if (sectionItem.section_complete) {
+    return { status: 'green', color: 'success.main' };
+  }
+
   const sectionContent = content.filter(
     c =>
       c.actor_id === sectionItem.actor_id &&
@@ -62,32 +67,39 @@ function getSectionStatus(sectionItem, content, takes) {
   }
 
   // Aggregate child statuses with explicit precedence:
-  // RED > YELLOW > GREEN > GRAY
+  // RED > YELLOW > GRAY (never green unless section_complete is true)
   let hasRed = false;
   let hasYellow = false;
-  let hasGreen = false;
+  let hasAnyProgress = false;
 
   for (const c of sectionContent) {
     const status = getContentStatus(c, takes);
     if (status.status === 'red') hasRed = true;
     else if (status.status === 'yellow') hasYellow = true;
-    else if (status.status === 'green') hasGreen = true;
+    else if (status.status === 'green') hasYellow = true; // Treat cue completion as yellow until section marked complete
+    
+    if (status.status !== 'gray') hasAnyProgress = true;
   }
 
   if (hasRed) return { status: 'red', color: 'error.main' };
   if (hasYellow) return { status: 'yellow', color: 'warning.main' };
-  if (hasGreen) return { status: 'green', color: 'success.main' };
+  if (hasAnyProgress) return { status: 'yellow', color: 'warning.main' };
   return { status: 'gray', color: 'text.disabled' };
 }
 
 function getActorStatus(actor, sections, content, takes) {
+  // If actor is explicitly marked complete, it's green
+  if (actor.actor_complete) {
+    return { status: 'green', color: 'success.main' };
+  }
+
   const actorSections = sections.filter(s => s.actor_id === actor.id);
   
   if (actorSections.length === 0) {
     return { status: 'gray', color: 'text.disabled' };
   }
   
-  // Get worst status among children
+  // Get worst status among children (never green unless actor_complete is true)
   let worstPriority = -1;
   let worstStatus = { status: 'gray', color: 'text.disabled' };
   
@@ -98,6 +110,11 @@ function getActorStatus(actor, sections, content, takes) {
       worstPriority = priority;
       worstStatus = status;
     }
+  }
+  
+  // If any progress exists but actor not marked complete, force yellow
+  if (worstStatus.status === 'green') {
+    return { status: 'yellow', color: 'warning.main' };
   }
   
   return worstStatus;
@@ -252,9 +269,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                     color:
                       selectedId === nodeKey(section.nodeType, section.nodeId)
                         ? undefined
-                        : section.id === 'console' || section.id === 'defaults'
-                          ? 'text.secondary'
-                          : 'text.primary',
+                        : 'text.secondary',
                   }}
                 />
                 {!section.noExpand && (
@@ -319,7 +334,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                                 fontSize: '0.9rem',
                                 lineHeight: '1rem',
                                 fontWeight: 400,
-                                color: selectedId === nodeKey('actor', actor.id) ? undefined : 'text.secondary',
+                                color: selectedId === nodeKey('actor', actor.id) ? 'text.primary' : actorStatus.color,
                               }}
                             />
                             <Box onClick={(e) => { e.stopPropagation(); handleToggle(actorKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
@@ -358,7 +373,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                                       <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
                                         {sectionIcon}
                                       </ListItemIcon>
-                                      <ListItemText primary={displayName} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem', fontWeight: 400, color: sectionStatus.color }} />
+                                      <ListItemText primary={displayName} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem', fontWeight: 400, color: selectedId === nodeKey(`${sectionType}-section`, sectionItem.id) ? 'text.primary' : sectionStatus.color }} />
                                       <Box onClick={(e) => { e.stopPropagation(); handleToggle(sectionKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
                                         {expanded[sectionKey] ? <ExpandLess sx={{ fontSize: '0.75rem' }} /> : <ExpandMore sx={{ fontSize: '0.75rem' }} />}
                                       </Box>
@@ -421,7 +436,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                                                     fontSize: '0.9rem',
                                                     lineHeight: '1rem',
                                                     fontWeight: 400,
-                                                    color: contentStatus.color
+                                                    color: selectedId === nodeKey('content', c.id) ? 'text.primary' : contentStatus.color
                                                   }} 
                                                 />
                                               </ListItemButton>

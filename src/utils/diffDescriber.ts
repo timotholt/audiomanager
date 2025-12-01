@@ -25,6 +25,11 @@ const FIELD_LABELS: Record<string, string> = {
   provider_settings: 'provider settings',
   content_type: 'type',
   cue_id: 'cue',
+  filename: 'filename',
+  prompt: 'prompt',
+  all_approved: 'completion status',
+  actor_complete: 'actor completion',
+  section_complete: 'section completion',
 };
 
 /** Fields to ignore when comparing */
@@ -127,8 +132,17 @@ export function describeChanges(
     if (oldStr !== newStr) {
       changedFields.push(label);
       
+      // Special handling for completion flags
+      if (key === 'all_approved' || key === 'actor_complete' || key === 'section_complete') {
+        const entityType = key === 'all_approved' ? 'cue' : key === 'actor_complete' ? 'actor' : 'section';
+        if (newVal === true) {
+          changes.push(`Marked ${entityType} as complete`);
+        } else {
+          changes.push(`Marked ${entityType} as incomplete`);
+        }
+      }
       // Generate descriptive change message
-      if (oldVal === undefined || oldVal === null) {
+      else if (oldVal === undefined || oldVal === null) {
         changes.push(`Set ${label} to ${formatValue(newVal)}`);
       } else if (newVal === undefined || newVal === null) {
         changes.push(`Cleared ${label}`);

@@ -232,3 +232,9 @@
 {"id":"1764568980515-wnxk2bxs1","entryType":"log","timestamp":"2025-12-01T06:03:00.515Z","type":"info","message":"june: Marked actor as incomplete"}
 {"id":"1764568984721-kdzu1txzc","entryType":"log","timestamp":"2025-12-01T06:03:04.721Z","type":"info","message":"june → dialogue: Marked section as complete"}
 {"id":"1764568986394-fnya6vgp9","entryType":"log","timestamp":"2025-12-01T06:03:06.394Z","type":"info","message":"june: Marked actor as complete"}
+{"id":"1764569125438-ii4pdhl0d","entryType":"log","timestamp":"2025-12-01T06:05:25.438Z","type":"info","message":"june → dialogue: Marked section as incomplete"}
+{"id":"1764569125497-1k1skqm29","entryType":"log","timestamp":"2025-12-01T06:05:25.497Z","type":"info","message":"june: Marked actor as incomplete"}
+{"id":"1764569164147-3803ja42z","entryType":"log","timestamp":"2025-12-01T06:06:04.147Z","type":"info","message":"Update: june → dialogue (no changes)"}
+{"id":"1764569164205-u1xne9ma0","entryType":"log","timestamp":"2025-12-01T06:06:04.205Z","type":"info","message":"Update actor: june (no changes)"}
+{"id":"1764569270009-r3q2hej6u","entryType":"log","timestamp":"2025-12-01T06:07:50.009Z","type":"info","message":"june → dialogue: Marked section as complete"}
+{"id":"1764569272384-2b823sw1i","entryType":"log","timestamp":"2025-12-01T06:07:52.384Z","type":"info","message":"june: Marked actor as complete"}

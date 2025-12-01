@@ -16,7 +16,8 @@ export default function CompleteButton({
   onToggle, 
   disabled = false,
   itemType = 'item',
-  approvedCount = null
+  approvedCount = null,
+  disabledReason = null,
 }) {
   // For cues, require at least one approved take before marking complete
   const canMarkComplete = approvedCount === null || approvedCount > 0;
@@ -26,8 +27,12 @@ export default function CompleteButton({
     if (isComplete) {
       return `Mark ${itemType} as incomplete`;
     }
+    // If caller provided a specific reason for disabling, surface it
+    if (!isComplete && disabledReason && isDisabled && canMarkComplete) {
+      return disabledReason;
+    }
     if (!canMarkComplete) {
-      return "At least one take must be approved before marking complete";
+      return 'At least one take must be approved before marking this cue complete';
     }
     return `Mark this ${itemType} as complete`;
   };

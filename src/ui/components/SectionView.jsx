@@ -129,6 +129,11 @@ export default function SectionView({
               isComplete={sectionComplete}
               onToggle={() => onToggleSectionComplete && onToggleSectionComplete(sectionData.id, !sectionComplete)}
               disabled={!sectionComplete && !canCompleteSection}
+              disabledReason={
+                !sectionComplete && !canCompleteSection
+                  ? 'All cues in this section must be complete before the section can be marked complete.'
+                  : undefined
+              }
               itemType="section"
             />
           }

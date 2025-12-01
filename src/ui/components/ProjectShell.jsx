@@ -7,6 +7,7 @@ import { getActors, getContent, getSections, getTakes, deleteSection } from '../
 import { useAppLog } from '../hooks/useAppLog.js';
 import { useUndoStack } from '../hooks/useUndoStack.js';
 import { useConsoleCapture } from '../hooks/useConsoleCapture.js';
+import { LogProvider } from '../contexts/LogContext.jsx';
 import { 
   buildActorPath, 
   buildSectionPath, 
@@ -175,8 +176,9 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
   }
 
   return (
-    <Box ref={containerRef} component="main" sx={{ flexGrow: 1, pt: 6, pb: '6rem', display: 'flex', minWidth: 0, userSelect: isResizing ? 'none' : 'auto' }}>
-      <TreePane
+    <LogProvider logInfo={logInfo} logSuccess={logSuccess} logError={logError} logWarning={logWarning}>
+      <Box ref={containerRef} component="main" sx={{ flexGrow: 1, pt: 6, pb: '6rem', display: 'flex', minWidth: 0, userSelect: isResizing ? 'none' : 'auto' }}>
+        <TreePane
         width={treePaneWidth}
         actors={actors}
         content={content}
@@ -316,6 +318,7 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         consoleEntries={consoleEntries}
         onClearConsole={clearConsole}
       />
-    </Box>
+      </Box>
+    </LogProvider>
   );
 }

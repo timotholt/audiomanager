@@ -10,7 +10,7 @@ import {
 } from '../../utils/pathBuilder.js';
 import { describeChanges } from '../../utils/diffDescriber.js';
 
-const DEBUG_SNAPSHOT = true;
+const DEBUG_SNAPSHOT = false;
 
 interface Snapshot {
   id: string;

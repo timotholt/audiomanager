@@ -9,8 +9,7 @@ export function useDataOperations({
   onContentCreated, 
   onSectionCreated, 
   onActorUpdated, 
-  onSectionUpdated,
-  onLogInfo
+  onSectionUpdated
 }) {
   const [contentPrompt, setContentPrompt] = useState('');
   const [contentCueId, setContentCueId] = useState('');

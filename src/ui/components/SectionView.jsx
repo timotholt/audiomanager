@@ -21,6 +21,7 @@ import CompleteButton from './CompleteButton.jsx';
 import { buildSectionPath } from '../utils/pathBuilder.js';
 import DetailHeader from './DetailHeader.jsx';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
+import { useLog } from '../contexts/LogContext.jsx';
 
 export default function SectionView({ 
   sectionData,
@@ -41,8 +42,8 @@ export default function SectionView({
   onDeleteSection,
   error,
   canCompleteSection = true,
-  onLogInfo,
 }) {
+  const { logInfo } = useLog();
   const [editingSectionName, setEditingSectionName] = useState(false);
   const [sectionName, setSectionName] = useState('');
   const [settingsExpanded, setSettingsExpanded] = useState(false);
@@ -88,15 +89,13 @@ export default function SectionView({
       await onToggleSectionComplete(sectionData.id, nextComplete);
     }
     // Status-only log for section completion/incompletion using full path
-    if (onLogInfo) {
-      const actorName = actor?.display_name || 'Unknown';
-      const sectionName = currentSectionName || sectionData.id;
-      const path = buildSectionPath(actorName, sectionName);
-      if (nextComplete) {
-        onLogInfo(`user marked ${path} as complete`);
-      } else {
-        onLogInfo(`user marked ${path} as incomplete`);
-      }
+    const actorName = actor?.display_name || 'Unknown';
+    const sectionNameForPath = currentSectionName || sectionData.id;
+    const path = buildSectionPath(actorName, sectionNameForPath);
+    if (nextComplete) {
+      logInfo(`user marked ${path} as complete`);
+    } else {
+      logInfo(`user marked ${path} as incomplete`);
     }
   };
 

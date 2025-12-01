@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 
-const DEBUG_UNDO = true;
+const DEBUG_UNDO = false;
 
 /**
  * Snapshot-based undo/redo stack

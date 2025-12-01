@@ -63,8 +63,7 @@ export default function DetailPane({
     onContentCreated, 
     onSectionCreated, 
     onActorUpdated, 
-    onSectionUpdated,
-    onLogInfo
+    onSectionUpdated
   });
 
   const { view, data } = useViewRouter({ selectedNode, actors, content, sections });
@@ -94,7 +93,6 @@ export default function DetailPane({
           error={commonError}
           canCompleteActor={canCompleteActor}
           isLastIncompleteActor={isLastIncompleteActor}
-          onLogInfo={onLogInfo}
         />
       );
     }
@@ -132,7 +130,6 @@ export default function DetailPane({
           onDeleteSection={() => onSectionDeleted && onSectionDeleted(data.sectionData.id)}
           error={commonError}
           canCompleteSection={canCompleteSection}
-          onLogInfo={onLogInfo}
         />
       );
     }
@@ -172,8 +169,6 @@ export default function DetailPane({
           playedTakes={playedTakes}
           onTakePlayed={onTakePlayed}
           onCreditsRefresh={onCreditsRefresh}
-          onLogError={onLogError}
-          onLogInfo={onLogInfo}
           error={commonError}
         />
       );

@@ -31,6 +31,7 @@ import CompleteButton from './CompleteButton.jsx';
 import DetailHeader from './DetailHeader.jsx';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 import { buildContentPath, buildSectionPath, buildActorPath, getSectionName } from '../utils/pathBuilder.js';
+import { useLog } from '../contexts/LogContext.jsx';
 
 // Local storage key for LLM settings (same as SettingsDialog)
 const LLM_STORAGE_KEY = 'vofoundry-llm-settings';
@@ -99,10 +100,9 @@ export default function ContentView({
   playedTakes = {},
   onTakePlayed,
   onCreditsRefresh,
-  onLogError,
-  onLogInfo,
   error: parentError 
 }) {
+  const { logInfo, logError } = useLog();
   // Build the base filename for this content item
   // Strip trailing underscore from actor.base_filename and apply conversions to cue_id
   const actorBase = stripTrailingUnderscore(actor?.base_filename || 'unknown');
@@ -303,15 +303,11 @@ export default function ContentView({
       const take = takes.find(t => t.id === takeId);
       await deleteTake(takeId);
       setTakes(prev => prev.filter(t => t.id !== takeId));
-      if (onLogInfo) {
-        onLogInfo(`Take deleted: ${take?.filename || takeId}`);
-      }
+      logInfo(`Take deleted: ${take?.filename || takeId}`);
     } catch (err) {
       const errorMsg = err.message || String(err);
       setError(errorMsg);
-      if (onLogError) {
-        onLogError(`Failed to delete take: ${errorMsg}`);
-      }
+      logError(`Failed to delete take: ${errorMsg}`);
     } finally {
       if (onStatusChange) onStatusChange('');
     }
@@ -499,16 +495,14 @@ export default function ContentView({
                   }
 
                   // Status-only log for cue completion using full path
-                  if (onLogInfo) {
-                    const actorName = actor?.display_name || 'Unknown';
-                    const sectionName = getSectionName(item.section_id, sections);
-                    const cueName = item.cue_id || item.id;
-                    const path = buildContentPath(actorName, sectionName, cueName);
-                    if (nextAllApproved) {
-                      onLogInfo(`user marked ${path} as complete`);
-                    } else {
-                      onLogInfo(`user marked ${path} as incomplete`);
-                    }
+                  const actorName = actor?.display_name || 'Unknown';
+                  const sectionName = getSectionName(item.section_id, sections);
+                  const cueName = item.cue_id || item.id;
+                  const path = buildContentPath(actorName, sectionName, cueName);
+                  if (nextAllApproved) {
+                    logInfo(`user marked ${path} as complete`);
+                  } else {
+                    logInfo(`user marked ${path} as incomplete`);
                   }
 
                   // If this cue is being marked incomplete, also mark its parent

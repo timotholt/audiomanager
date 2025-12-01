@@ -1,8 +1,12 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Actor, Section, Content, Take } from '../../types/index.js';
+import type { Section, Content, Take } from '../../types/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
-import { saveSnapshotBeforeWrite } from './snapshots.js';
+import { 
+  readCatalog, 
+  saveSnapshot, 
+  snapshotMessageForSection 
+} from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -38,14 +42,14 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'actor_id and content_type are required' };
     }
 
-    // Get actor name for message
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
-    const actor = actors.find(a => a.id === body.actor_id);
-    const actorName = actor?.display_name || 'Unknown';
+    // Read catalog once and save snapshot
+    const catalog = await readCatalog(paths);
     const sectionName = body.name || body.content_type;
-
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths, `Create section: ${actorName} → ${sectionName}`);
+    await saveSnapshot(
+      paths, 
+      snapshotMessageForSection('create', body.actor_id, sectionName, catalog), 
+      catalog
+    );
 
     const now = new Date().toISOString();
     const section: Section = {
@@ -77,8 +81,9 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'Request body is required' };
     }
 
-    const sections = await readJsonl<Section>(paths.catalog.sections);
-    const sectionIndex = sections.findIndex(s => s.id === id);
+    // Read catalog once for snapshot and logic
+    const catalog = await readCatalog(paths);
+    const sectionIndex = catalog.sections.findIndex(s => s.id === id);
     
     if (sectionIndex === -1) {
       reply.code(404);
@@ -86,9 +91,9 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
     }
 
     // Check for duplicate section names if name is being updated
-    const currentSection = sections[sectionIndex];
+    const currentSection = catalog.sections[sectionIndex];
     if (body.name) {
-      const duplicateSection = sections.find(s => 
+      const duplicateSection = catalog.sections.find(s => 
         s.id !== id && 
         s.actor_id === currentSection.actor_id && 
         s.name === body.name
@@ -100,31 +105,25 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       }
     }
 
-    // Build descriptive message
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
-    const actor = actors.find(a => a.id === currentSection.actor_id);
-    const actorName = actor?.display_name || 'Unknown';
-    let snapshotMessage = `Update section: ${actorName} → ${currentSection.name || currentSection.content_type}`;
-    if (body.name && body.name !== currentSection.name) {
-      snapshotMessage = `Rename section: ${actorName} → ${currentSection.name || currentSection.content_type} → ${body.name}`;
-    }
-
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths, snapshotMessage);
+    // Build descriptive message and save snapshot
+    const currentName = currentSection.name || currentSection.content_type;
+    const isRename = body.name && body.name !== currentSection.name;
+    const snapshotMessage = isRename
+      ? snapshotMessageForSection('rename', currentSection.actor_id, currentName, catalog, body.name)
+      : snapshotMessageForSection('update', currentSection.actor_id, currentName, catalog);
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
     // Update the section with new data
     const updatedSection: Section = {
-      ...sections[sectionIndex],
+      ...catalog.sections[sectionIndex],
       ...body,
       id, // Ensure ID doesn't change
       updated_at: new Date().toISOString(),
     };
 
-    // Replace the section in the array
-    sections[sectionIndex] = updatedSection;
-
-    // Write back to file
-    await writeJsonlAll(paths.catalog.sections, sections);
+    // Replace the section in the array and write back
+    catalog.sections[sectionIndex] = updatedSection;
+    await writeJsonlAll(paths.catalog.sections, catalog.sections);
 
     return { section: updatedSection };
   });
@@ -139,32 +138,32 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
 
     const { id } = request.params as { id: string };
 
-    const sections = await readJsonl<Section>(paths.catalog.sections);
-    const section = sections.find(s => s.id === id);
+    // Read catalog once for snapshot and logic
+    const catalog = await readCatalog(paths);
+    const section = catalog.sections.find(s => s.id === id);
     if (!section) {
       reply.code(404);
       return { error: 'Section not found' };
     }
 
-    // Build descriptive message
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
-    const actor = actors.find(a => a.id === section.actor_id);
-    const actorName = actor?.display_name || 'Unknown';
+    // Build descriptive message and save snapshot
     const sectionName = section.name || section.content_type;
+    await saveSnapshot(
+      paths, 
+      snapshotMessageForSection('delete', section.actor_id, sectionName, catalog), 
+      catalog
+    );
 
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths, `Delete section: ${actorName} → ${sectionName}`);
-
-    const contentItems = await readJsonl<Content>(paths.catalog.content);
+    // Read takes separately (not in catalog)
     const takes = await readJsonl<Take>(paths.catalog.takes);
 
     // Remove section
-    const remainingSections = sections.filter(s => s.id !== id);
+    const remainingSections = catalog.sections.filter(s => s.id !== id);
     
-    // Remove all content in this section (now keyed by section_id)
-    const removedContent = contentItems.filter(c => c.section_id === section.id);
+    // Remove all content in this section
+    const removedContent = catalog.content.filter(c => c.section_id === section.id);
     const removedContentIds = new Set(removedContent.map(c => c.id));
-    const remainingContent = contentItems.filter(c => !removedContentIds.has(c.id));
+    const remainingContent = catalog.content.filter(c => !removedContentIds.has(c.id));
     
     // Remove all takes for removed content
     const remainingTakes = takes.filter(t => !removedContentIds.has(t.content_id));

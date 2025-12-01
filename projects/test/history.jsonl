@@ -87,3 +87,4 @@
 {"id":"1764554774404-mqgibdlyq","timestamp":"2025-12-01T02:06:14.404Z","type":"info","message":"Undid: Delete actor: tim6","details":null}
 {"id":"1764554777970-vrcykj4p6","timestamp":"2025-12-01T02:06:17.970Z","type":"info","message":"Redid: Delete actor: tim6","details":null}
 {"id":"1764554780658-jiunc3kcd","timestamp":"2025-12-01T02:06:20.658Z","type":"info","message":"Undid: Delete actor: tim6","details":null}
+{"id":"1764554827032-q5bbb6lnp","timestamp":"2025-12-01T02:07:07.032Z","type":"info","message":"Deleted: Actors → tim6","details":null}

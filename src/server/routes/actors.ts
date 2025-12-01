@@ -4,7 +4,11 @@ import type { Actor, Content, Take, Section } from '../../types/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
-import { saveSnapshotBeforeWrite } from './snapshots.js';
+import { 
+  readCatalog, 
+  saveSnapshot, 
+  snapshotMessageForActor 
+} from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -36,11 +40,12 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     const displayNameInput = body?.display_name ?? 'New Actor';
     const allNames = displayNameInput.split(',').map((n: string) => n.trim()).filter((n: string) => n.length > 0);
     const snapshotMessage = allNames.length === 1 
-      ? `Create actor: ${allNames[0]}`
+      ? snapshotMessageForActor('create', allNames[0])
       : `Create actors: ${allNames.join(', ')}`;
     
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths, snapshotMessage);
+    // Read catalog once and save snapshot
+    const catalog = await readCatalog(paths);
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
     // Load global defaults
     const defaultsPath = join(paths.root, 'defaults.json');
@@ -135,27 +140,26 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'Request body is required' };
     }
 
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
-    const actorIndex = actors.findIndex(a => a.id === id);
+    // Read catalog once for snapshot and logic
+    const catalog = await readCatalog(paths);
+    const actorIndex = catalog.actors.findIndex(a => a.id === id);
     
     if (actorIndex === -1) {
       reply.code(404);
       return { error: 'Actor not found' };
     }
     
-    // Build descriptive message
-    const currentActor = actors[actorIndex];
-    let snapshotMessage = `Update actor: ${currentActor.display_name}`;
-    if (body.display_name && body.display_name !== currentActor.display_name) {
-      snapshotMessage = `Rename actor: ${currentActor.display_name} → ${body.display_name}`;
-    }
-
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths, snapshotMessage);
+    // Build descriptive message and save snapshot
+    const currentActor = catalog.actors[actorIndex];
+    const isRename = body.display_name && body.display_name !== currentActor.display_name;
+    const snapshotMessage = isRename
+      ? snapshotMessageForActor('rename', currentActor.display_name, body.display_name)
+      : snapshotMessageForActor('update', currentActor.display_name);
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
     // Update the actor with new data
     const updatedActor: Actor = {
-      ...actors[actorIndex],
+      ...catalog.actors[actorIndex],
       ...body,
       id, // Ensure ID doesn't change
       updated_at: new Date().toISOString(),
@@ -168,11 +172,9 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'Invalid actor data', details: validation.errors };
     }
 
-    // Replace the actor in the array
-    actors[actorIndex] = updatedActor;
-
-    // Write back to file
-    await writeJsonlAll(paths.catalog.actors, actors);
+    // Replace the actor in the array and write back
+    catalog.actors[actorIndex] = updatedActor;
+    await writeJsonlAll(paths.catalog.actors, catalog.actors);
 
     return { actor: updatedActor };
   });
@@ -187,21 +189,22 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     const { id } = request.params as { id: string };
 
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
-    const actorToDelete = actors.find(a => a.id === id);
+    // Read catalog once for snapshot and logic
+    const catalog = await readCatalog(paths);
+    const actorToDelete = catalog.actors.find(a => a.id === id);
     const actorName = actorToDelete?.display_name || id;
 
     // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths, `Delete actor: ${actorName}`);
-    const sections = await readJsonl<Section>(paths.catalog.sections);
-    const contentItems = await readJsonl<Content>(paths.catalog.content);
+    await saveSnapshot(paths, snapshotMessageForActor('delete', actorName), catalog);
+    
+    // Read takes separately (not in catalog)
     const takes = await readJsonl<Take>(paths.catalog.takes);
 
-    const remainingActors = actors.filter((a) => a.id !== id);
-    const remainingSections = sections.filter((s) => s.actor_id !== id);
-    const removedContent = contentItems.filter((c) => c.actor_id === id);
+    const remainingActors = catalog.actors.filter((a) => a.id !== id);
+    const remainingSections = catalog.sections.filter((s) => s.actor_id !== id);
+    const removedContent = catalog.content.filter((c) => c.actor_id === id);
     const removedContentIds = new Set(removedContent.map((c) => c.id));
-    const remainingContent = contentItems.filter((c) => c.actor_id !== id);
+    const remainingContent = catalog.content.filter((c) => c.actor_id !== id);
     const remainingTakes = takes.filter((t) => !removedContentIds.has(t.content_id));
 
     await ensureJsonlFile(paths.catalog.actors);

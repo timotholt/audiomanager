@@ -2,6 +2,12 @@ import { join } from 'path';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { readJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import type { Actor, Content, Section } from '../../types/index.js';
+import { 
+  buildActorPath, 
+  buildSectionPath, 
+  buildContentPath,
+  type PathContext 
+} from '../../utils/pathBuilder.js';
 
 const DEBUG_SNAPSHOT = true;
 
@@ -14,18 +20,96 @@ interface Snapshot {
   content: Content[];
 }
 
-type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
+/** Cached catalog data to avoid redundant reads */
+export interface CatalogCache {
+  actors: Actor[];
+  sections: Section[];
+  content: Content[];
+}
+
+type ProjectPaths = ReturnType<typeof import('../../utils/paths.js').getProjectPaths>;
+type ProjectContext = { projectRoot: string; paths: ProjectPaths };
 
 const MAX_SNAPSHOTS = 50;
 
 /**
- * Save a snapshot of all catalog files - call this before any mutation
- * @param paths - Project paths
- * @param message - Description of the operation about to happen (e.g., "Create actor: Tim")
+ * Read all catalog files and return cached data
+ * Use this before mutations to avoid redundant reads
  */
-export async function saveSnapshotBeforeWrite(
-  paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths>,
-  message: string
+export async function readCatalog(paths: ProjectPaths): Promise<CatalogCache> {
+  const [actors, sections, content] = await Promise.all([
+    readJsonl<Actor>(paths.catalog.actors).catch(() => [] as Actor[]),
+    readJsonl<Section>(paths.catalog.sections).catch(() => [] as Section[]),
+    readJsonl<Content>(paths.catalog.content).catch(() => [] as Content[]),
+  ]);
+  return { actors, sections, content };
+}
+
+/**
+ * Build snapshot message for actor operations
+ */
+export function snapshotMessageForActor(
+  operation: 'create' | 'delete' | 'update' | 'rename',
+  actorName: string,
+  newName?: string
+): string {
+  switch (operation) {
+    case 'create': return `Create actor: ${actorName}`;
+    case 'delete': return `Delete actor: ${actorName}`;
+    case 'rename': return `Rename actor: ${actorName} → ${newName}`;
+    case 'update': return `Update actor: ${actorName}`;
+  }
+}
+
+/**
+ * Build snapshot message for section operations
+ */
+export function snapshotMessageForSection(
+  operation: 'create' | 'delete' | 'update' | 'rename',
+  actorId: string,
+  sectionName: string,
+  ctx: PathContext,
+  newName?: string
+): string {
+  const path = buildSectionPath(actorId, sectionName, ctx);
+  switch (operation) {
+    case 'create': return `Create section: ${path.replace('Actors → ', '')}`;
+    case 'delete': return `Delete section: ${path.replace('Actors → ', '')}`;
+    case 'rename': return `Rename section: ${path.replace('Actors → ', '')} → ${newName}`;
+    case 'update': return `Update section: ${path.replace('Actors → ', '')}`;
+  }
+}
+
+/**
+ * Build snapshot message for content operations
+ */
+export function snapshotMessageForContent(
+  operation: 'create' | 'delete' | 'update' | 'rename',
+  actorId: string,
+  sectionId: string,
+  cueName: string,
+  ctx: PathContext,
+  newName?: string
+): string {
+  const path = buildContentPath(actorId, sectionId, cueName, ctx);
+  switch (operation) {
+    case 'create': return `Create content: ${path.replace('Actors → ', '')}`;
+    case 'delete': return `Delete content: ${path.replace('Actors → ', '')}`;
+    case 'rename': return `Rename cue: ${path.replace('Actors → ', '')} → ${newName}`;
+    case 'update': return `Update content: ${path.replace('Actors → ', '')}`;
+  }
+}
+
+/**
+ * Save a snapshot using pre-read catalog data
+ * @param paths - Project paths
+ * @param message - Description of the operation
+ * @param catalog - Pre-read catalog data (avoids redundant reads)
+ */
+export async function saveSnapshot(
+  paths: ProjectPaths,
+  message: string,
+  catalog: CatalogCache
 ): Promise<void> {
   const snapshotPath = join(paths.vof.dir, 'snapshots.jsonl');
   const redoPath = join(paths.vof.dir, 'redo-snapshots.jsonl');
@@ -34,25 +118,18 @@ export async function saveSnapshotBeforeWrite(
     // Clear redo stack on new mutation
     const fs = await import('fs-extra').then(m => m.default);
     await fs.writeFile(redoPath, '', 'utf8');
-    
-    // Read current state of all catalog files
-    const [actors, sections, content] = await Promise.all([
-      readJsonl<Actor>(paths.catalog.actors).catch(() => [] as Actor[]),
-      readJsonl<Section>(paths.catalog.sections).catch(() => [] as Section[]),
-      readJsonl<Content>(paths.catalog.content).catch(() => [] as Content[]),
-    ]);
 
     const snapshot: Snapshot = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: new Date().toISOString(),
       message,
-      actors,
-      sections,
-      content,
+      actors: catalog.actors,
+      sections: catalog.sections,
+      content: catalog.content,
     };
 
     if (DEBUG_SNAPSHOT) {
-      console.log('[Snapshot] Saving snapshot before write:', message);
+      console.log('[Snapshot] Saving snapshot:', message);
     }
 
     // Read existing snapshots
@@ -78,6 +155,18 @@ export async function saveSnapshotBeforeWrite(
     console.error('[Snapshot] Failed to save snapshot:', err);
     // Don't throw - we don't want to block the actual write
   }
+}
+
+/**
+ * Legacy function for backwards compatibility
+ * Reads catalog internally - prefer saveSnapshot with pre-read data
+ */
+export async function saveSnapshotBeforeWrite(
+  paths: ProjectPaths,
+  message: string
+): Promise<void> {
+  const catalog = await readCatalog(paths);
+  return saveSnapshot(paths, message, catalog);
 }
 
 export function registerSnapshotRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {

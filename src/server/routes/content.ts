@@ -1,11 +1,15 @@
 import { join } from 'path';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Actor, Content, Take, Section } from '../../types/index.js';
+import type { Actor, Content, Section, Take } from '../../types/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
 import { getAudioProvider } from '../../services/provider-factory.js';
-import { saveSnapshotBeforeWrite } from './snapshots.js';
+import { 
+  readCatalog, 
+  saveSnapshot, 
+  snapshotMessageForContent 
+} from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -61,28 +65,24 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
 
     // Support batch creation by splitting comma-separated cue_ids
     const allCueIds = body.cue_id.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
-
-    // Build descriptive message
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
-    const sections = await readJsonl<Section>(paths.catalog.sections);
-    const actor = actors.find(a => a.id === body.actor_id);
-    const section = sections.find(s => s.id === body.section_id);
-    const actorName = actor?.display_name || 'Unknown';
-    const sectionName = section?.name || body.content_type;
-    const cueNames = allCueIds.length === 1 ? allCueIds[0] : `${allCueIds.length} cues`;
-    
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths, `Create content: ${actorName} → ${sectionName} → ${cueNames}`);
     
     if (allCueIds.length === 0) {
       reply.code(400);
       return { error: 'At least one valid cue_id is required' };
     }
 
+    // Read catalog once for snapshot and logic
+    const catalog = await readCatalog(paths);
+    const cueNames = allCueIds.length === 1 ? allCueIds[0] : `${allCueIds.length} cues`;
+    await saveSnapshot(
+      paths, 
+      snapshotMessageForContent('create', body.actor_id, body.section_id, cueNames, catalog), 
+      catalog
+    );
+
     // Check for existing content and filter out duplicates
-    const existingContent = await readJsonl<Content>(paths.catalog.content);
     const existingCueIds = new Set(
-      existingContent
+      catalog.content
         .filter(c => c.actor_id === body.actor_id && c.content_type === body.content_type)
         .map(c => c.cue_id)
     );
@@ -152,33 +152,26 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'Request body is required' };
     }
 
-    const contentItems = await readJsonl<Content>(paths.catalog.content);
-    const contentIndex = contentItems.findIndex(c => c.id === id);
+    // Read catalog once for snapshot and logic
+    const catalog = await readCatalog(paths);
+    const contentIndex = catalog.content.findIndex(c => c.id === id);
     
     if (contentIndex === -1) {
       reply.code(404);
       return { error: 'Content not found' };
     }
 
-    // Build descriptive message
-    const currentContent = contentItems[contentIndex];
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
-    const sections = await readJsonl<Section>(paths.catalog.sections);
-    const actor = actors.find(a => a.id === currentContent.actor_id);
-    const section = sections.find(s => s.id === currentContent.section_id);
-    const actorName = actor?.display_name || 'Unknown';
-    const sectionName = section?.name || currentContent.content_type;
-    let snapshotMessage = `Update content: ${actorName} → ${sectionName} → ${currentContent.cue_id}`;
-    if (body.cue_id && body.cue_id !== currentContent.cue_id) {
-      snapshotMessage = `Rename cue: ${actorName} → ${sectionName} → ${currentContent.cue_id} → ${body.cue_id}`;
-    }
-
-    // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths, snapshotMessage);
+    // Build descriptive message and save snapshot
+    const currentContent = catalog.content[contentIndex];
+    const isRename = body.cue_id && body.cue_id !== currentContent.cue_id;
+    const snapshotMessage = isRename
+      ? snapshotMessageForContent('rename', currentContent.actor_id, currentContent.section_id, currentContent.cue_id, catalog, body.cue_id)
+      : snapshotMessageForContent('update', currentContent.actor_id, currentContent.section_id, currentContent.cue_id, catalog);
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
     // Update the content with new data
     const updatedContent: Content = {
-      ...contentItems[contentIndex],
+      ...catalog.content[contentIndex],
       ...body,
       id, // Ensure ID doesn't change
       updated_at: new Date().toISOString(),
@@ -191,11 +184,9 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'Invalid content data', details: validation.errors };
     }
 
-    // Replace the content in the array
-    contentItems[contentIndex] = updatedContent;
-
-    // Write back to file
-    await writeJsonlAll(paths.catalog.content, contentItems);
+    // Replace the content in the array and write back
+    catalog.content[contentIndex] = updatedContent;
+    await writeJsonlAll(paths.catalog.content, catalog.content);
 
     return { content: updatedContent };
   });
@@ -210,24 +201,25 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
 
     const { id } = request.params as { id: string };
 
-    const contentItems = await readJsonl<Content>(paths.catalog.content);
-    const contentToDelete = contentItems.find(c => c.id === id);
-    
-    // Build descriptive message
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
-    const sections = await readJsonl<Section>(paths.catalog.sections);
-    const actor = actors.find(a => a.id === contentToDelete?.actor_id);
-    const section = sections.find(s => s.id === contentToDelete?.section_id);
-    const actorName = actor?.display_name || 'Unknown';
-    const sectionName = section?.name || contentToDelete?.content_type || 'Unknown';
+    // Read catalog once for snapshot and logic
+    const catalog = await readCatalog(paths);
+    const contentToDelete = catalog.content.find(c => c.id === id);
     const cueName = contentToDelete?.cue_id || id;
-
+    
     // Save snapshot before mutation
-    await saveSnapshotBeforeWrite(paths, `Delete content: ${actorName} → ${sectionName} → ${cueName}`);
+    if (contentToDelete) {
+      await saveSnapshot(
+        paths, 
+        snapshotMessageForContent('delete', contentToDelete.actor_id, contentToDelete.section_id, cueName, catalog), 
+        catalog
+      );
+    } else {
+      await saveSnapshot(paths, `Delete content: ${id}`, catalog);
+    }
 
     const takes = await readJsonl<Take>(paths.catalog.takes);
 
-    const remainingContent = contentItems.filter((c) => c.id !== id);
+    const remainingContent = catalog.content.filter((c) => c.id !== id);
     const remainingTakes = takes.filter((t) => t.content_id !== id);
 
     await ensureJsonlFile(paths.catalog.content);

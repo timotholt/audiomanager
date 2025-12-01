@@ -321,3 +321,7 @@
 {"id":"1764571841803-9hits617u","entryType":"log","timestamp":"2025-12-01T06:50:41.803Z","type":"info","message":"october: Marked actor as complete"}
 {"id":"1764571841810-343ochfw8","timestamp":"2025-12-01T06:50:41.810Z","type":"info","message":"Marked Actors → october as complete","details":null}
 {"id":"1764571842812-indqi6t4q","timestamp":"2025-12-01T06:50:42.812Z","type":"info","message":"All actors in this project are complete.","details":null}
+{"id":"1764572378252-y38lfrdse","timestamp":"2025-12-01T06:59:38.252Z","type":"info","message":"Marked Actors → august → dialogue2 → 2 as incomplete","details":null}
+{"id":"1764572378280-5xkcreqxj","entryType":"log","timestamp":"2025-12-01T06:59:38.280Z","type":"info","message":"august → dialogue2: Marked section as incomplete"}
+{"id":"1764572378333-wj9o958e3","entryType":"log","timestamp":"2025-12-01T06:59:38.333Z","type":"info","message":"august: Marked actor as incomplete"}
+{"id":"1764572388037-urk4f8and","timestamp":"2025-12-01T06:59:48.038Z","type":"info","message":"Marked Actors → august → dialogue2 → 2 as complete","details":null}

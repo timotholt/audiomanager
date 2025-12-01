@@ -8,6 +8,7 @@ import { useAppLog } from '../hooks/useAppLog.js';
 import { useUndoStack } from '../hooks/useUndoStack.js';
 import { useConsoleCapture } from '../hooks/useConsoleCapture.js';
 import { LogProvider } from '../contexts/LogContext.jsx';
+import { PlaybackProvider } from '../contexts/PlaybackContext.jsx';
 import { 
   buildActorPath, 
   buildSectionPath, 
@@ -187,8 +188,15 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
 
   return (
     <LogProvider logInfo={logInfo} logSuccess={logSuccess} logError={logError} logWarning={logWarning}>
-      <Box ref={containerRef} component="main" sx={{ flexGrow: 1, pt: 6, pb: '6rem', display: 'flex', minWidth: 0, userSelect: isResizing ? 'none' : 'auto' }}>
-        <TreePane
+      <PlaybackProvider
+        playingTakeId={currentPlayingTakeId}
+        onPlayRequest={handlePlayTakeGlobal}
+        onStopRequest={onStopPlayback}
+        playedTakes={playedTakes}
+        onTakePlayed={(takeId) => setPlayedTakes((prev) => ({ ...prev, [takeId]: true }))}
+      >
+        <Box ref={containerRef} component="main" sx={{ flexGrow: 1, pt: 6, pb: '6rem', display: 'flex', minWidth: 0, userSelect: isResizing ? 'none' : 'auto' }}>
+          <TreePane
         width={treePaneWidth}
         actors={actors}
         content={content}
@@ -314,21 +322,15 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
         blankSpaceConversion={blankSpaceConversion}
         capitalizationConversion={capitalizationConversion}
         onStatusChange={onStatusChange}
-        playingTakeId={currentPlayingTakeId}
-        onPlayRequest={handlePlayTakeGlobal}
-        onStopRequest={onStopPlayback}
-        playedTakes={playedTakes}
-        onTakePlayed={(takeId) => setPlayedTakes((prev) => ({ ...prev, [takeId]: true }))}
         onCreditsRefresh={onCreditsRefresh}
         logs={logs}
         onClearLogs={clearLogs}
-        onLogError={logError}
-        onLogInfo={logInfo}
         undoRedo={undoStack}
         consoleEntries={consoleEntries}
         onClearConsole={clearConsole}
       />
-      </Box>
+        </Box>
+      </PlaybackProvider>
     </LogProvider>
   );
 }

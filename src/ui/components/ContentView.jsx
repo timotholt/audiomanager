@@ -32,6 +32,7 @@ import DetailHeader from './DetailHeader.jsx';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 import { buildContentPath, buildSectionPath, buildActorPath, getSectionName } from '../utils/pathBuilder.js';
 import { useLog } from '../contexts/LogContext.jsx';
+import { usePlayback } from '../contexts/PlaybackContext.jsx';
 
 // Local storage key for LLM settings (same as SettingsDialog)
 const LLM_STORAGE_KEY = 'vofoundry-llm-settings';
@@ -94,15 +95,11 @@ export default function ContentView({
   onTakesGenerated,
   onTakeUpdated,
   onStatusChange,
-  playingTakeId,
-  onPlayRequest,
-  onStopRequest,
-  playedTakes = {},
-  onTakePlayed,
   onCreditsRefresh,
   error: parentError 
 }) {
   const { logInfo, logError } = useLog();
+  const { playingTakeId, onPlayRequest, onStopRequest, playedTakes, onTakePlayed } = usePlayback();
   // Build the base filename for this content item
   // Strip trailing underscore from actor.base_filename and apply conversions to cue_id
   const actorBase = stripTrailingUnderscore(actor?.base_filename || 'unknown');

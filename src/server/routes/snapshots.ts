@@ -102,20 +102,21 @@ export function snapshotMessageForContent(
 }
 
 /**
- * Build snapshot message for section update with diff details
+ * Build a snapshot message from a path and diff result
+ * Centralizes the logic for formatting update messages
  */
-export function snapshotMessageForSectionUpdate(
-  actorId: string,
-  sectionName: string,
-  ctx: PathContext,
-  oldSection: Record<string, unknown>,
-  newSection: Record<string, unknown>
+function buildSnapshotMessage(
+  path: string,
+  diff: ReturnType<typeof describeChanges>,
+  options?: { renameFrom?: string; renameTo?: string }
 ): string {
-  const path = buildSectionPath(actorId, sectionName, ctx);
-  const diff = describeChanges(oldSection, newSection);
-  
   if (!diff.hasChanges) {
     return `Update: ${path} (no changes)`;
+  }
+  
+  // Check for rename specifically
+  if (options?.renameFrom && options?.renameTo) {
+    return `Rename actor: ${options.renameFrom} → ${options.renameTo}`;
   }
   
   // For completion changes, use "system marked" format
@@ -133,6 +134,21 @@ export function snapshotMessageForSectionUpdate(
 }
 
 /**
+ * Build snapshot message for section update with diff details
+ */
+export function snapshotMessageForSectionUpdate(
+  actorId: string,
+  sectionName: string,
+  ctx: PathContext,
+  oldSection: Record<string, unknown>,
+  newSection: Record<string, unknown>
+): string {
+  const path = buildSectionPath(actorId, sectionName, ctx);
+  const diff = describeChanges(oldSection, newSection);
+  return buildSnapshotMessage(path, diff);
+}
+
+/**
  * Build snapshot message for actor update with diff details
  */
 export function snapshotMessageForActorUpdate(
@@ -140,30 +156,15 @@ export function snapshotMessageForActorUpdate(
   oldActor: Record<string, unknown>,
   newActor: Record<string, unknown>
 ): string {
-  const diff = describeChanges(oldActor, newActor);
   const path = `actor → ${actorName}`;
+  const diff = describeChanges(oldActor, newActor);
   
-  if (!diff.hasChanges) {
-    return `Update: ${path} (no changes)`;
-  }
+  // Check for rename
+  const renameOptions = oldActor.display_name !== newActor.display_name
+    ? { renameFrom: oldActor.display_name as string, renameTo: newActor.display_name as string }
+    : undefined;
   
-  // Check for rename specifically
-  if (oldActor.display_name !== newActor.display_name) {
-    return `Rename actor: ${oldActor.display_name} → ${newActor.display_name}`;
-  }
-  
-  // For completion changes, use "system marked" format
-  if (diff.changes.length === 1 && diff.changes[0].startsWith('marked as ')) {
-    return `system ${diff.changes[0].replace('marked as ', `marked ${path} as `)}`;
-  }
-  
-  // For single change, be specific
-  if (diff.changes.length === 1) {
-    return `${path}: ${diff.changes[0]}`;
-  }
-  
-  // For multiple changes, use summary
-  return `Update: ${path} (${diff.summary.toLowerCase()})`;
+  return buildSnapshotMessage(path, diff, renameOptions);
 }
 
 /**
@@ -179,23 +180,7 @@ export function snapshotMessageForContentUpdate(
 ): string {
   const path = buildContentPath(actorId, sectionId, cueName, ctx);
   const diff = describeChanges(oldContent, newContent);
-  
-  if (!diff.hasChanges) {
-    return `Update: ${path} (no changes)`;
-  }
-  
-  // For completion changes, use "system marked" format
-  if (diff.changes.length === 1 && diff.changes[0].startsWith('marked as ')) {
-    return `system ${diff.changes[0].replace('marked as ', `marked ${path} as `)}`;
-  }
-  
-  // For single change, be specific
-  if (diff.changes.length === 1) {
-    return `${path}: ${diff.changes[0]}`;
-  }
-  
-  // For multiple changes, use summary
-  return `Update: ${path} (${diff.summary.toLowerCase()})`;
+  return buildSnapshotMessage(path, diff);
 }
 
 /**

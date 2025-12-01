@@ -34,16 +34,9 @@ export default function DetailPane({
   blankSpaceConversion,
   capitalizationConversion,
   onStatusChange,
-  playingTakeId,
-  onPlayRequest,
-  onStopRequest,
-  playedTakes,
-  onTakePlayed,
   onCreditsRefresh,
   logs,
   onClearLogs,
-  onLogError,
-  onLogInfo,
   undoRedo,
   consoleEntries,
   onClearConsole
@@ -166,11 +159,6 @@ export default function DetailPane({
           onTakesGenerated={onTakesGenerated}
           onTakeUpdated={onTakeUpdated}
           onStatusChange={onStatusChange}
-          playingTakeId={playingTakeId}
-          onPlayRequest={onPlayRequest}
-          onStopRequest={onStopRequest}
-          playedTakes={playedTakes}
-          onTakePlayed={onTakePlayed}
           onCreditsRefresh={onCreditsRefresh}
           error={commonError}
         />

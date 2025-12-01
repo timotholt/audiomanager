@@ -137,3 +137,18 @@
 {"id":"1764577774969-nxuokqufz","entryType":"log","timestamp":"2025-12-01T08:29:34.969Z","type":"info","message":"system marked actor → tim as complete"}
 {"id":"1764577774988-8x4b08b5l","timestamp":"2025-12-01T08:29:34.988Z","type":"info","message":"user marked actor → tim as complete","details":null}
 {"id":"1764577775989-wny3roiz3","timestamp":"2025-12-01T08:29:35.989Z","type":"info","message":"All actors in this project are complete.","details":null}
+{"id":"1764577839992-s19ex86xe","entryType":"log","timestamp":"2025-12-01T08:30:39.993Z","type":"info","message":"system marked actor → tim as incomplete"}
+{"id":"1764577840007-ahwdohlvb","timestamp":"2025-12-01T08:30:40.007Z","type":"info","message":"user marked actor → tim as incomplete","details":null}
+{"id":"1764577843083-5wqm2nv6n","timestamp":"2025-12-01T08:30:43.083Z","type":"info","message":"user marked actor → tim → dialogue → what's up as incomplete","details":null}
+{"id":"1764577843138-1pyfkhhvf","entryType":"log","timestamp":"2025-12-01T08:30:43.138Z","type":"info","message":"system marked actor → tim → dialogue as incomplete"}
+{"id":"1764577843216-9q926ximj","entryType":"log","timestamp":"2025-12-01T08:30:43.216Z","type":"info","message":"Update: actor → tim (no changes)"}
+{"id":"1764577846232-b14t492qr","timestamp":"2025-12-01T08:30:46.232Z","type":"info","message":"user marked actor → tim → dialogue → what's up as complete","details":null}
+{"id":"1764577856580-04yef3tmg","timestamp":"2025-12-01T08:30:56.580Z","type":"info","message":"user marked actor → tim → dialogue → what's up as incomplete","details":null}
+{"id":"1764577856651-t8gjj7ylw","entryType":"log","timestamp":"2025-12-01T08:30:56.651Z","type":"info","message":"Update: actor → tim → dialogue (no changes)"}
+{"id":"1764577856713-79gi1zbci","entryType":"log","timestamp":"2025-12-01T08:30:56.713Z","type":"info","message":"Update: actor → tim (no changes)"}
+{"id":"1764577862077-mk14npk5k","timestamp":"2025-12-01T08:31:02.077Z","type":"info","message":"user marked actor → tim → dialogue → what's up as complete","details":null}
+{"id":"1764577863754-lgntrmgeb","entryType":"log","timestamp":"2025-12-01T08:31:03.754Z","type":"info","message":"system marked actor → tim → dialogue as complete"}
+{"id":"1764577863768-uvqarvmcx","timestamp":"2025-12-01T08:31:03.768Z","type":"info","message":"user marked actor → tim → dialogue as complete","details":null}
+{"id":"1764577865627-s11wsy85z","entryType":"log","timestamp":"2025-12-01T08:31:05.627Z","type":"info","message":"system marked actor → tim as complete"}
+{"id":"1764577865643-xcc2qkwb1","timestamp":"2025-12-01T08:31:05.643Z","type":"info","message":"user marked actor → tim as complete","details":null}
+{"id":"1764577866647-52biqvraa","timestamp":"2025-12-01T08:31:06.647Z","type":"info","message":"All actors in this project are complete.","details":null}

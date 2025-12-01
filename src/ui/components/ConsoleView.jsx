@@ -94,8 +94,17 @@ function LogEntry({ entry }) {
   );
 }
 
-export default function ConsoleView({ logs, undoRedo }) {
+export default function ConsoleView({ logs, undoRedo, logInfo }) {
   const { canUndo, canRedo, undoMessage, redoMessage, undo, redo, undoing } = undoRedo;
+  
+  const handleUndo = () => {
+    undo(logInfo);
+  };
+  
+  const handleRedo = () => {
+    redo(logInfo);
+  };
+  
   return (
     <Box sx={{ 
       flexGrow: 1, 
@@ -114,7 +123,7 @@ export default function ConsoleView({ logs, undoRedo }) {
             variant="outlined"
             size="small"
             startIcon={<UndoIcon />}
-            onClick={undo}
+            onClick={handleUndo}
             disabled={undoing}
             title={undoMessage ? `Undo: ${undoMessage}` : 'Undo'}
           >
@@ -126,7 +135,7 @@ export default function ConsoleView({ logs, undoRedo }) {
             variant="outlined"
             size="small"
             startIcon={<RedoIcon />}
-            onClick={redo}
+            onClick={handleRedo}
             disabled={undoing}
             title={redoMessage ? `Redo: ${redoMessage}` : 'Redo'}
           >

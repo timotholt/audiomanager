@@ -17,7 +17,7 @@ export function useUndoStack({ onStateRestored }) {
   /**
    * Undo the last operation by restoring the previous snapshot
    */
-  const undo = useCallback(async () => {
+  const undo = useCallback(async (logCallback) => {
     if (DEBUG_UNDO) {
       console.log('[Undo] Performing undo');
     }
@@ -47,6 +47,11 @@ export function useUndoStack({ onStateRestored }) {
       setUndoMessage(data.undoMessage);
       setRedoMessage(data.redoMessage);
       
+      // Log the undo action to history if callback provided
+      if (logCallback) {
+        logCallback(data.message);
+      }
+      
       // Notify parent to update UI state
       if (onStateRestored) {
         onStateRestored({
@@ -69,7 +74,7 @@ export function useUndoStack({ onStateRestored }) {
   /**
    * Redo the last undone operation
    */
-  const redo = useCallback(async () => {
+  const redo = useCallback(async (logCallback) => {
     if (DEBUG_UNDO) {
       console.log('[Undo] Performing redo');
     }
@@ -98,6 +103,11 @@ export function useUndoStack({ onStateRestored }) {
       setCanRedo(data.canRedo);
       setUndoMessage(data.undoMessage);
       setRedoMessage(data.redoMessage);
+      
+      // Log the redo action to history if callback provided
+      if (logCallback) {
+        logCallback(data.message);
+      }
       
       // Notify parent to update UI state
       if (onStateRestored) {

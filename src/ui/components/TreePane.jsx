@@ -202,7 +202,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
             {
               id: 'actors',
               name: 'Actors',
-              icon: <PersonIcon sx={{ fontSize: '0.875rem' }} />,
+              icon: <PersonIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />,
               nodeType: 'root',
               nodeId: 'project',
               order: 0, // Actors first
@@ -211,7 +211,7 @@ export default function TreePane({ width, actors, content, sections, takes = [],
             {
               id: 'console',
               name: 'Console',
-              icon: <TerminalIcon sx={{ fontSize: '0.875rem' }} />,
+              icon: <TerminalIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />,
               nodeType: 'console',
               nodeId: 'logs',
               order: 1, // After Actors
@@ -221,15 +221,15 @@ export default function TreePane({ width, actors, content, sections, takes = [],
             {
               id: 'defaults',
               name: 'Defaults',
-              icon: <SettingsIcon sx={{ fontSize: '0.875rem' }} />,
+              icon: <SettingsIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />,
               nodeType: 'defaults',
               nodeId: 'providers',
               order: 2, // After Console
               children: ['dialogue', 'music', 'sfx'].map((type) => ({
                 id: type,
                 name: `${type.charAt(0).toUpperCase() + type.slice(1)} (ElevenLabs)`,
-                icon: type === 'dialogue' ? <RecordVoiceOverIcon sx={{ fontSize: '0.75rem' }} /> :
-                      type === 'music' ? <MusicNoteIcon sx={{ fontSize: '0.75rem' }} /> : <GraphicEqIcon sx={{ fontSize: '0.75rem' }} />,
+                icon: type === 'dialogue' ? <RecordVoiceOverIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} /> :
+                      type === 'music' ? <MusicNoteIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} /> : <GraphicEqIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />,
                 nodeType: 'provider-default',
                 nodeId: type
               }))
@@ -302,7 +302,14 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                         <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
                           {child.icon}
                         </ListItemIcon>
-                        <ListItemText primary={child.name} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem' }} />
+                        <ListItemText 
+                          primary={child.name} 
+                          primaryTypographyProps={{ 
+                            fontSize: '0.9rem', 
+                            lineHeight: '1rem',
+                            color: selectedId === nodeKey(child.nodeType, child.nodeId) ? undefined : 'text.secondary'
+                          }} 
+                        />
                       </ListItemButton>
                     ))
                   ) : section.id === 'actors' ? (

@@ -9,6 +9,7 @@ import Button from '@mui/material/Button';
 import ActorHeader from '../ActorHeader.jsx';
 import ProviderSettingsDisplay from '../ProviderSettingsDisplay.jsx';
 import SectionManagement from '../SectionManagement.jsx';
+import CompleteButton from '../CompleteButton.jsx';
 import { DESIGN_SYSTEM } from '../../theme/designSystem.js';
 
 export default function ActorView({ 
@@ -48,22 +49,18 @@ export default function ActorView({
       />
 
       <Box sx={{ mb: 2 }}>
-        <Button
-          variant={actor.actor_complete ? 'outlined' : 'contained'}
-          size="small"
-          color={actor.actor_complete ? 'success' : 'primary'}
-          disabled={actorOps.deleting}
-          onClick={async () => {
+        <CompleteButton
+          isComplete={actor.actor_complete}
+          onToggle={async () => {
             try {
               await actorOps.updateActor(actor.id, { actor_complete: !actor.actor_complete });
             } catch (err) {
               // Error handled by hook
             }
           }}
-          sx={{ ...DESIGN_SYSTEM.typography.small }}
-        >
-          {actor.actor_complete ? 'Completed ✓' : 'Mark Actor As Completed'}
-        </Button>
+          disabled={actorOps.deleting}
+          itemType="actor"
+        />
       </Box>
 
       <ProviderSettingsDisplay actor={actor} />

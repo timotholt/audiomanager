@@ -27,9 +27,10 @@ const FIELD_LABELS: Record<string, string> = {
   cue_id: 'cue',
   filename: 'filename',
   prompt: 'prompt',
-  all_approved: 'completion status',
+  all_approved: 'cue completion',
   actor_complete: 'actor completion',
   section_complete: 'section completion',
+  status: 'take status',
 };
 
 /** Fields to ignore when comparing */
@@ -133,13 +134,21 @@ export function describeChanges(
       changedFields.push(label);
       
       // Special handling for completion flags
-      if (key === 'all_approved' || key === 'actor_complete' || key === 'section_complete') {
-        const entityType = key === 'all_approved' ? 'cue' : key === 'actor_complete' ? 'actor' : 'section';
-        if (newVal === true) {
-          changes.push(`Marked ${entityType} as complete`);
-        } else {
-          changes.push(`Marked ${entityType} as incomplete`);
-        }
+      if (key === 'all_approved') {
+        changes.push(newVal ? 'Marked cue as complete' : 'Marked cue as incomplete');
+      }
+      else if (key === 'actor_complete') {
+        changes.push(newVal ? 'Marked actor as complete' : 'Marked actor as incomplete');
+      }
+      else if (key === 'section_complete') {
+        changes.push(newVal ? 'Marked section as complete' : 'Marked section as incomplete');
+      }
+      // Special handling for take status (approved/rejected)
+      else if (key === 'status') {
+        if (newVal === 'approved') changes.push('Approved take');
+        else if (newVal === 'rejected') changes.push('Rejected take');
+        else if (newVal === 'new') changes.push('Reset take to new');
+        else changes.push(`Changed take status to ${newVal}`);
       }
       // Generate descriptive change message
       else if (oldVal === undefined || oldVal === null) {

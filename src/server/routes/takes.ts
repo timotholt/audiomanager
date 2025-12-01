@@ -1,7 +1,11 @@
 import { join } from 'path';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Take } from '../../types/index.js';
-import { readJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
+import type { Take, Content } from '../../types/index.js';
+import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
+import { generateId } from '../../utils/ids.js';
+import { validate } from '../../utils/validation.js';
+import { readCatalog, saveSnapshot } from './snapshots.js';
+import { describeChanges } from '../../utils/diffDescriber.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -39,6 +43,8 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
       return { error: 'Request body is required' };
     }
 
+    // Read catalog for snapshot
+    const catalog = await readCatalog(paths);
     const takes = await readJsonl<Take>(paths.catalog.takes);
     const takeIndex = takes.findIndex(t => t.id === id);
     
@@ -47,21 +53,43 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
       return { error: 'Take not found' };
     }
 
-    // Update the take with new data
-    const now = new Date().toISOString();
+    const currentTake = takes[takeIndex];
     const updatedTake: Take = {
-      ...takes[takeIndex],
+      ...currentTake,
       ...body,
       id, // Ensure ID doesn't change
-      // Track when status changed
-      status_changed_at: body.status && body.status !== takes[takeIndex].status ? now : takes[takeIndex].status_changed_at,
-      updated_at: now,
+      updated_at: new Date().toISOString(),
     };
 
-    // Replace the take in the array
-    takes[takeIndex] = updatedTake;
+    // Find the content and actor for this take to build descriptive message
+    const content = catalog.content.find(c => c.id === currentTake.content_id);
+    const actor = content ? catalog.actors.find(a => a.id === content.actor_id) : null;
+    const section = content ? catalog.sections.find(s => s.id === content.section_id) : null;
+    
+    // Build descriptive message with diff
+    const changes = describeChanges(
+      currentTake as unknown as Record<string, unknown>,
+      updatedTake as unknown as Record<string, unknown>
+    );
+    
+    let snapshotMessage = '';
+    if (actor && content) {
+      const sectionName = section?.name || content.content_type;
+      snapshotMessage = `${actor.display_name} → ${sectionName} → ${content.cue_id}: ${changes}`;
+    } else {
+      snapshotMessage = `Take ${currentTake.filename || id}: ${changes}`;
+    }
+    
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Write back to file
+    const validation = validate('take', updatedTake);
+    if (!validation.valid) {
+      reply.code(400);
+      return { error: 'Invalid take data', details: validation.errors };
+    }
+
+    takes[takeIndex] = updatedTake;
+    await ensureJsonlFile(paths.catalog.takes);
     await writeJsonlAll(paths.catalog.takes, takes);
 
     return { take: updatedTake };

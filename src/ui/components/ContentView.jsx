@@ -27,6 +27,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import { deleteContent, updateContent, getTakes, updateTake, generateTakes, deleteTake } from '../api/client.js';
+import CompleteButton from './CompleteButton.jsx';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 
 // Local storage key for LLM settings (same as SettingsDialog)
@@ -555,36 +556,26 @@ export default function ContentView({
               {approvedCount} of {requiredApprovals} approved takes to be complete
             </Typography>
           </Box>
-          <Tooltip 
-            title={approvedCount === 0 && !item.all_approved ? "At least one take must be approved before marking complete" : ""}
-            arrow
-          >
-            <span>
-              <Button
-                variant={item.all_approved ? 'outlined' : 'contained'}
-                size="small"
-                color={item.all_approved ? 'success' : 'primary'}
-                disabled={saving || (approvedCount === 0 && !item.all_approved)}
-                onClick={async () => {
-                  try {
-                    setSaving(true);
-                    setError(null);
-                    const result = await updateContent(item.id, { all_approved: !item.all_approved });
-                    if (result.content && onContentUpdated) {
-                      onContentUpdated(result.content);
-                    }
-                  } catch (err) {
-                    setError(err.message || String(err));
-                  } finally {
-                    setSaving(false);
-                  }
-                }}
-                sx={{ ...DESIGN_SYSTEM.typography.small }}
-              >
-                {item.all_approved ? 'Completed ✓' : 'Mark As Completed'}
-              </Button>
-            </span>
-          </Tooltip>
+          <CompleteButton
+            isComplete={item.all_approved}
+            onToggle={async () => {
+              try {
+                setSaving(true);
+                setError(null);
+                const result = await updateContent(item.id, { all_approved: !item.all_approved });
+                if (result.content && onContentUpdated) {
+                  onContentUpdated(result.content);
+                }
+              } catch (err) {
+                setError(err.message || String(err));
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={saving}
+            itemType="cue"
+            approvedCount={approvedCount}
+          />
         </Box>
         
         {loadingTakes ? (

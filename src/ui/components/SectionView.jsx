@@ -17,6 +17,7 @@ import ExpandMore from '@mui/icons-material/ExpandMore';
 import LockIcon from '@mui/icons-material/Lock';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ProviderSettingsEditor from './ProviderSettingsEditor.jsx';
+import CompleteButton from './CompleteButton.jsx';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 
 // Helper to convert content type to title case
@@ -138,23 +139,11 @@ export default function SectionView({
         <Typography variant="body2" color="text.secondary" sx={DESIGN_SYSTEM.typography.body}>
           Actor: {actor.display_name} • Type: {toTitleCase(contentType)}
         </Typography>
-        <Tooltip 
-          title={sectionComplete ? "Mark section as incomplete" : "Mark this section as complete"}
-          arrow
-          placement="left"
-        >
-          <span>
-            <Button
-              variant={sectionComplete ? 'outlined' : 'contained'}
-              size="small"
-              color={sectionComplete ? 'success' : 'primary'}
-              onClick={() => onToggleSectionComplete && onToggleSectionComplete(sectionData.id, !sectionComplete)}
-              sx={{ ...DESIGN_SYSTEM.typography.small }}
-            >
-              {sectionComplete ? 'Completed ✓' : 'Mark Section As Completed'}
-            </Button>
-          </span>
-        </Tooltip>
+        <CompleteButton
+          isComplete={sectionComplete}
+          onToggle={() => onToggleSectionComplete && onToggleSectionComplete(sectionData.id, !sectionComplete)}
+          itemType="section"
+        />
       </Box>
 
 

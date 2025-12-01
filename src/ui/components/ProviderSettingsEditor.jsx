@@ -184,8 +184,19 @@ export default function ProviderSettingsEditor({
       console.log('[ProviderSettingsEditor] Switching to inherit mode');
       onSettingsChange({ provider: 'inherit' });
     } else {
-      console.log('[ProviderSettingsEditor] Switching to custom mode with defaults:', DEFAULT_SETTINGS[contentType]);
-      onSettingsChange(DEFAULT_SETTINGS[contentType]);
+      // Switching to custom: start from defaults and, for dialogue, try to pick a sane default voice
+      let base = { ...DEFAULT_SETTINGS[contentType] };
+      if (contentType === 'dialogue' && Array.isArray(voices) && voices.length > 0) {
+        // Prefer keeping existing voice if present and still valid
+        const existingVoice = settings?.voice_id && voices.find(v => v.voice_id === settings.voice_id);
+        if (existingVoice) {
+          base.voice_id = existingVoice.voice_id;
+        } else {
+          base.voice_id = voices[0].voice_id;
+        }
+      }
+      console.log('[ProviderSettingsEditor] Switching to custom mode with defaults:', base);
+      onSettingsChange(base);
     }
   };
 

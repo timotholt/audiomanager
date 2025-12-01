@@ -194,7 +194,7 @@ export default function ProjectSelector({ currentProject, onProjectChange }) {
         onClick={handleClick}
         endIcon={<KeyboardArrowDownIcon />}
         sx={{ 
-          color: 'inherit', 
+          color: 'text.secondary',
           textTransform: 'none',
           minWidth: 150,
         }}

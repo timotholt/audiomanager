@@ -7,7 +7,8 @@ import { validate } from '../../utils/validation.js';
 import { 
   readCatalog, 
   saveSnapshot, 
-  snapshotMessageForActor 
+  snapshotMessageForActor,
+  snapshotMessageForActorUpdate
 } from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
@@ -149,21 +150,23 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'Actor not found' };
     }
     
-    // Build descriptive message and save snapshot
     const currentActor = catalog.actors[actorIndex];
-    const isRename = body.display_name && body.display_name !== currentActor.display_name;
-    const snapshotMessage = isRename
-      ? snapshotMessageForActor('rename', currentActor.display_name, body.display_name)
-      : snapshotMessageForActor('update', currentActor.display_name);
-    await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Update the actor with new data
+    // Build the updated actor first so we can diff
     const updatedActor: Actor = {
       ...catalog.actors[actorIndex],
       ...body,
       id, // Ensure ID doesn't change
       updated_at: new Date().toISOString(),
     };
+
+    // Build descriptive message with diff and save snapshot
+    const snapshotMessage = snapshotMessageForActorUpdate(
+      currentActor.display_name,
+      currentActor as unknown as Record<string, unknown>,
+      updatedActor as unknown as Record<string, unknown>
+    );
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
     // Validate the updated actor
     const validation = validate('actor', updatedActor);

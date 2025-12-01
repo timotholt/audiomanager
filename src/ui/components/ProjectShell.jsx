@@ -188,7 +188,7 @@ export default function ProjectShell({ blankSpaceConversion, capitalizationConve
       <Box
         onMouseDown={handleMouseDown}
         sx={{
-          width: '6px',
+          width: '1px',
           cursor: 'col-resize',
           backgroundColor: 'divider',
           flexShrink: 0,

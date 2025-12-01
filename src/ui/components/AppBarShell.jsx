@@ -26,7 +26,11 @@ export default function AppBarShell({
     <>
       <AppBar position="fixed" color="default" elevation={1} sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar variant="dense" sx={{ minHeight: 40, py: 0.25 }}>
-          <Typography variant="body1" sx={{ fontWeight: 500, fontSize: '0.9rem', mr: 2 }} noWrap>
+          <Typography
+            variant="body1"
+            sx={{ fontWeight: 500, fontSize: '0.9rem', mr: 2, color: 'text.secondary' }}
+            noWrap
+          >
             VO Foundry
           </Typography>
           <ProjectSelector 

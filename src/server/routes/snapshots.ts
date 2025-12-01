@@ -8,6 +8,7 @@ import {
   buildContentPath,
   type PathContext 
 } from '../../utils/pathBuilder.js';
+import { describeChanges } from '../../utils/diffDescriber.js';
 
 const DEBUG_SNAPSHOT = true;
 
@@ -98,6 +99,60 @@ export function snapshotMessageForContent(
     case 'rename': return `Rename cue: ${path.replace('Actors → ', '')} → ${newName}`;
     case 'update': return `Update content: ${path.replace('Actors → ', '')}`;
   }
+}
+
+/**
+ * Build snapshot message for section update with diff details
+ */
+export function snapshotMessageForSectionUpdate(
+  actorId: string,
+  sectionName: string,
+  ctx: PathContext,
+  oldSection: Record<string, unknown>,
+  newSection: Record<string, unknown>
+): string {
+  const path = buildSectionPath(actorId, sectionName, ctx).replace('Actors → ', '');
+  const diff = describeChanges(oldSection, newSection);
+  
+  if (!diff.hasChanges) {
+    return `Update: ${path} (no changes)`;
+  }
+  
+  // For single change, be specific
+  if (diff.changes.length === 1) {
+    return `${path}: ${diff.changes[0]}`;
+  }
+  
+  // For multiple changes, use summary
+  return `Update: ${path} (${diff.summary.toLowerCase()})`;
+}
+
+/**
+ * Build snapshot message for actor update with diff details
+ */
+export function snapshotMessageForActorUpdate(
+  actorName: string,
+  oldActor: Record<string, unknown>,
+  newActor: Record<string, unknown>
+): string {
+  const diff = describeChanges(oldActor, newActor);
+  
+  if (!diff.hasChanges) {
+    return `Update actor: ${actorName} (no changes)`;
+  }
+  
+  // Check for rename specifically
+  if (oldActor.display_name !== newActor.display_name) {
+    return `Rename actor: ${oldActor.display_name} → ${newActor.display_name}`;
+  }
+  
+  // For single change, be specific
+  if (diff.changes.length === 1) {
+    return `Actor ${actorName}: ${diff.changes[0]}`;
+  }
+  
+  // For multiple changes, use summary
+  return `Update actor: ${actorName} (${diff.summary.toLowerCase()})`;
 }
 
 /**

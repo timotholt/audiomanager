@@ -134,8 +134,16 @@ export default function ConsoleView({ logs, undoRedo }) {
           </Button>
         )}
       </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ ...DESIGN_SYSTEM.typography.body, mb: 0.5 }}>
-        {canUndo ? `Undo: ${undoMessage || 'last action'}` : canRedo ? `Redo: ${redoMessage || 'last action'}` : 'Activity log'}
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ fontSize: '0.7rem', mb: 0.5, display: 'block' }}
+      >
+        {canUndo
+          ? `Undo: ${undoMessage || 'last action'}`
+          : canRedo
+          ? `Redo: ${redoMessage || 'last action'}`
+          : 'Activity log'}
       </Typography>
 
       <Box

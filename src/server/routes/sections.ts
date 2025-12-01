@@ -5,7 +5,8 @@ import { generateId } from '../../utils/ids.js';
 import { 
   readCatalog, 
   saveSnapshot, 
-  snapshotMessageForSection 
+  snapshotMessageForSection,
+  snapshotMessageForSectionUpdate
 } from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
@@ -105,21 +106,24 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       }
     }
 
-    // Build descriptive message and save snapshot
-    const currentName = currentSection.name || currentSection.content_type;
-    const isRename = body.name && body.name !== currentSection.name;
-    const snapshotMessage = isRename
-      ? snapshotMessageForSection('rename', currentSection.actor_id, currentName, catalog, body.name)
-      : snapshotMessageForSection('update', currentSection.actor_id, currentName, catalog);
-    await saveSnapshot(paths, snapshotMessage, catalog);
-
-    // Update the section with new data
+    // Build the updated section first so we can diff
     const updatedSection: Section = {
       ...catalog.sections[sectionIndex],
       ...body,
       id, // Ensure ID doesn't change
       updated_at: new Date().toISOString(),
     };
+
+    // Build descriptive message with diff and save snapshot
+    const currentName = currentSection.name || currentSection.content_type;
+    const snapshotMessage = snapshotMessageForSectionUpdate(
+      currentSection.actor_id,
+      currentName,
+      catalog,
+      currentSection as unknown as Record<string, unknown>,
+      updatedSection as unknown as Record<string, unknown>
+    );
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
     // Replace the section in the array and write back
     catalog.sections[sectionIndex] = updatedSection;

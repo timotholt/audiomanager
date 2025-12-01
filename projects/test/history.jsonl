@@ -132,3 +132,12 @@
 {"id":"1764558276531-sf90i778t","timestamp":"2025-12-01T03:04:36.531Z","type":"info","message":"Redid: Update content: october → week2 → 12","details":null}
 {"id":"1764558295821-xxw7xwj5y","timestamp":"2025-12-01T03:04:55.821Z","type":"info","message":"Undid: Update content: october → week2 → 12","details":null}
 {"id":"1764558296472-t0issrtnw","timestamp":"2025-12-01T03:04:56.472Z","type":"info","message":"Redid: Update content: october → week2 → 12","details":null}
+{"id":"1764558933822-lx8tsh3im","timestamp":"2025-12-01T03:15:33.822Z","type":"info","message":"Renamed: Actors → october → week2 → 12 → 123","details":null}
+{"id":"1764558945321-cs6c9irzh","timestamp":"2025-12-01T03:15:45.321Z","type":"info","message":"Undid: Update content: october → week2 → 123","details":null}
+{"id":"1764558962458-mr7pqstej","timestamp":"2025-12-01T03:16:02.458Z","type":"info","message":"Undid: Rename cue: october → week2 → 12 → 123","details":null}
+{"id":"1764559094703-bzybxnz6m","timestamp":"2025-12-01T03:18:14.703Z","type":"success","message":"Generated 1 take(s): Actors → october → week2 → 12","details":null}
+{"id":"1764559104500-fe03is77u","timestamp":"2025-12-01T03:18:24.500Z","type":"success","message":"Generated 1 take(s): Actors → october → week2 → 12","details":null}
+{"id":"1764559140646-6thiuah99","timestamp":"2025-12-01T03:19:00.646Z","type":"error","message":"Generation failed: No voice selected for this section","details":{"content_id":"019ad7c2-0742-7bbe-8e19-2ad9f5333125","cue_id":"12"}}
+{"id":"1764559160540-2z9w9h00i","timestamp":"2025-12-01T03:19:20.540Z","type":"success","message":"Generated 1 take(s): Actors → october → week2 → 12","details":null}
+{"id":"1764559723395-rjrzovx4w","timestamp":"2025-12-01T03:28:43.395Z","type":"info","message":"Undid: Update content: june → Dialogue → tomorrow is never promised","details":null}
+{"id":"1764559727004-21pfnxowy","timestamp":"2025-12-01T03:28:47.004Z","type":"info","message":"Redid: Update content: june → Dialogue → tomorrow is never promised","details":null}

@@ -244,7 +244,19 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                 <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
                   {section.icon}
                 </ListItemIcon>
-                <ListItemText primary={section.name} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem' }} />
+                <ListItemText
+                  primary={section.name}
+                  primaryTypographyProps={{
+                    fontSize: '0.9rem',
+                    lineHeight: '1rem',
+                    color:
+                      selectedId === nodeKey(section.nodeType, section.nodeId)
+                        ? undefined
+                        : section.id === 'console' || section.id === 'defaults'
+                          ? 'text.secondary'
+                          : 'text.primary',
+                  }}
+                />
                 {!section.noExpand && (
                   <Box onClick={(e) => { e.stopPropagation(); handleToggle(section.id); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
                     {expanded[section.id] ? <ExpandLess sx={{ fontSize: '0.75rem' }} /> : <ExpandMore sx={{ fontSize: '0.75rem' }} />}
@@ -301,7 +313,15 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                             <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
                               <PersonIcon sx={{ fontSize: '0.75rem', color: actorStatus.color }} />
                             </ListItemIcon>
-                            <ListItemText primary={actor.display_name} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem', fontWeight: 400, color: actorStatus.color }} />
+                            <ListItemText
+                              primary={actor.display_name}
+                              primaryTypographyProps={{
+                                fontSize: '0.9rem',
+                                lineHeight: '1rem',
+                                fontWeight: 400,
+                                color: selectedId === nodeKey('actor', actor.id) ? undefined : 'text.secondary',
+                              }}
+                            />
                             <Box onClick={(e) => { e.stopPropagation(); handleToggle(actorKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
                               {expanded[actorKey] ? <ExpandLess sx={{ fontSize: '0.75rem' }} /> : <ExpandMore sx={{ fontSize: '0.75rem' }} />}
                             </Box>

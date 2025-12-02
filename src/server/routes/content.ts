@@ -5,6 +5,7 @@ import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../ut
 import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
 import { getAudioProvider } from '../../services/provider-factory.js';
+import { writeMetadata, buildMetadataFromTake } from '../../services/audio/metadata.js';
 import { 
   readCatalog, 
   saveSnapshot, 
@@ -489,6 +490,19 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
         };
 
         await appendJsonl(paths.catalog.takes, take);
+        
+        // Dual-write: Embed metadata in the audio file
+        try {
+          const metadata = buildMetadataFromTake(take, content, {
+            actor_name: actor.display_name,
+            section_name: section.name,
+          });
+          await writeMetadata(filePath, filePath, metadata);
+        } catch (metaErr) {
+          // Log but don't fail generation if metadata write fails
+          request.log.warn({ err: metaErr, takeId: take.id }, 'Failed to write metadata to audio file');
+        }
+        
         generatedTakes.push(take);
       }
 

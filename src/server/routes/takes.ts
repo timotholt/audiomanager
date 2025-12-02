@@ -6,6 +6,7 @@ import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
 import { readCatalog, saveSnapshot } from './snapshots.js';
 import { describeChanges } from '../../utils/diffDescriber.js';
+import { updateMetadata } from '../../services/audio/metadata.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -94,6 +95,18 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
     takes[takeIndex] = updatedTake;
     await ensureJsonlFile(paths.catalog.takes);
     await writeJsonlAll(paths.catalog.takes, takes);
+
+    // Dual-write: Update metadata in the audio file
+    try {
+      const filePath = join(paths.media, updatedTake.path);
+      await updateMetadata(filePath, {
+        status: updatedTake.status,
+        updated_at: updatedTake.updated_at,
+      });
+    } catch (metaErr) {
+      // Log but don't fail if metadata update fails
+      request.log.warn({ err: metaErr, takeId: id }, 'Failed to update metadata in audio file');
+    }
 
     return { take: updatedTake };
   });

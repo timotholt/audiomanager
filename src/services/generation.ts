@@ -6,7 +6,8 @@ import { generateId } from '../utils/ids.js';
 import { getAudioProvider } from './provider-factory.js';
 import { probeAudio } from './audio/ffprobe.js';
 import { hashFile } from './audio/hash.js';
-import type { Actor, Content, Take, GenerationJob, GenerationJobItemSummary } from '../types/index.js';
+import { writeMetadata, buildMetadataFromTake } from './audio/metadata.js';
+import type { Actor, Content, Take, GenerationJob, GenerationJobItemSummary, Section } from '../types/index.js';
 
 const DEBUG_BATCH_GENERATION = false;
 
@@ -29,13 +30,15 @@ export async function runBatchGeneration(
     await ensureJsonlFile(paths.catalog.takes);
     await ensureJsonlFile(paths.catalog.generationJobs);
 
-    const [actors, contentItems, existingTakes] = await Promise.all([
+    const [actors, contentItems, existingTakes, sections] = await Promise.all([
         readJsonl<Actor>(paths.catalog.actors),
         readJsonl<Content>(paths.catalog.content),
         readJsonl<Take>(paths.catalog.takes),
+        readJsonl<Section>(paths.catalog.sections),
     ]);
 
     const actorsById = new Map<string, Actor>(actors.map((a) => [a.id, a]));
+    const sectionsById = new Map<string, Section>(sections.map((s) => [s.id, s]));
 
     const provider = await getAudioProvider(projectRoot);
 
@@ -165,6 +168,23 @@ export async function runBatchGeneration(
                 };
 
                 await appendJsonl(paths.catalog.takes, take);
+                
+                // Dual-write: Embed metadata in the audio file
+                try {
+                    const section = sectionsById.get(content.section_id);
+                    const metadata = buildMetadataFromTake(take, content, {
+                        actor_name: actor.display_name,
+                        section_name: section?.name,
+                    });
+                    await writeMetadata(filePath, filePath, metadata);
+                    if (DEBUG_BATCH_GENERATION) {
+                        console.log('[batch-generation] wrote metadata to', filePath);
+                    }
+                } catch (metaErr) {
+                    // Log but don't fail generation if metadata write fails
+                    console.warn('[batch-generation] failed to write metadata:', (metaErr as Error).message);
+                }
+                
                 existingTakes.push(take);
                 itemSummary.generated_takes += 1;
             } catch (err) {

@@ -18,3 +18,5 @@
 {"id":"1764584402842-a6t2qpge2","timestamp":"2025-12-01T10:20:02.842Z","type":"info","message":"user marked actor → ppo → dialogue as complete","details":null}
 {"id":"1764584405456-toiioqg5b","timestamp":"2025-12-01T10:20:05.456Z","type":"info","message":"user marked actor → ppo as complete","details":null}
 {"id":"1764584406466-f5dgzjj9t","timestamp":"2025-12-01T10:20:06.466Z","type":"info","message":"All actors in this project are complete.","details":null}
+{"id":"1764665949869-v2yt3klm7","timestamp":"2025-12-02T08:59:09.869Z","type":"info","message":"user marked actor → may → act 1 dialog → in the beginning as incomplete","details":null}
+{"id":"1764665955665-1pftqucrd","timestamp":"2025-12-02T08:59:15.665Z","type":"success","message":"Generated 1 take(s): actor → may → act 1 dialog → in the beginning (may_dialogue_in_the_beginning_v002.wav)","details":null}

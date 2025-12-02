@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import List from '@mui/material/List';
@@ -16,7 +16,10 @@ import GraphicEqIcon from '@mui/icons-material/GraphicEq';
 import DescriptionIcon from '@mui/icons-material/Description';
 import TerminalIcon from '@mui/icons-material/Terminal';
 import HistoryIcon from '@mui/icons-material/History';
+import ViewListIcon from '@mui/icons-material/ViewList';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
+import ViewTree from './ViewTree.jsx';
+import { PRESET_VIEWS, buildViewTree } from '../utils/viewEngine.js';
 
 function nodeKey(type, id) {
   return `${type}:${id}`;
@@ -256,8 +259,22 @@ export default function TreePane({ width, actors, content, sections, takes = [],
                 nodeType: 'provider-default',
                 nodeId: type
               }))
+            },
+            {
+              id: 'views',
+              name: 'views',
+              icon: <ViewListIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />,
+              nodeType: 'views',
+              nodeId: 'views',
+              order: 4, // After Defaults
+              isViewsSection: true, // Special flag for views section
+              children: Object.values(PRESET_VIEWS).map((view) => ({
+                id: view.id,
+                name: view.name,
+                description: view.description,
+                viewDefinition: view,
+              }))
             }
-            // Future sections like 'Master', 'Templates', etc. can be added here
           ];
 
           // Sort sections: Defaults first (order: 0), then alphabetically by name
@@ -302,7 +319,54 @@ export default function TreePane({ width, actors, content, sections, takes = [],
               {!section.noExpand && (
               <Collapse in={expanded[section.id]} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
-                  {section.children ? (
+                  {section.isViewsSection ? (
+                    // Special handling for views section - render each view with its tree
+                    section.children.map((viewChild) => {
+                      const viewKey = `view-${viewChild.id}`;
+                      const viewTree = buildViewTree(viewChild.id, { actors, sections, content, takes });
+                      return (
+                        <Box key={viewChild.id}>
+                          <ListItemButton
+                            className="status-gray"
+                            sx={{ 
+                              pl: '1.5rem', 
+                              py: 0, 
+                              pr: 0, 
+                              minHeight: '1.125rem',
+                              '& .MuiListItemText-root': { margin: 0 },
+                              '& .MuiListItemIcon-root': { minWidth: 'auto' },
+                              ...DESIGN_SYSTEM.treeItem
+                            }}
+                            selected={selectedId === nodeKey('view', viewChild.id)}
+                            onClick={() => handleSelect('view', viewChild.id)}
+                          >
+                            <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
+                              <ViewListIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />
+                            </ListItemIcon>
+                            <ListItemText 
+                              primary={viewChild.name} 
+                              primaryTypographyProps={{ 
+                                fontSize: '0.9rem', 
+                                lineHeight: '1rem',
+                              }} 
+                            />
+                            <Box onClick={(e) => { e.stopPropagation(); handleToggle(viewKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
+                              {expanded[viewKey] ? <ExpandLess sx={{ fontSize: '0.75rem' }} /> : <ExpandMore sx={{ fontSize: '0.75rem' }} />}
+                            </Box>
+                          </ListItemButton>
+                          <Collapse in={expanded[viewKey]} timeout="auto" unmountOnExit>
+                            <ViewTree
+                              viewId={viewChild.id}
+                              viewName={viewChild.name}
+                              tree={viewTree}
+                              selectedNode={selectedNode}
+                              onSelect={onSelect}
+                            />
+                          </Collapse>
+                        </Box>
+                      );
+                    })
+                  ) : section.children ? (
                     // Render predefined children (like provider defaults)
                     section.children.map((child) => (
                       <ListItemButton

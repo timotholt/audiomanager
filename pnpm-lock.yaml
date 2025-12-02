@@ -56,6 +56,9 @@ importers:
       uuidv7:
         specifier: ^1.0.2
         version: 1.0.2
+      wavefile:
+        specifier: ^11.0.0
+        version: 11.0.0
       wavesurfer.js:
         specifier: ^7.11.1
         version: 7.11.1
@@ -2173,6 +2176,11 @@ packages:
       jsdom:
         optional: true
 
+  wavefile@11.0.0:
+    resolution: {integrity: sha512-/OBiAALgWU24IG7sC84cDO/KfFuvajWc5Uec0oV2zrpOOZZDgGdOwHwgEzOrwh8jkubBk7PtZfQBIcI1OaE5Ng==}
+    engines: {node: '>=8'}
+    hasBin: true
+
   wavesurfer.js@7.11.1:
     resolution: {integrity: sha512-8Q+wwItpjJAlhQ7crQLtKwgfbqqczm5/wx+76K4PptP+MBAjB0OA78+A9OuLnULz/8GpAQ+fKM6s81DonEO0Sg==}
 
@@ -4183,6 +4191,8 @@ snapshots:
       - sugarss
       - supports-color
       - terser
+
+  wavefile@11.0.0: {}
 
   wavesurfer.js@7.11.1: {}
 

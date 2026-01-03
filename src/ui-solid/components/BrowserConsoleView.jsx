@@ -4,10 +4,11 @@ import {
     DialogActions, Button
 } from '@suid/material';
 import Tooltip from './Tooltip.jsx';
-import {
-    Delete as DeleteIcon, Info as InfoIcon, Warning as WarningIcon,
-    Error as ErrorIcon, BugReport as BugReportIcon
-} from '@suid/icons-material';
+import DeleteIcon from '@suid/icons-material/Delete';
+import InfoIcon from '@suid/icons-material/Info';
+import WarningIcon from '@suid/icons-material/Warning';
+import ErrorIcon from '@suid/icons-material/Error';
+import BugReportIcon from '@suid/icons-material/BugReport';
 
 function formatTime(isoString) {
     const date = new Date(isoString);

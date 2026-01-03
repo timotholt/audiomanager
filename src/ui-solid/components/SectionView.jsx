@@ -3,7 +3,8 @@ import {
     Box, Typography, TextField, Stack, Button,
     Paper, Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions
 } from '@suid/material';
-import { ExpandMore, ExpandLess } from '@suid/icons-material';
+import ExpandMore from '@suid/icons-material/ExpandMore';
+import ExpandLess from '@suid/icons-material/ExpandLess';
 import Collapse from './Collapse.jsx';
 import DetailHeader from './DetailHeader.jsx';
 import CompleteButton from './CompleteButton.jsx';

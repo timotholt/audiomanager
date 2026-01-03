@@ -4,14 +4,20 @@ import {
     DialogActions
 } from '@suid/material';
 import Tooltip from './Tooltip.jsx';
-import {
-    CheckCircle as CheckCircleIcon, CheckBox as CheckBoxIcon,
-    IndeterminateCheckBox as IndeterminateCheckBoxIcon, Error as ErrorIcon,
-    Warning as WarningIcon, Info as InfoIcon, Undo as UndoIcon,
-    Redo as RedoIcon, RecordVoiceOver as RecordVoiceOverIcon,
-    MusicNote as MusicNoteIcon, GraphicEq as GraphicEqIcon,
-    Delete as DeleteIcon, ThumbUp as ThumbUpIcon, ThumbDown as ThumbDownIcon
-} from '@suid/icons-material';
+import CheckCircleIcon from '@suid/icons-material/CheckCircle';
+import CheckBoxIcon from '@suid/icons-material/CheckBox';
+import IndeterminateCheckBoxIcon from '@suid/icons-material/IndeterminateCheckBox';
+import ErrorIcon from '@suid/icons-material/Error';
+import WarningIcon from '@suid/icons-material/Warning';
+import InfoIcon from '@suid/icons-material/Info';
+import UndoIcon from '@suid/icons-material/Undo';
+import RedoIcon from '@suid/icons-material/Redo';
+import RecordVoiceOverIcon from '@suid/icons-material/RecordVoiceOver';
+import MusicNoteIcon from '@suid/icons-material/MusicNote';
+import GraphicEqIcon from '@suid/icons-material/GraphicEq';
+import DeleteIcon from '@suid/icons-material/Delete';
+import ThumbUpIcon from '@suid/icons-material/ThumbUp';
+import ThumbDownIcon from '@suid/icons-material/ThumbDown';
 
 function formatDateTime(isoString) {
     const date = new Date(isoString);

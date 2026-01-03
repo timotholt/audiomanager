@@ -5,7 +5,7 @@
     "approval_count_default": 1,
     "stability": 0.5,
     "similarity_boost": 0.75,
-    "voice_id": "4tRn1lSkEn13EVTuqb0g"
+    "voice_id": ""
   },
   "music": {
     "provider": "elevenlabs",

@@ -6,12 +6,17 @@ import {
 } from '@suid/material';
 import Tooltip from './Tooltip.jsx';
 import Collapse from './Collapse.jsx';
-import {
-    Delete as DeleteIcon, PlayArrow as PlayArrowIcon, Stop as StopIcon,
-    ThumbUp as ThumbUpIcon, ThumbDown as ThumbDownIcon, ExpandMore as ExpandMoreIcon,
-    ExpandLess as ExpandLessIcon, Refresh as RefreshIcon, AutoAwesome as AutoAwesomeIcon,
-    AutoFixHigh as AutoFixHighIcon, RestartAlt as RestartAltIcon
-} from '@suid/icons-material';
+import DeleteIcon from '@suid/icons-material/Delete';
+import PlayArrowIcon from '@suid/icons-material/PlayArrow';
+import StopIcon from '@suid/icons-material/Stop';
+import ThumbUpIcon from '@suid/icons-material/ThumbUp';
+import ThumbDownIcon from '@suid/icons-material/ThumbDown';
+import ExpandMoreIcon from '@suid/icons-material/ExpandMore';
+import ExpandLessIcon from '@suid/icons-material/ExpandLess';
+import RefreshIcon from '@suid/icons-material/Refresh';
+import AutoAwesomeIcon from '@suid/icons-material/AutoAwesome';
+import AutoFixHighIcon from '@suid/icons-material/AutoFixHigh';
+import RestartAltIcon from '@suid/icons-material/RestartAlt';
 import { deleteContent, updateContent, updateSection, updateActor, updateTake, generateTakes, deleteTake } from '../api/client.js';
 import CompleteButton from './CompleteButton.jsx';
 import DetailHeader from './DetailHeader.jsx';

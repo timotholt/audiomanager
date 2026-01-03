@@ -1,5 +1,6 @@
 import { Box, Typography, IconButton } from '@suid/material';
-import { Edit as EditIcon, Delete as DeleteIcon } from '@suid/icons-material';
+import EditIcon from '@suid/icons-material/Edit';
+import DeleteIcon from '@suid/icons-material/Delete';
 import Tooltip from './Tooltip.jsx';
 
 export default function DetailHeader(props) {

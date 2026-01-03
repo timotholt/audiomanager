@@ -3,7 +3,7 @@ import {
     Box, Typography, TextField, Select, MenuItem, FormControl,
     InputLabel, Stack, Button, CircularProgress
 } from '@suid/material';
-import { PlayArrow as PlayArrowIcon } from '@suid/icons-material';
+import PlayArrowIcon from '@suid/icons-material/PlayArrow';
 import Slider from './Slider.jsx';
 import { previewVoice } from '../api/client.js';
 

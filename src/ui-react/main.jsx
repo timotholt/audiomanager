@@ -2,7 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 
-console.log('[App] Audio Manager starting...');
+console.log('[App] MOO starting...');
 
 const container = document.getElementById('root');
 const root = createRoot(container);

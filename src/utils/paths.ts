@@ -6,7 +6,7 @@ export const PATHS = {
     EXPORTS: 'exports',
     SCHEMA: 'schema',
     SCRIPTS: 'scripts',
-    VOF: '.vof',
+    MOO: '.moo',
     INDEXES: 'catalog/indexes',
 } as const;
 
@@ -28,10 +28,10 @@ export function getProjectPaths(projectRoot: string) {
         },
         media: join(projectRoot, PATHS.MEDIA),
         exports: join(projectRoot, PATHS.EXPORTS),
-        vof: {
-            dir: join(projectRoot, PATHS.VOF),
-            auditLog: join(projectRoot, PATHS.VOF, 'audit.log'),
-            config: join(projectRoot, PATHS.VOF, 'config.json'),
+        moo: {
+            dir: join(projectRoot, PATHS.MOO),
+            auditLog: join(projectRoot, PATHS.MOO, 'audit.log'),
+            config: join(projectRoot, PATHS.MOO, 'config.json'),
         },
     };
 }

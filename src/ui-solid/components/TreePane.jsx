@@ -1,4 +1,4 @@
-import { createSignal, createEffect, For, Show } from 'solid-js';
+import { createSignal, createEffect, For, Show, createMemo } from 'solid-js';
 import {
     Box, Typography, List, ListItemButton, ListItemText, ListItemIcon
 } from '@suid/material';
@@ -13,6 +13,9 @@ import TerminalIcon from '@suid/icons-material/Terminal';
 import HistoryIcon from '@suid/icons-material/History';
 import ViewListIcon from '@suid/icons-material/ViewList';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
+import ViewTree from './ViewTree.jsx';
+import { PRESET_VIEWS, buildViewTree } from '../utils/viewEngine.js';
+import Collapse from './Collapse.jsx';
 
 function nodeKey(type, id) {
     return `${type}:${id}`;
@@ -140,6 +143,7 @@ export default function TreePane(props) {
             defaults: false,
             console: false,
             history: false,
+            views: false,
         };
     };
 
@@ -180,6 +184,69 @@ export default function TreePane(props) {
         }
     });
 
+    const allSections = createMemo(() => [
+        {
+            id: 'actors',
+            name: 'actors',
+            icon: <PersonIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />,
+            nodeType: 'root',
+            nodeId: 'project',
+            order: 0,
+        },
+        {
+            id: 'console',
+            name: 'console',
+            icon: <TerminalIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />,
+            nodeType: 'console',
+            nodeId: 'console',
+            order: 1,
+            noExpand: true
+        },
+        {
+            id: 'history',
+            name: 'history',
+            icon: <HistoryIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />,
+            nodeType: 'history',
+            nodeId: 'logs',
+            order: 2,
+            noExpand: true
+        },
+        {
+            id: 'defaults',
+            name: 'defaults',
+            icon: <SettingsIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />,
+            nodeType: 'defaults',
+            nodeId: 'providers',
+            order: 3,
+            children: ['dialogue', 'music', 'sfx'].map((type) => ({
+                id: type,
+                name: `${type} (elevenlabs)`,
+                icon: type === 'dialogue' ? <RecordVoiceOverIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} /> :
+                    type === 'music' ? <MusicNoteIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} /> : <GraphicEqIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />,
+                nodeType: 'provider-default',
+                nodeId: type
+            }))
+        },
+        {
+            id: 'views',
+            name: 'views',
+            icon: <ViewListIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />,
+            nodeType: 'views',
+            nodeId: 'views',
+            order: 4,
+            isViewsSection: true,
+            children: Object.values(PRESET_VIEWS).map((view) => ({
+                id: view.id,
+                name: view.name,
+                description: view.description,
+                viewDefinition: view,
+            }))
+        }
+    ].sort((a, b) => {
+        if (a.order !== b.order) return a.order - b.order;
+        return a.name.localeCompare(b.name);
+    }));
+
     return (
         <Box
             sx={{
@@ -195,309 +262,278 @@ export default function TreePane(props) {
             }}
         >
             <List dense disablePadding sx={{ px: '0.3125rem', py: '0.625rem', flexGrow: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-                {/* Actors Section */}
-                <ListItemButton
-                    class="status-gray"
-                    sx={{
-                        py: '0.125rem',
-                        pl: '0.5rem',
-                        pr: 0,
-                        minHeight: '1.125rem',
-                        '& .MuiListItemText-root': { margin: 0 },
-                        '& .MuiListItemIcon-root': { minWidth: 'auto' },
-                        ...DESIGN_SYSTEM.treeItem
-                    }}
-                    selected={selectedId() === nodeKey('root', 'project')}
-                    onClick={() => handleSelect('root', 'project')}
-                >
-                    <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                        <PersonIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />
-                    </ListItemIcon>
-                    <ListItemText
-                        primary="actors"
-                        primaryTypographyProps={{
-                            fontSize: '0.9rem',
-                            lineHeight: '1rem',
-                        }}
-                    />
-                    <Box onClick={(e) => { e.stopPropagation(); handleToggle('actors'); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
-                        {expanded().actors ? <ExpandLessIcon sx={{ fontSize: '0.75rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} />}
-                    </Box>
-                </ListItemButton>
-
-                {/* Actors Children */}
-                <Show when={expanded().actors}>
-                    <List component="div" disablePadding>
-                        <For each={props.actors}>
-                            {(actor) => {
-                                const actorKey = `actor-${actor.id}`;
-                                const actorStatus = () => getActorStatus(actor, props.sections, props.content, props.takes);
-
-                                return (
-                                    <Box>
-                                        <ListItemButton
-                                            class={getStatusClass(actorStatus().color)}
-                                            sx={{
-                                                pl: '1.5rem',
-                                                py: 0,
-                                                pr: 0,
-                                                minHeight: '1.125rem',
-                                                '& .MuiListItemText-root': { margin: 0 },
-                                                '& .MuiListItemIcon-root': { minWidth: 'auto' },
-                                                ...DESIGN_SYSTEM.treeItem,
-                                            }}
-                                            selected={selectedId() === nodeKey('actor', actor.id)}
-                                            onClick={() => handleSelect('actor', actor.id)}
-                                        >
-                                            <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                                                <PersonIcon sx={{ fontSize: '0.75rem' }} />
-                                            </ListItemIcon>
-                                            <ListItemText
-                                                primary={actor.display_name}
-                                                primaryTypographyProps={{
-                                                    fontSize: '0.9rem',
-                                                    lineHeight: '1rem',
-                                                    fontWeight: 400,
-                                                }}
-                                            />
-                                            <Box onClick={(e) => { e.stopPropagation(); handleToggle(actorKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
-                                                {expanded()[actorKey] ? <ExpandLessIcon sx={{ fontSize: '0.75rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} />}
-                                            </Box>
-                                        </ListItemButton>
-
-                                        {/* Actor Sections */}
-                                        <Show when={expanded()[actorKey]}>
-                                            <List component="div" disablePadding>
-                                                <For each={props.sections.filter(s => s.actor_id === actor.id)}>
-                                                    {(sectionItem) => {
-                                                        const sectionType = sectionItem.content_type;
-                                                        const sectionStatus = () => getSectionStatus(sectionItem, props.content, props.takes);
-                                                        const sectionIcon = sectionType === 'dialogue' ? <RecordVoiceOverIcon sx={{ fontSize: '0.75rem' }} /> :
-                                                            sectionType === 'music' ? <MusicNoteIcon sx={{ fontSize: '0.75rem' }} /> : <GraphicEqIcon sx={{ fontSize: '0.75rem' }} />;
-                                                        const sectionKey = `section-${sectionItem.id}`;
-                                                        const displayName = sectionItem?.name || sectionType;
-
-                                                        return (
-                                                            <Box>
-                                                                <ListItemButton
-                                                                    class={getStatusClass(sectionStatus().color)}
-                                                                    sx={{
-                                                                        pl: '2.5rem',
-                                                                        py: 0,
-                                                                        pr: 0,
-                                                                        minHeight: '1.125rem',
-                                                                        '& .MuiListItemText-root': { margin: 0 },
-                                                                        '& .MuiListItemIcon-root': { minWidth: 'auto' },
-                                                                        ...DESIGN_SYSTEM.treeItem,
-                                                                    }}
-                                                                    selected={selectedId() === nodeKey(`${sectionType}-section`, sectionItem.id)}
-                                                                    onClick={() => handleSelect(`${sectionType}-section`, sectionItem.id)}
-                                                                >
-                                                                    <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                                                                        {sectionIcon}
-                                                                    </ListItemIcon>
-                                                                    <ListItemText primary={displayName} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem', fontWeight: 400 }} />
-                                                                    <Box onClick={(e) => { e.stopPropagation(); handleToggle(sectionKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
-                                                                        {expanded()[sectionKey] ? <ExpandLessIcon sx={{ fontSize: '0.75rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} />}
-                                                                    </Box>
-                                                                </ListItemButton>
-
-                                                                {/* Section Content */}
-                                                                <Show when={expanded()[sectionKey]}>
-                                                                    <List component="div" disablePadding>
-                                                                        <For each={props.content.filter(c => c.actor_id === actor.id && c.content_type === sectionType && c.section_id === sectionItem.id)}>
-                                                                            {(c) => {
-                                                                                const contentStatus = () => getContentStatus(c, props.takes);
-                                                                                const contentTakes = () => props.takes.filter(t => t.content_id === c.id);
-                                                                                const newCount = () => contentTakes().filter(t => t.status === 'new' && !props.playedTakes[t.id]).length;
-
-                                                                                const displayText = () => {
-                                                                                    let text = contentStatus().approvedCount > 0
-                                                                                        ? `${c.cue_id || c.id} (${contentStatus().approvedCount})`
-                                                                                        : (c.cue_id || c.id);
-                                                                                    if (newCount() > 0) {
-                                                                                        text += ` (${newCount()} new)`;
-                                                                                    }
-                                                                                    return text;
-                                                                                };
-
-                                                                                const isPlaying = () => contentTakes().some(t => t.id === props.playingTakeId);
-
-                                                                                const contentIcon = sectionType === 'dialogue'
-                                                                                    ? <RecordVoiceOverIcon sx={{ fontSize: '0.625rem' }} />
-                                                                                    : sectionType === 'music'
-                                                                                        ? <MusicNoteIcon sx={{ fontSize: '0.625rem' }} />
-                                                                                        : <GraphicEqIcon sx={{ fontSize: '0.625rem' }} />;
-
-                                                                                return (
-                                                                                    <ListItemButton
-                                                                                        class={isPlaying() ? 'status-white' : getStatusClass(contentStatus().color)}
-                                                                                        sx={{
-                                                                                            pl: '3.5rem',
-                                                                                            py: 0,
-                                                                                            pr: 0,
-                                                                                            minHeight: '1.125rem',
-                                                                                            '& .MuiListItemText-root': { margin: 0 },
-                                                                                            '& .MuiListItemIcon-root': { minWidth: 'auto' },
-                                                                                            ...DESIGN_SYSTEM.treeItem,
-                                                                                        }}
-                                                                                        selected={selectedId() === nodeKey('content', c.id)}
-                                                                                        onClick={() => handleSelect('content', c.id)}
-                                                                                    >
-                                                                                        <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                                                                                            {contentIcon}
-                                                                                        </ListItemIcon>
-                                                                                        <ListItemText
-                                                                                            primary={displayText()}
-                                                                                            primaryTypographyProps={{
-                                                                                                fontSize: '0.9rem',
-                                                                                                lineHeight: '1rem',
-                                                                                                fontWeight: 400,
-                                                                                            }}
-                                                                                        />
-                                                                                    </ListItemButton>
-                                                                                );
-                                                                            }}
-                                                                        </For>
-                                                                    </List>
-                                                                </Show>
-                                                            </Box>
-                                                        );
-                                                    }}
-                                                </For>
-                                            </List>
-                                        </Show>
+                <For each={allSections()}>
+                    {(section) => (
+                        <>
+                            <ListItemButton
+                                class="status-gray"
+                                sx={{
+                                    py: '0.125rem',
+                                    pl: '0.5rem',
+                                    pr: 0,
+                                    minHeight: '1.125rem',
+                                    '& .MuiListItemText-root': { margin: 0 },
+                                    '& .MuiListItemIcon-root': { minWidth: 'auto' },
+                                    ...DESIGN_SYSTEM.treeItem
+                                }}
+                                selected={selectedId() === nodeKey(section.nodeType, section.nodeId)}
+                                onClick={() => handleSelect(section.nodeType, section.nodeId)}
+                            >
+                                <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
+                                    {section.icon}
+                                </ListItemIcon>
+                                <ListItemText
+                                    primary={section.name}
+                                    primaryTypographyProps={{
+                                        fontSize: '0.9rem',
+                                        lineHeight: '1rem',
+                                    }}
+                                />
+                                <Show when={!section.noExpand}>
+                                    <Box onClick={(e) => { e.stopPropagation(); handleToggle(section.id); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
+                                        {expanded()[section.id] ? <ExpandLessIcon sx={{ fontSize: '0.75rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} />}
                                     </Box>
-                                );
-                            }}
-                        </For>
-                    </List>
-                </Show>
+                                </Show>
+                            </ListItemButton>
 
-                {/* Console Section */}
-                <ListItemButton
-                    class="status-gray"
-                    sx={{
-                        py: '0.125rem',
-                        pl: '0.5rem',
-                        pr: 0,
-                        minHeight: '1.125rem',
-                        '& .MuiListItemText-root': { margin: 0 },
-                        '& .MuiListItemIcon-root': { minWidth: 'auto' },
-                        ...DESIGN_SYSTEM.treeItem
-                    }}
-                    selected={selectedId() === nodeKey('console', 'console')}
-                    onClick={() => handleSelect('console', 'console')}
-                >
-                    <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                        <TerminalIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />
-                    </ListItemIcon>
-                    <ListItemText
-                        primary="console"
-                        primaryTypographyProps={{
-                            fontSize: '0.9rem',
-                            lineHeight: '1rem',
-                        }}
-                    />
-                </ListItemButton>
+                            <Show when={!section.noExpand}>
+                                <Collapse in={expanded()[section.id]}>
+                                    <List component="div" disablePadding>
+                                        <Show when={section.isViewsSection} fallback={
+                                            <Show when={section.children} fallback={
+                                                <Show when={section.id === 'actors'}>
+                                                    <For each={props.actors}>
+                                                        {(actor) => {
+                                                            const actorKey = `actor-${actor.id}`;
+                                                            const actorStatus = () => getActorStatus(actor, props.sections, props.content, props.takes);
+                                                            return (
+                                                                <Box>
+                                                                    <ListItemButton
+                                                                        class={getStatusClass(actorStatus().color)}
+                                                                        sx={{
+                                                                            pl: '1.5rem',
+                                                                            py: 0,
+                                                                            pr: 0,
+                                                                            minHeight: '1.125rem',
+                                                                            '& .MuiListItemText-root': { margin: 0 },
+                                                                            '& .MuiListItemIcon-root': { minWidth: 'auto' },
+                                                                            ...DESIGN_SYSTEM.treeItem,
+                                                                        }}
+                                                                        selected={selectedId() === nodeKey('actor', actor.id)}
+                                                                        onClick={() => handleSelect('actor', actor.id)}
+                                                                    >
+                                                                        <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
+                                                                            <PersonIcon sx={{ fontSize: '0.75rem' }} />
+                                                                        </ListItemIcon>
+                                                                        <ListItemText
+                                                                            primary={actor.display_name}
+                                                                            primaryTypographyProps={{
+                                                                                fontSize: '0.9rem',
+                                                                                lineHeight: '1rem',
+                                                                                fontWeight: 400,
+                                                                            }}
+                                                                        />
+                                                                        <Box onClick={(e) => { e.stopPropagation(); handleToggle(actorKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
+                                                                            {expanded()[actorKey] ? <ExpandLessIcon sx={{ fontSize: '0.75rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} />}
+                                                                        </Box>
+                                                                    </ListItemButton>
 
-                {/* History Section */}
-                <ListItemButton
-                    class="status-gray"
-                    sx={{
-                        py: '0.125rem',
-                        pl: '0.5rem',
-                        pr: 0,
-                        minHeight: '1.125rem',
-                        '& .MuiListItemText-root': { margin: 0 },
-                        '& .MuiListItemIcon-root': { minWidth: 'auto' },
-                        ...DESIGN_SYSTEM.treeItem
-                    }}
-                    selected={selectedId() === nodeKey('history', 'logs')}
-                    onClick={() => handleSelect('history', 'logs')}
-                >
-                    <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                        <HistoryIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />
-                    </ListItemIcon>
-                    <ListItemText
-                        primary="history"
-                        primaryTypographyProps={{
-                            fontSize: '0.9rem',
-                            lineHeight: '1rem',
-                        }}
-                    />
-                </ListItemButton>
+                                                                    <Collapse in={expanded()[actorKey]}>
+                                                                        <List component="div" disablePadding>
+                                                                            <For each={props.sections.filter(s => s.actor_id === actor.id)}>
+                                                                                {(sectionItem) => {
+                                                                                    const sectionType = sectionItem.content_type;
+                                                                                    const sectionStatus = () => getSectionStatus(sectionItem, props.content, props.takes);
+                                                                                    const sectionIcon = sectionType === 'dialogue' ? <RecordVoiceOverIcon sx={{ fontSize: '0.75rem' }} /> :
+                                                                                        sectionType === 'music' ? <MusicNoteIcon sx={{ fontSize: '0.75rem' }} /> : <GraphicEqIcon sx={{ fontSize: '0.75rem' }} />;
+                                                                                    const sectionKey = `section-${sectionItem.id}`;
+                                                                                    const displayName = sectionItem?.name || sectionType;
 
-                {/* Defaults Section */}
-                <ListItemButton
-                    class="status-gray"
-                    sx={{
-                        py: '0.125rem',
-                        pl: '0.5rem',
-                        pr: 0,
-                        minHeight: '1.125rem',
-                        '& .MuiListItemText-root': { margin: 0 },
-                        '& .MuiListItemIcon-root': { minWidth: 'auto' },
-                        ...DESIGN_SYSTEM.treeItem
-                    }}
-                    selected={selectedId() === nodeKey('defaults', 'providers')}
-                    onClick={() => handleSelect('defaults', 'providers')}
-                >
-                    <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                        <SettingsIcon sx={{ fontSize: '0.875rem', color: 'text.secondary' }} />
-                    </ListItemIcon>
-                    <ListItemText
-                        primary="defaults"
-                        primaryTypographyProps={{
-                            fontSize: '0.9rem',
-                            lineHeight: '1rem',
-                        }}
-                    />
-                    <Box onClick={(e) => { e.stopPropagation(); handleToggle('defaults'); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
-                        {expanded().defaults ? <ExpandLessIcon sx={{ fontSize: '0.75rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} />}
-                    </Box>
-                </ListItemButton>
+                                                                                    return (
+                                                                                        <Box>
+                                                                                            <ListItemButton
+                                                                                                class={getStatusClass(sectionStatus().color)}
+                                                                                                sx={{
+                                                                                                    pl: '2.5rem',
+                                                                                                    py: 0,
+                                                                                                    pr: 0,
+                                                                                                    minHeight: '1.125rem',
+                                                                                                    '& .MuiListItemText-root': { margin: 0 },
+                                                                                                    '& .MuiListItemIcon-root': { minWidth: 'auto' },
+                                                                                                    ...DESIGN_SYSTEM.treeItem,
+                                                                                                }}
+                                                                                                selected={selectedId() === nodeKey(`${sectionType}-section`, sectionItem.id)}
+                                                                                                onClick={() => handleSelect(`${sectionType}-section`, sectionItem.id)}
+                                                                                            >
+                                                                                                <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
+                                                                                                    {sectionIcon}
+                                                                                                </ListItemIcon>
+                                                                                                <ListItemText primary={displayName} primaryTypographyProps={{ fontSize: '0.9rem', lineHeight: '1rem', fontWeight: 400 }} />
+                                                                                                <Box onClick={(e) => { e.stopPropagation(); handleToggle(sectionKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
+                                                                                                    {expanded()[sectionKey] ? <ExpandLessIcon sx={{ fontSize: '0.75rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} />}
+                                                                                                </Box>
+                                                                                            </ListItemButton>
 
-                {/* Defaults Children */}
-                <Show when={expanded().defaults}>
-                    <List component="div" disablePadding>
-                        <For each={['dialogue', 'music', 'sfx']}>
-                            {(type) => {
-                                const icon = type === 'dialogue' ? <RecordVoiceOverIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} /> :
-                                    type === 'music' ? <MusicNoteIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} /> :
-                                        <GraphicEqIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />;
+                                                                                            <Collapse in={expanded()[sectionKey]}>
+                                                                                                <List component="div" disablePadding>
+                                                                                                    <For each={props.content.filter(c => c.actor_id === actor.id && c.content_type === sectionType && c.section_id === sectionItem.id)}>
+                                                                                                        {(c) => {
+                                                                                                            const contentStatus = () => getContentStatus(c, props.takes);
+                                                                                                            const contentTakes = () => props.takes.filter(t => t.content_id === c.id);
+                                                                                                            const newCount = () => contentTakes().filter(t => t.status === 'new' && !props.playedTakes[t.id]).length;
 
-                                return (
-                                    <ListItemButton
-                                        class="status-gray"
-                                        sx={{
-                                            pl: '1.5rem',
-                                            py: 0,
-                                            pr: 0,
-                                            minHeight: '1.125rem',
-                                            '& .MuiListItemText-root': { margin: 0 },
-                                            '& .MuiListItemIcon-root': { minWidth: 'auto' },
-                                            ...DESIGN_SYSTEM.treeItem
-                                        }}
-                                        selected={selectedId() === nodeKey('provider-default', type)}
-                                        onClick={() => handleSelect('provider-default', type)}
-                                    >
-                                        <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
-                                            {icon}
-                                        </ListItemIcon>
-                                        <ListItemText
-                                            primary={`${type} (elevenlabs)`}
-                                            primaryTypographyProps={{
-                                                fontSize: '0.9rem',
-                                                lineHeight: '1rem',
-                                            }}
-                                        />
-                                    </ListItemButton>
-                                );
-                            }}
-                        </For>
-                    </List>
-                </Show>
+                                                                                                            const displayText = () => {
+                                                                                                                let text = contentStatus().approvedCount > 0
+                                                                                                                    ? `${c.cue_id || c.id} (${contentStatus().approvedCount})`
+                                                                                                                    : (c.cue_id || c.id);
+                                                                                                                if (newCount() > 0) {
+                                                                                                                    text += ` (${newCount()} new)`;
+                                                                                                                }
+                                                                                                                return text;
+                                                                                                            };
+
+                                                                                                            const isPlaying = () => contentTakes().some(t => t.id === props.playingTakeId);
+
+                                                                                                            const contentIcon = sectionType === 'dialogue'
+                                                                                                                ? <RecordVoiceOverIcon sx={{ fontSize: '0.625rem' }} />
+                                                                                                                : sectionType === 'music'
+                                                                                                                    ? <MusicNoteIcon sx={{ fontSize: '0.625rem' }} />
+                                                                                                                    : <GraphicEqIcon sx={{ fontSize: '0.625rem' }} />;
+
+                                                                                                            return (
+                                                                                                                <ListItemButton
+                                                                                                                    class={isPlaying() ? 'status-white' : getStatusClass(contentStatus().color)}
+                                                                                                                    sx={{
+                                                                                                                        pl: '3.5rem',
+                                                                                                                        py: 0,
+                                                                                                                        pr: 0,
+                                                                                                                        minHeight: '1.125rem',
+                                                                                                                        '& .MuiListItemText-root': { margin: 0 },
+                                                                                                                        '& .MuiListItemIcon-root': { minWidth: 'auto' },
+                                                                                                                        ...DESIGN_SYSTEM.treeItem,
+                                                                                                                    }}
+                                                                                                                    selected={selectedId() === nodeKey('content', c.id)}
+                                                                                                                    onClick={() => handleSelect('content', c.id)}
+                                                                                                                >
+                                                                                                                    <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
+                                                                                                                        {contentIcon}
+                                                                                                                    </ListItemIcon>
+                                                                                                                    <ListItemText
+                                                                                                                        primary={displayText()}
+                                                                                                                        primaryTypographyProps={{
+                                                                                                                            fontSize: '0.9rem',
+                                                                                                                            lineHeight: '1rem',
+                                                                                                                            fontWeight: 400,
+                                                                                                                        }}
+                                                                                                                    />
+                                                                                                                </ListItemButton>
+                                                                                                            );
+                                                                                                        }}
+                                                                                                    </For>
+                                                                                                </List>
+                                                                                            </Collapse>
+                                                                                        </Box>
+                                                                                    );
+                                                                                }}
+                                                                            </For>
+                                                                        </List>
+                                                                    </Collapse>
+                                                                </Box>
+                                                            );
+                                                        }}
+                                                    </For>
+                                                </Show>
+                                            }>
+                                                <For each={section.children}>
+                                                    {(child) => (
+                                                        <ListItemButton
+                                                            class="status-gray"
+                                                            sx={{
+                                                                pl: '1.5rem',
+                                                                py: 0,
+                                                                pr: 0,
+                                                                minHeight: '1.125rem',
+                                                                '& .MuiListItemText-root': { margin: 0 },
+                                                                '& .MuiListItemIcon-root': { minWidth: 'auto' },
+                                                                ...DESIGN_SYSTEM.treeItem
+                                                            }}
+                                                            selected={selectedId() === nodeKey(child.nodeType, child.nodeId)}
+                                                            onClick={() => handleSelect(child.nodeType, child.nodeId)}
+                                                        >
+                                                            <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
+                                                                {child.icon}
+                                                            </ListItemIcon>
+                                                            <ListItemText
+                                                                primary={child.name}
+                                                                primaryTypographyProps={{
+                                                                    fontSize: '0.9rem',
+                                                                    lineHeight: '1rem',
+                                                                }}
+                                                            />
+                                                        </ListItemButton>
+                                                    )}
+                                                </For>
+                                            </Show>
+                                        }>
+                                            <For each={section.children}>
+                                                {(viewChild) => {
+                                                    const viewKey = `view-${viewChild.id}`;
+                                                    const viewTree = () => buildViewTree(viewChild.id, {
+                                                        actors: props.actors,
+                                                        sections: props.sections,
+                                                        content: props.content,
+                                                        takes: props.takes
+                                                    });
+                                                    return (
+                                                        <Box>
+                                                            <ListItemButton
+                                                                class="status-gray"
+                                                                sx={{
+                                                                    pl: '1.5rem',
+                                                                    py: 0,
+                                                                    pr: 0,
+                                                                    minHeight: '1.125rem',
+                                                                    '& .MuiListItemText-root': { margin: 0 },
+                                                                    '& .MuiListItemIcon-root': { minWidth: 'auto' },
+                                                                    ...DESIGN_SYSTEM.treeItem
+                                                                }}
+                                                                selected={selectedId() === nodeKey('view', viewChild.id)}
+                                                                onClick={() => handleSelect('view', viewChild.id)}
+                                                            >
+                                                                <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
+                                                                    <ViewListIcon sx={{ fontSize: '0.75rem', color: 'text.secondary' }} />
+                                                                </ListItemIcon>
+                                                                <ListItemText
+                                                                    primary={viewChild.name}
+                                                                    primaryTypographyProps={{
+                                                                        fontSize: '0.9rem',
+                                                                        lineHeight: '1rem',
+                                                                    }}
+                                                                />
+                                                                <Box onClick={(e) => { e.stopPropagation(); handleToggle(viewKey); }} sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}>
+                                                                    {expanded()[viewKey] ? <ExpandLessIcon sx={{ fontSize: '0.75rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} />}
+                                                                </Box>
+                                                            </ListItemButton>
+                                                            <Collapse in={expanded()[viewKey]}>
+                                                                <ViewTree
+                                                                    viewId={viewChild.id}
+                                                                    viewName={viewChild.name}
+                                                                    tree={viewTree()}
+                                                                    selectedNode={props.selectedNode}
+                                                                    onSelect={props.onSelect}
+                                                                />
+                                                            </Collapse>
+                                                        </Box>
+                                                    );
+                                                }}
+                                            </For>
+                                        </Show>
+                                    </List>
+                                </Collapse>
+                            </Show>
+                        </>
+                    )}
+                </For>
             </List>
 
             {/* Color Legend */}

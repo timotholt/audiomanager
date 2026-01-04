@@ -84,7 +84,7 @@ async function start() {
     const port = 3000;
     const host = '127.0.0.1';
     await fastify.listen({ port, host });
-    console.log(`VOF API server listening on http://${host}:${port}`);
+    console.log(`MOO API server listening on http://${host}:${port}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

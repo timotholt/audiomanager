@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import { join } from 'path';
 
 // Global config stored in app root (not per-project)
-const GLOBAL_CONFIG_PATH = join(process.cwd(), '.vofoundry-config.json');
+const GLOBAL_CONFIG_PATH = join(process.cwd(), '.moo-config.json');
 
 interface GlobalConfig {
   elevenlabs_api_key?: string;
@@ -14,7 +14,7 @@ export async function loadGlobalConfig(): Promise<GlobalConfig> {
   if (cachedConfig) {
     return cachedConfig;
   }
-  
+
   try {
     if (await fs.pathExists(GLOBAL_CONFIG_PATH)) {
       cachedConfig = await fs.readJson(GLOBAL_CONFIG_PATH);
@@ -23,7 +23,7 @@ export async function loadGlobalConfig(): Promise<GlobalConfig> {
   } catch (err) {
     console.error('Failed to load global config:', err);
   }
-  
+
   return {};
 }
 

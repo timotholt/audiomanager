@@ -29,13 +29,13 @@ try {
 const program = new Command();
 
 program
-    .name('vof')
-    .description('VO Foundry CLI - Local Voice-Over Production System')
+    .name('moo')
+    .description('MOO CLI - Media Output Organizer')
     .version(version);
 
 program
     .command('init')
-    .description('Initialize a new VO Foundry project')
+    .description('Initialize a new MOO project')
     .argument('<path>', 'Project directory path')
     .action((path) => {
         console.log(`Initializing project in ${path}...`);

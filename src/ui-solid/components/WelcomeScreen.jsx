@@ -30,7 +30,7 @@ export default function WelcomeScreen(props) {
             setError(null);
             await switchProject(project.name);
             // Save to localStorage for next session
-            localStorage.setItem('audiomanager-last-project', project.name);
+            localStorage.setItem('moo-last-project', project.name);
             props.onProjectChange(project);
         } catch (err) {
             setError(`Failed to open project: ${err.message}`);
@@ -47,7 +47,7 @@ export default function WelcomeScreen(props) {
             if (data.project) {
                 // Switch to the new project
                 await switchProject(data.project.name);
-                localStorage.setItem('audiomanager-last-project', data.project.name);
+                localStorage.setItem('moo-last-project', data.project.name);
                 props.onProjectChange(data.project);
             }
         } catch (err) {
@@ -83,9 +83,15 @@ export default function WelcomeScreen(props) {
                     textAlign: 'center',
                 }}
             >
-                <Typography variant="h4" gutterBottom>
-                    Welcome to Audio Manager
-                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, mb: 2 }}>
+                    <Box sx={{ fontSize: '4rem' }}>🐮</Box>
+                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
+                        MOO
+                    </Typography>
+                    <Typography variant="h6" color="text.secondary">
+                        Media Output Organizer
+                    </Typography>
+                </Box>
                 <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
                     Select an existing project or create a new one to get started.
                 </Typography>

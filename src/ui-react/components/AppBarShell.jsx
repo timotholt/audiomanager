@@ -11,10 +11,10 @@ import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import SettingsDialog from './SettingsDialog.jsx';
 import ProjectSelector from './ProjectSelector.jsx';
 
-export default function AppBarShell({ 
-  themeMode, 
-  onThemeModeChange, 
-  fontSize, 
+export default function AppBarShell({
+  themeMode,
+  onThemeModeChange,
+  fontSize,
   onFontSizeChange,
   blankSpaceConversion,
   onBlankSpaceConversionChange,
@@ -31,14 +31,24 @@ export default function AppBarShell({
     <>
       <AppBar position="fixed" color="default" elevation={1} sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar variant="dense" sx={{ minHeight: 40, py: 0.25 }}>
-          <Typography
-            variant="body1"
-            sx={{ fontWeight: 500, fontSize: '0.9rem', mr: 2, color: 'text.secondary' }}
-            noWrap
-          >
-            VO Foundry
-          </Typography>
-          <ProjectSelector 
+          <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+            <Typography
+              variant="body1"
+              sx={{ fontWeight: 600, fontSize: '1rem', mr: 0.5, color: 'primary.main', display: 'flex', alignItems: 'center' }}
+              noWrap
+            >
+              <span style={{ marginRight: '8px', fontSize: '1.2rem' }}>🐮</span>
+              MOO
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ fontWeight: 400, fontSize: '0.7rem', color: 'text.disabled', mt: 0.5 }}
+              noWrap
+            >
+              Media Output Organizer
+            </Typography>
+          </Box>
+          <ProjectSelector
             currentProject={currentProject}
             onProjectChange={onProjectChange}
           />
@@ -70,7 +80,7 @@ export default function AppBarShell({
           </IconButton>
         </Toolbar>
       </AppBar>
-      
+
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

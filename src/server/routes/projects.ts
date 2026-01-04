@@ -35,16 +35,16 @@ export default async function projectRoutes(fastify: FastifyInstance) {
     try {
       await fs.ensureDir(PROJECTS_DIR);
       const entries = await fs.readdir(PROJECTS_DIR, { withFileTypes: true });
-      
+
       const projects: ProjectInfo[] = [];
       for (const entry of entries) {
         if (entry.isDirectory()) {
           const projectPath = join(PROJECTS_DIR, entry.name);
-          const vofPath = join(projectPath, '.vof');
-          
-          // Only include folders that have a .vof directory (valid projects)
-          if (await fs.pathExists(vofPath)) {
-            const stat = await fs.stat(vofPath);
+          const mooPath = join(projectPath, '.moo');
+
+          // Only include folders that have a .moo directory (valid projects)
+          if (await fs.pathExists(mooPath)) {
+            const stat = await fs.stat(mooPath);
             projects.push({
               name: entry.name,
               path: projectPath,
@@ -54,14 +54,14 @@ export default async function projectRoutes(fastify: FastifyInstance) {
           }
         }
       }
-      
+
       // Sort by most recently updated
       projects.sort((a, b) => {
         const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
         const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
         return bTime - aTime;
       });
-      
+
       return { projects };
     } catch (error) {
       fastify.log.error(error);
@@ -74,49 +74,49 @@ export default async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/api/projects', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = request.body as { name?: string } | null;
-      
+
       if (!body?.name || !body.name.trim()) {
         reply.code(400);
         return { error: 'Project name is required' };
       }
-      
+
       // Sanitize project name for filesystem
       const safeName = body.name.trim()
         .replace(/[<>:"/\\|?*]/g, '') // Remove invalid chars
         .replace(/\s+/g, '-') // Spaces to dashes
         .toLowerCase();
-      
+
       if (!safeName) {
         reply.code(400);
         return { error: 'Invalid project name' };
       }
-      
+
       const projectPath = join(PROJECTS_DIR, safeName);
-      
+
       if (await fs.pathExists(projectPath)) {
         reply.code(400);
         return { error: 'Project already exists' };
       }
-      
+
       // Create project structure
-      const vofPath = join(projectPath, '.vof');
-      await fs.ensureDir(vofPath);
+      const mooPath = join(projectPath, '.moo');
+      await fs.ensureDir(mooPath);
       await fs.ensureDir(join(projectPath, 'media'));
-      
+
       // Create empty catalog files
-      await fs.writeFile(join(vofPath, 'actors.jsonl'), '');
-      await fs.writeFile(join(vofPath, 'content.jsonl'), '');
-      await fs.writeFile(join(vofPath, 'sections.jsonl'), '');
-      await fs.writeFile(join(vofPath, 'takes.jsonl'), '');
-      
+      await fs.writeFile(join(mooPath, 'actors.jsonl'), '');
+      await fs.writeFile(join(mooPath, 'content.jsonl'), '');
+      await fs.writeFile(join(mooPath, 'sections.jsonl'), '');
+      await fs.writeFile(join(mooPath, 'takes.jsonl'), '');
+
       // Create config file
       const config = {
         name: body.name.trim(),
         created_at: new Date().toISOString(),
       };
-      await fs.writeJson(join(vofPath, 'config.json'), config, { spaces: 2 });
-      
-      return { 
+      await fs.writeJson(join(mooPath, 'config.json'), config, { spaces: 2 });
+
+      return {
         project: {
           name: safeName,
           displayName: body.name.trim(),
@@ -135,20 +135,20 @@ export default async function projectRoutes(fastify: FastifyInstance) {
     try {
       const { name } = request.params;
       const projectPath = join(PROJECTS_DIR, name);
-      
+
       if (!await fs.pathExists(projectPath)) {
         reply.code(404);
         return { error: 'Project not found' };
       }
-      
+
       // Safety check - only delete if it's inside PROJECTS_DIR
       if (!projectPath.startsWith(PROJECTS_DIR)) {
         reply.code(400);
         return { error: 'Invalid project path' };
       }
-      
+
       await fs.remove(projectPath);
-      
+
       return { success: true };
     } catch (error) {
       fastify.log.error(error);
@@ -162,36 +162,36 @@ export default async function projectRoutes(fastify: FastifyInstance) {
     try {
       const { name } = request.params;
       const body = request.body as { newName?: string } | null;
-      
+
       if (!body?.newName || !body.newName.trim()) {
         reply.code(400);
         return { error: 'New project name is required' };
       }
-      
+
       const sourcePath = join(PROJECTS_DIR, name);
-      
+
       if (!await fs.pathExists(sourcePath)) {
         reply.code(404);
         return { error: 'Source project not found' };
       }
-      
+
       // Sanitize new name
       const safeName = body.newName.trim()
         .replace(/[<>:"/\\|?*]/g, '')
         .replace(/\s+/g, '-')
         .toLowerCase();
-      
+
       const destPath = join(PROJECTS_DIR, safeName);
-      
+
       if (await fs.pathExists(destPath)) {
         reply.code(400);
         return { error: 'A project with that name already exists' };
       }
-      
+
       await fs.copy(sourcePath, destPath);
-      
+
       // Update config with new name
-      const configPath = join(destPath, '.vof', 'config.json');
+      const configPath = join(destPath, '.moo', 'config.json');
       if (await fs.pathExists(configPath)) {
         const config = await fs.readJson(configPath);
         config.name = body.newName.trim();
@@ -199,7 +199,7 @@ export default async function projectRoutes(fastify: FastifyInstance) {
         config.copied_at = new Date().toISOString();
         await fs.writeJson(configPath, config, { spaces: 2 });
       }
-      
+
       return {
         project: {
           name: safeName,
@@ -222,18 +222,18 @@ export default async function projectRoutes(fastify: FastifyInstance) {
         return { project: null };
       }
 
-      const vofPath = join(currentPath, '.vof');
-      
-      if (!await fs.pathExists(vofPath)) {
+      const mooPath = join(currentPath, '.moo');
+
+      if (!await fs.pathExists(mooPath)) {
         return { project: null };
       }
-      
-      const configPath = join(vofPath, 'config.json');
+
+      const configPath = join(mooPath, 'config.json');
       let config: { name?: string } = {};
       if (await fs.pathExists(configPath)) {
         config = await fs.readJson(configPath);
       }
-      
+
       return {
         project: {
           name: basename(currentPath),
@@ -252,30 +252,30 @@ export default async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/api/projects/switch', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = request.body as { name?: string } | null;
-      
+
       if (!body?.name) {
         reply.code(400);
         return { error: 'Project name is required' };
       }
-      
+
       const projectPath = join(PROJECTS_DIR, body.name);
-      const vofPath = join(projectPath, '.vof');
-      
-      if (!await fs.pathExists(vofPath)) {
+      const mooPath = join(projectPath, '.moo');
+
+      if (!await fs.pathExists(mooPath)) {
         reply.code(404);
         return { error: 'Project not found' };
       }
-      
+
       // Switch to the new project
       setCurrentProject(projectPath);
-      
+
       // Read project config for display name
-      const configPath = join(vofPath, 'config.json');
+      const configPath = join(mooPath, 'config.json');
       let config: { name?: string } = {};
       if (await fs.pathExists(configPath)) {
         config = await fs.readJson(configPath);
       }
-      
+
       return {
         project: {
           name: body.name,

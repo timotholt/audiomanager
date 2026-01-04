@@ -1,11 +1,11 @@
 {
-  "name": "audiomanager",
+  "name": "moo",
   "version": "1.0.0",
-  "description": "",
+  "description": "Media Output Organizer",
   "main": "dist/cli/index.js",
   "type": "module",
   "bin": {
-    "vof": "./bin/vof"
+    "moo": "./bin/vof"
   },
   "scripts": {
     "build": "tsc",

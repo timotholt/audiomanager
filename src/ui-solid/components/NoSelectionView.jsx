@@ -5,7 +5,7 @@ export default function NoSelectionView(props) {
     return (
         <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3, minWidth: 0 }}>
             <Typography variant="h6" sx={{ mb: 1, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                Welcome to Audio Manager
+                MOO - Media Output Organizer
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Select an item from the tree on the left to get started:

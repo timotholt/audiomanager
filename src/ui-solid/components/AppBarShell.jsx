@@ -12,13 +12,23 @@ export default function AppBarShell(props) {
         <>
             <AppBar position="fixed" color="default" elevation={1} sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
                 <Toolbar variant="dense" sx={{ minHeight: 40, py: 0.25 }}>
-                    <Typography
-                        variant="body1"
-                        sx={{ fontWeight: 500, fontSize: '0.9rem', mr: 2, color: 'text.secondary' }}
-                        noWrap
-                    >
-                        VO Foundry
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mr: 2 }}>
+                        <Typography
+                            variant="body1"
+                            sx={{ fontWeight: 600, fontSize: '1rem', mr: 0.5, color: 'primary.main', display: 'flex', alignItems: 'center' }}
+                            noWrap
+                        >
+                            <span style={{ "margin-right": "8px", "font-size": "1.2rem" }}>🐮</span>
+                            MOO
+                        </Typography>
+                        <Typography
+                            variant="caption"
+                            sx={{ fontWeight: 400, fontSize: '0.7rem', color: 'text.disabled', mt: 0.5 }}
+                            noWrap
+                        >
+                            Media Output Organizer
+                        </Typography>
+                    </Box>
                     <ProjectSelector
                         currentProject={props.currentProject}
                         onProjectChange={props.onProjectChange}

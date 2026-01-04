@@ -17,16 +17,16 @@ const FONT_SIZE_SCALES = {
 export default function App() {
     // Load settings - SUID/Solid signals handle initialization once
     const [themeMode, setThemeMode] = createSignal(
-        localStorage.getItem('audiomanager-theme-mode') || 'dark'
+        localStorage.getItem('moo-theme-mode') || 'dark'
     );
     const [fontSize, setFontSize] = createSignal(
-        localStorage.getItem('audiomanager-font-size') || 'medium'
+        localStorage.getItem('moo-font-size') || 'medium'
     );
     const [blankSpaceConversion, setBlankSpaceConversion] = createSignal(
-        localStorage.getItem('audiomanager-blank-space-conversion') || 'underscore'
+        localStorage.getItem('moo-blank-space-conversion') || 'underscore'
     );
     const [capitalizationConversion, setCapitalizationConversion] = createSignal(
-        localStorage.getItem('audiomanager-capitalization-conversion') || 'lowercase'
+        localStorage.getItem('moo-capitalization-conversion') || 'lowercase'
     );
 
     const [statusText, setStatusText] = createSignal('');
@@ -95,10 +95,10 @@ export default function App() {
     };
 
     // Persist settings
-    createEffect(() => localStorage.setItem('audiomanager-theme-mode', themeMode()));
-    createEffect(() => localStorage.setItem('audiomanager-font-size', fontSize()));
-    createEffect(() => localStorage.setItem('audiomanager-blank-space-conversion', blankSpaceConversion()));
-    createEffect(() => localStorage.setItem('audiomanager-capitalization-conversion', capitalizationConversion()));
+    createEffect(() => localStorage.setItem('moo-theme-mode', themeMode()));
+    createEffect(() => localStorage.setItem('moo-font-size', fontSize()));
+    createEffect(() => localStorage.setItem('moo-blank-space-conversion', blankSpaceConversion()));
+    createEffect(() => localStorage.setItem('moo-capitalization-conversion', capitalizationConversion()));
 
     // fetch credits
     const refreshCredits = async () => {

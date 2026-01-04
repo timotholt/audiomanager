@@ -1,21 +1,21 @@
 import fs from 'fs-extra';
 import { getProjectPaths } from '../utils/paths.js';
 
-// Minimal shape for .vof/config.json used by M2.5
+// Minimal shape for .moo/config.json used by M2.5
 export interface ElevenLabsProviderConfig {
     api_key: string;
     api_url?: string;
 }
 
-export interface VofConfig {
+export interface MooConfig {
     providers?: {
         elevenlabs?: ElevenLabsProviderConfig;
     };
 }
 
-export async function loadConfig(projectRoot: string): Promise<VofConfig> {
+export async function loadConfig(projectRoot: string): Promise<MooConfig> {
     const paths = getProjectPaths(projectRoot);
-    const configPath = paths.vof.config;
+    const configPath = paths.moo.config;
 
     if (!(await fs.pathExists(configPath))) {
         return {};
@@ -23,11 +23,11 @@ export async function loadConfig(projectRoot: string): Promise<VofConfig> {
 
     const data = await fs.readJson(configPath);
     // We keep validation light here; JSON Schema could be added later if needed
-    return data as VofConfig;
+    return data as MooConfig;
 }
 
-export async function saveConfig(projectRoot: string, config: VofConfig): Promise<void> {
+export async function saveConfig(projectRoot: string, config: MooConfig): Promise<void> {
     const paths = getProjectPaths(projectRoot);
-    await fs.ensureDir(paths.vof.dir);
-    await fs.writeJson(paths.vof.config, config, { spaces: 2 });
+    await fs.ensureDir(paths.moo.dir);
+    await fs.writeJson(paths.moo.config, config, { spaces: 2 });
 }

@@ -69,6 +69,16 @@ export default function DetailPane(props) {
                 const actor = props.actors.find(a => a.id === item?.actor_id);
                 return { view: 'content', item, actor };
             }
+            case 'take': {
+                // Find content by id, but take id is passed
+                const take = props.takes.find(t => t.id === id);
+                const item = props.content.find(c => c.id === take?.content_id);
+                const actor = props.actors.find(a => a.id === item?.actor_id);
+                return { view: 'content', item, actor };
+            }
+            case 'view-group': {
+                return { view: 'view-group', id };
+            }
             default:
                 return { view: 'welcome' };
         }
@@ -152,6 +162,14 @@ export default function DetailPane(props) {
                         capitalizationConversion={props.capitalizationConversion}
                         error={commonError()}
                     />
+                </Match>
+                <Match when={viewData().view === 'view-group'}>
+                    <Box sx={{ p: 4, textAlign: 'center' }}>
+                        <Typography variant="h6" gutterBottom>Group View</Typography>
+                        <Typography color="text.secondary">
+                            Selecting a group in the tree shows a summary. This view is under development.
+                        </Typography>
+                    </Box>
                 </Match>
             </Switch>
         </Box>

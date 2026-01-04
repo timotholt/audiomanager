@@ -41,7 +41,7 @@ export default function WelcomeScreen({ onProjectChange }) {
       setError(null);
       await switchProject(project.name);
       // Save to localStorage for next session
-      localStorage.setItem('audiomanager-last-project', project.name);
+      localStorage.setItem('moo-last-project', project.name);
       onProjectChange(project);
     } catch (err) {
       setError(`Failed to open project: ${err.message}`);
@@ -50,7 +50,7 @@ export default function WelcomeScreen({ onProjectChange }) {
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return;
-    
+
     try {
       setCreating(true);
       setError(null);
@@ -58,7 +58,7 @@ export default function WelcomeScreen({ onProjectChange }) {
       if (data.project) {
         // Switch to the new project
         await switchProject(data.project.name);
-        localStorage.setItem('audiomanager-last-project', data.project.name);
+        localStorage.setItem('moo-last-project', data.project.name);
         onProjectChange(data.project);
       }
     } catch (err) {
@@ -69,30 +69,36 @@ export default function WelcomeScreen({ onProjectChange }) {
   };
 
   return (
-    <Box 
-      component="main" 
-      sx={{ 
-        flexGrow: 1, 
-        pt: 8, 
-        display: 'flex', 
+    <Box
+      component="main"
+      sx={{
+        flexGrow: 1,
+        pt: 8,
+        display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center', 
+        alignItems: 'center',
         justifyContent: 'center',
         p: 4,
       }}
     >
-      <Paper 
-        elevation={3} 
-        sx={{ 
-          p: 4, 
-          maxWidth: 500, 
+      <Paper
+        elevation={3}
+        sx={{
+          p: 4,
+          maxWidth: 500,
           width: '100%',
           textAlign: 'center',
         }}
       >
-        <Typography variant="h4" gutterBottom>
-          Welcome to Audio Manager
-        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Box sx={{ fontSize: '4rem' }}>🐮</Box>
+          <Typography variant="h4" sx={{ fontWeight: 700 }}>
+            MOO
+          </Typography>
+          <Typography variant="h6" color="text.secondary">
+            Media Output Organizer
+          </Typography>
+        </Box>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
           Select an existing project or create a new one to get started.
         </Typography>
@@ -111,13 +117,13 @@ export default function WelcomeScreen({ onProjectChange }) {
             </Typography>
             <List sx={{ mb: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
               {projects.map((project) => (
-                <ListItemButton 
-                  key={project.name} 
+                <ListItemButton
+                  key={project.name}
                   onClick={() => handleSelectProject(project)}
                 >
                   <FolderOpenIcon sx={{ mr: 2, color: 'primary.main' }} />
-                  <ListItemText 
-                    primary={project.displayName || project.name} 
+                  <ListItemText
+                    primary={project.displayName || project.name}
                     secondary={project.path}
                   />
                 </ListItemButton>

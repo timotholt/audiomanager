@@ -1,0 +1,259 @@
+import { createSignal, createEffect, For, Show, onMount } from 'solid-js';
+import {
+    Box, List, ListItemButton, ListItemText, ListItemIcon
+} from '@suid/material';
+import ExpandLess from '@suid/icons-material/ExpandLess';
+import ExpandMore from '@suid/icons-material/ExpandMore';
+import PersonIcon from '@suid/icons-material/Person';
+import FolderIcon from '@suid/icons-material/Folder';
+import RecordVoiceOverIcon from '@suid/icons-material/RecordVoiceOver';
+import MusicNoteIcon from '@suid/icons-material/MusicNote';
+import GraphicEqIcon from '@suid/icons-material/GraphicEq';
+import CheckCircleIcon from '@suid/icons-material/CheckCircle';
+import NewReleasesIcon from '@suid/icons-material/NewReleases';
+import CancelIcon from '@suid/icons-material/Cancel';
+import VisibilityOffIcon from '@suid/icons-material/VisibilityOff';
+import AudioFileIcon from '@suid/icons-material/AudioFile';
+import ImageIcon from '@suid/icons-material/Image';
+import VideoFileIcon from '@suid/icons-material/VideoFile';
+import DescriptionIcon from '@suid/icons-material/Description';
+import PictureAsPdfIcon from '@suid/icons-material/PictureAsPdf';
+import ArticleIcon from '@suid/icons-material/Article';
+import InsertDriveFileIcon from '@suid/icons-material/InsertDriveFile';
+import { DESIGN_SYSTEM } from '../theme/designSystem.js';
+import Collapse from './Collapse.jsx';
+
+// ============================================================================
+// Icon Mapping
+// ============================================================================
+
+function getIconForType(iconType, fieldValue, contentType, fileIcon) {
+    const iconStyle = { fontSize: '0.75rem' };
+
+    // For leaves, use fileIcon if provided, otherwise content type
+    if (iconType === 'leaf' || iconType === undefined) {
+        if (fileIcon) {
+            switch (fileIcon) {
+                case 'audioFile': return <AudioFileIcon sx={iconStyle} />;
+                case 'imageFile': return <ImageIcon sx={iconStyle} />;
+                case 'videoFile': return <VideoFileIcon sx={iconStyle} />;
+                case 'pdfFile': return <PictureAsPdfIcon sx={iconStyle} />;
+                case 'wordFile': return <ArticleIcon sx={iconStyle} />;
+                case 'textFile': return <DescriptionIcon sx={iconStyle} />;
+                case 'file': return <InsertDriveFileIcon sx={iconStyle} />;
+            }
+        }
+        if (contentType === 'dialogue') return <RecordVoiceOverIcon sx={iconStyle} />;
+        if (contentType === 'music') return <MusicNoteIcon sx={iconStyle} />;
+        if (contentType === 'sfx') return <GraphicEqIcon sx={iconStyle} />;
+        if (contentType === 'image' || contentType === 'storyboard') return <ImageIcon sx={iconStyle} />;
+        if (contentType === 'video') return <VideoFileIcon sx={iconStyle} />;
+        if (contentType === 'script' || contentType === 'notes') return <DescriptionIcon sx={iconStyle} />;
+        return <AudioFileIcon sx={iconStyle} />;
+    }
+
+    switch (iconType) {
+        case 'person': return <PersonIcon sx={iconStyle} />;
+        case 'folder': return <FolderIcon sx={iconStyle} />;
+        case 'content':
+        case 'record': return <RecordVoiceOverIcon sx={iconStyle} />;
+        case 'type':
+            if (fieldValue === 'dialogue') return <RecordVoiceOverIcon sx={iconStyle} />;
+            if (fieldValue === 'music') return <MusicNoteIcon sx={iconStyle} />;
+            if (fieldValue === 'sfx') return <GraphicEqIcon sx={iconStyle} />;
+            if (fieldValue === 'image' || fieldValue === 'storyboard') return <ImageIcon sx={iconStyle} />;
+            if (fieldValue === 'video') return <VideoFileIcon sx={iconStyle} />;
+            if (fieldValue === 'script' || fieldValue === 'notes') return <DescriptionIcon sx={iconStyle} />;
+            return <InsertDriveFileIcon sx={iconStyle} />;
+        case 'status':
+            if (fieldValue === 'approved') return <CheckCircleIcon sx={{ ...iconStyle, color: 'success.main' }} />;
+            if (fieldValue === 'new') return <NewReleasesIcon sx={{ ...iconStyle, color: 'warning.main' }} />;
+            if (fieldValue === 'rejected') return <CancelIcon sx={{ ...iconStyle, color: 'error.main' }} />;
+            if (fieldValue === 'hidden') return <VisibilityOffIcon sx={iconStyle} />;
+            return <AudioFileIcon sx={iconStyle} />;
+        default: return <InsertDriveFileIcon sx={iconStyle} />;
+    }
+}
+
+// ============================================================================
+// Status Color Mapping
+// ============================================================================
+
+function getStatusClass(status) {
+    switch (status) {
+        case 'green': return 'status-green';
+        case 'yellow': return 'status-yellow';
+        case 'red': return 'status-red';
+        case 'gray':
+        default: return 'status-gray';
+    }
+}
+
+// ============================================================================
+// Tree Node Component
+// ============================================================================
+
+function TreeNode(props) {
+    const isExpanded = () => props.expanded[props.node.id] || false;
+    const isSelected = () => props.selectedId === props.node.id;
+    const hasChildren = () => props.node.children && props.node.children.length > 0;
+    const isLeaf = () => props.node.type === 'leaf';
+
+    const paddingLeft = () => `${2.5 + props.depth * 1}rem`;
+
+    const handleClick = () => {
+        if (isLeaf()) {
+            props.onSelect({ type: 'take', id: props.node.data.take_id, viewId: props.viewId });
+        } else {
+            props.onSelect({
+                type: 'view-group',
+                id: props.node.id,
+                field: props.node.field,
+                fieldValue: props.node.fieldValue,
+                viewId: props.viewId,
+                children: props.node.children,
+            });
+        }
+    };
+
+    const handleToggle = (e) => {
+        e.stopPropagation();
+        props.onToggle(props.node.id);
+    };
+
+    const displayText = () => {
+        let text = props.node.label;
+        if (!isLeaf() && props.node.count) {
+            text = `${props.node.label} (${props.node.count})`;
+        }
+        return text;
+    };
+
+    return (
+        <>
+            <ListItemButton
+                class={getStatusClass(props.node.status || 'gray')}
+                sx={{
+                    py: '0.125rem',
+                    pl: paddingLeft(),
+                    pr: 0,
+                    minHeight: '1.125rem',
+                    '& .MuiListItemText-root': { margin: 0 },
+                    '& .MuiListItemIcon-root': { minWidth: 'auto' },
+                    ...DESIGN_SYSTEM.treeItem,
+                    bgcolor: isSelected() ? 'action.selected' : 'transparent',
+                }}
+                selected={isSelected()}
+                onClick={handleClick}
+            >
+                <ListItemIcon sx={{ minWidth: 'auto', mr: '0.25rem' }}>
+                    {getIconForType(
+                        props.node.icon,
+                        props.node.fieldValue,
+                        isLeaf() ? props.node.data?.content_type : null,
+                        isLeaf() ? props.node.fileIcon : null
+                    )}
+                </ListItemIcon>
+                <ListItemText
+                    primary={displayText()}
+                    primaryTypographyProps={{
+                        fontSize: '0.9rem',
+                        lineHeight: '1rem',
+                        fontWeight: 400,
+                    }}
+                />
+                <Show when={hasChildren() && !isLeaf()}>
+                    <Box
+                        onClick={handleToggle}
+                        sx={{ display: 'flex', alignItems: 'center', p: 0, m: 0 }}
+                    >
+                        <Show when={isExpanded()} fallback={<ExpandMore sx={{ fontSize: '0.75rem' }} />}>
+                            <ExpandLess sx={{ fontSize: '0.75rem' }} />
+                        </Show>
+                    </Box>
+                </Show>
+            </ListItemButton>
+
+            <Show when={hasChildren() && !isLeaf()}>
+                <Collapse in={isExpanded()}>
+                    <List component="div" disablePadding>
+                        <For each={props.node.children}>
+                            {(child) => (
+                                <TreeNode
+                                    node={child}
+                                    depth={props.depth + 1}
+                                    expanded={props.expanded}
+                                    onToggle={props.onToggle}
+                                    selectedId={props.selectedId}
+                                    onSelect={props.onSelect}
+                                    viewId={props.viewId}
+                                />
+                            )}
+                        </For>
+                    </List>
+                </Collapse>
+            </Show>
+        </>
+    );
+}
+
+// ============================================================================
+// ViewTree Component
+// ============================================================================
+
+export default function ViewTree(props) {
+    const storageKey = () => `audiomanager-view-expanded-${props.viewId}`;
+
+    const loadExpandedState = () => {
+        try {
+            const saved = localStorage.getItem(storageKey());
+            if (saved) return JSON.parse(saved);
+        } catch (e) {
+            console.warn('Failed to load view state:', e);
+        }
+        return {};
+    };
+
+    const [expanded, setExpanded] = createSignal(loadExpandedState());
+
+    createEffect(() => {
+        try {
+            localStorage.setItem(storageKey(), JSON.stringify(expanded()));
+        } catch (e) {
+            console.warn('Failed to save view state:', e);
+        }
+    });
+
+    const handleToggle = (nodeId) => {
+        setExpanded((prev) => ({
+            ...prev,
+            [nodeId]: !prev[nodeId],
+        }));
+    };
+
+    const selectedId = () => props.selectedNode?.viewId === props.viewId ? props.selectedNode.id : null;
+
+    return (
+        <Show when={props.tree && props.tree.length > 0} fallback={
+            <Box sx={{ pl: '1.5rem', py: '0.25rem', color: 'text.disabled' }}>
+                <em style={{ fontSize: '0.8rem' }}>No items</em>
+            </Box>
+        }>
+            <List component="div" disablePadding>
+                <For each={props.tree}>
+                    {(node) => (
+                        <TreeNode
+                            node={node}
+                            depth={0}
+                            expanded={expanded()}
+                            onToggle={handleToggle}
+                            selectedId={selectedId()}
+                            onSelect={props.onSelect}
+                            viewId={props.viewId}
+                        />
+                    )}
+                </For>
+            </List>
+        </Show>
+    );
+}

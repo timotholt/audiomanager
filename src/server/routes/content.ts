@@ -292,7 +292,12 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
         });
 
         const promptTemplate = settings.templates?.prompt || '{prompt}';
-        const prompt = resolveTemplate(promptTemplate, templateContext) || content.name;
+        let prompt = resolveTemplate(promptTemplate, templateContext);
+
+        // If the prompt is still just the template variable (unresolved) or empty, fall back to name
+        if (!prompt || prompt === '{prompt}' || prompt === promptTemplate) {
+          prompt = content.prompt || content.name;
+        }
 
         // Generate buffer
         let buffer: Buffer;

@@ -8,7 +8,7 @@ import {
   DefaultsSchema
 } from '../../shared/schemas/index.js';
 
-export async function fetchJson(path: string) {
+export async function fetchJson(path: string): Promise<any> {
   const res = await fetch(path);
   if (!res.ok) {
     const text = await res.text();
@@ -34,7 +34,7 @@ export async function createActor(payload: any) {
     body: JSON.stringify(payload ?? {}),
   });
   if (!res.ok) throw new Error(`Failed to create actor: ${await res.text()}`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return {
     actor: ActorSchema.parse(data.actor),
     actors: data.actors ? z.array(ActorSchema).parse(data.actors) : undefined,
@@ -50,7 +50,7 @@ export async function updateActor(id: string, payload: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to update actor: ${await res.text()}`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return { actor: ActorSchema.parse(data.actor) };
 }
 
@@ -76,7 +76,7 @@ export async function createScene(payload: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to create scene`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return { scene: SceneSchema.parse(data.scene) };
 }
 
@@ -87,7 +87,7 @@ export async function updateScene(id: string, payload: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to update scene`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return { scene: SceneSchema.parse(data.scene) };
 }
 
@@ -113,7 +113,7 @@ export async function createSection(payload: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to create section`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return { section: SectionSchema.parse(data.section) };
 }
 
@@ -124,7 +124,7 @@ export async function updateSection(id: string, payload: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to update section`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return { section: SectionSchema.parse(data.section) };
 }
 
@@ -156,7 +156,7 @@ export async function createContent(payload: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to create content`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return {
     content: Array.isArray(data.content)
       ? z.array(ContentSchema).parse(data.content)
@@ -173,7 +173,7 @@ export async function updateContent(id: string, payload: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to update content`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return { content: ContentSchema.parse(data.content) };
 }
 
@@ -200,7 +200,7 @@ export async function updateTake(id: string, payload: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to update take`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return { take: TakeSchema.parse(data.take) };
 }
 
@@ -216,7 +216,7 @@ export async function generateTakes(contentId: string, count = 1) {
     body: JSON.stringify({ count }),
   });
   if (!res.ok) throw new Error(`Failed to generate takes`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return {
     takes: z.array(TakeSchema).parse(data.takes)
   };
@@ -239,7 +239,7 @@ export async function updateGlobalDefaults(payload: any) {
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Failed to update defaults`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return { defaults: DefaultsSchema.parse(data.defaults) };
 }
 
@@ -250,7 +250,7 @@ export async function updateContentTypeDefaults(contentType: string, settings: a
     body: JSON.stringify(settings),
   });
   if (!res.ok) throw new Error(`Failed to update content type defaults`);
-  const data = await res.json();
+  const data = (await res.json()) as any;
   return { defaults: DefaultsSchema.parse(data.defaults) };
 }
 
@@ -298,6 +298,24 @@ export async function createProject(name: string) {
   return res.json();
 }
 
+export async function deleteProject(name: string) {
+  const res = await fetch(`/api/projects/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to delete project`);
+  return res.json();
+}
+
+export async function copyProject(name: string, newName: string) {
+  const res = await fetch(`/api/projects/${encodeURIComponent(name)}/copy`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newName }),
+  });
+  if (!res.ok) throw new Error(`Failed to copy project`);
+  return res.json();
+}
+
 export function getCurrentProject() {
   return fetchJson('/api/projects/current');
 }
@@ -334,7 +352,7 @@ export async function backfillTakes(options: { ownerId?: string, ownerType?: str
 
   const res = await fetch(`/api/batch/backfill-takes?${params}`, { method: 'POST' });
   if (!res.ok) {
-    const data = await res.json();
+    const data = (await res.json()) as any;
     throw new Error(data.error || `Failed to backfill takes`);
   }
   return res.json();

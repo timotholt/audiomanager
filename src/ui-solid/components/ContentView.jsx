@@ -2,7 +2,7 @@ import { createSignal, createEffect, createMemo, Show, For, onCleanup } from 'so
 import {
     Box, Typography, TextField, IconButton, Dialog, DialogTitle, DialogContent,
     DialogActions, Button, List, ListItem, ListItemIcon, ListItemText,
-    CircularProgress
+    CircularProgress, Paper
 } from '@suid/material';
 import Tooltip from './Tooltip.jsx';
 import Collapse from './Collapse.jsx';
@@ -23,6 +23,7 @@ import DetailHeader from './DetailHeader.jsx';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 import { buildContentPath, getSectionName } from '../utils/pathBuilder.js';
 import { useLog, usePlayback, useStatus, useCredits } from '../contexts/AppContext.jsx';
+import ProviderSettingsEditor from './ProviderSettingsEditor.jsx';
 
 // Local storage key for LLM settings
 const LLM_STORAGE_KEY = 'moo-llm-settings';
@@ -57,6 +58,7 @@ export default function ContentView(props) {
     const [name, setName] = createSignal(props.item.name || '');
     const [prompt, setPrompt] = createSignal(props.item.prompt || '');
     const [saving, setSaving] = createSignal(false);
+    const [settingsExpanded, setSettingsExpanded] = createSignal(false);
 
     // AI State
     const [aiLoading, setAiLoading] = createSignal(false);
@@ -408,6 +410,45 @@ export default function ContentView(props) {
                 <Show when={aiError()}>
                     <Typography variant="caption" color="error">{aiError()}</Typography>
                 </Show>
+            </Box>
+
+            {/* Provider Settings Override */}
+            <Box sx={{ mt: 2 }}>
+                <Paper variant="outlined" sx={{ overflow: 'hidden', bgcolor: 'background.paper' }}>
+                    <Box
+                        sx={{
+                            p: 1.5,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            bgcolor: 'action.hover'
+                        }}
+                        onClick={() => setSettingsExpanded(!settingsExpanded())}
+                    >
+                        <Typography variant="subtitle2" sx={{ fontSize: '0.8rem' }}>Settings Overrides</Typography>
+                        {settingsExpanded() ? <ExpandLessIcon sx={{ fontSize: '1.2rem' }} /> : <ExpandMoreIcon sx={{ fontSize: '1.2rem' }} />}
+                    </Box>
+                    <Collapse in={settingsExpanded()}>
+                        <Box sx={{ p: 2 }}>
+                            <ProviderSettingsEditor
+                                contentType={props.item.content_type}
+                                settings={props.item.default_blocks?.[props.item.content_type]}
+                                voices={props.operations?.voices?.() || []}
+                                loadingVoices={props.operations?.loadingVoices?.() || false}
+                                allowInherit={true}
+                                onSettingsChange={(settings) => {
+                                    const currentBlocks = props.item.default_blocks || {};
+                                    handleSaveField('default_blocks', {
+                                        ...currentBlocks,
+                                        [props.item.content_type]: settings
+                                    });
+                                }}
+                                error={localError()}
+                            />
+                        </Box>
+                    </Collapse>
+                </Paper>
             </Box>
 
             <Show when={localError() || props.error}>

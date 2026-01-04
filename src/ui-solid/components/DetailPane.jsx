@@ -210,6 +210,7 @@ export default function DetailPane(props) {
                         onTakeUpdated={props.onRefresh}
                         blankSpaceConversion={props.blankSpaceConversion}
                         capitalizationConversion={props.capitalizationConversion}
+                        operations={dataOps}
                         error={commonError()}
                     />
                 </Match>

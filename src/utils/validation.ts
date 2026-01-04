@@ -1,53 +1,52 @@
-import Ajv from 'ajv';
-import addFormats from 'ajv-formats';
-import fs from 'fs-extra';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { ErrorObject } from 'ajv';
+import { z } from 'zod';
+import * as Schemas from '../shared/schemas/index.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Ajv export is messy in ESM/TS
-const AjvClass = Ajv.default || Ajv;
-const ajv = new AjvClass({ allErrors: true });
-// ajv-formats export is messy in ESM/TS
-const addFormatsFn = addFormats.default || addFormats;
-addFormatsFn(ajv);
-
-// Load schemas
-const schemaDir = join(__dirname, '../schemas');
-const schemaFiles = [
-    'project.json',
-    'actor.json',
-    'content.json',
-    'take.json',
-    'review.json',
-];
-
-// Synchronously load schemas for simplicity in this utility
-for (const file of schemaFiles) {
-    const schemaPath = join(schemaDir, file);
-    if (fs.existsSync(schemaPath)) {
-        const schema = fs.readJsonSync(schemaPath);
-        // Use the file name (without ext) as the key or the $id if present
-        // The spec schemas don't have $id, so we'll use the filename key
-        const key = file.replace('.json', '');
-        ajv.addSchema(schema, key);
-    }
+/**
+ * Validation result interface
+ */
+export interface ValidationResult {
+    valid: boolean;
+    errors?: string[];
 }
 
-export function validate<T>(schemaKey: string, data: T): { valid: boolean; errors?: string[] } {
-    const validateFn = ajv.getSchema(schemaKey);
-    if (!validateFn) {
-        throw new Error(`Schema not found: ${schemaKey}`);
+/**
+ * Validates data against a specific Zod schema identified by key
+ */
+export function validate(schemaKey: string, data: unknown): ValidationResult {
+    let schema: z.ZodSchema | undefined;
+
+    switch (schemaKey) {
+        case 'actor':
+            schema = Schemas.ActorSchema;
+            break;
+        case 'createActor':
+            schema = Schemas.CreateActorSchema;
+            break;
+        case 'scene':
+            schema = Schemas.SceneSchema;
+            break;
+        case 'section':
+            schema = Schemas.SectionSchema;
+            break;
+        case 'content':
+            schema = Schemas.ContentSchema;
+            break;
+        case 'take':
+            schema = Schemas.TakeSchema;
+            break;
+        case 'defaults':
+            schema = Schemas.DefaultsSchema;
+            break;
+        default:
+            throw new Error(`Schema not found for key: ${schemaKey}`);
     }
 
-    const valid = validateFn(data);
-    if (!valid) {
+    const result = schema.safeParse(data);
+
+    if (!result.success) {
         return {
             valid: false,
-            errors: validateFn.errors?.map((e: ErrorObject) => `${e.instancePath} ${e.message}`) || ['Unknown error'],
+            errors: result.error.issues.map(err => `${err.path.join('.')}: ${err.message}`)
         };
     }
 

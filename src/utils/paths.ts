@@ -1,38 +1,54 @@
 import { join } from 'path';
 
-export const PATHS = {
-    CATALOG: 'catalog',
-    MEDIA: 'media',
-    EXPORTS: 'exports',
-    SCHEMA: 'schema',
-    SCRIPTS: 'scripts',
-    MOO: '.moo',
-    INDEXES: 'catalog/indexes',
-} as const;
+/**
+ * Project Path Structure (V2)
+ * 
+ * {projectRoot}/
+ * ├── .moo/                <-- Catalog and Metadata
+ * │   ├── config.json
+ * │   ├── defaults.json    (Note: actually in root in some drafts, but here is safer)
+ * │   ├── actors.jsonl
+ * │   ├── scenes.jsonl
+ * │   ├── sections.jsonl
+ * │   ├── content.jsonl
+ * │   ├── takes.jsonl
+ * │   └── snapshots.jsonl
+ * │
+ * ├── actors/              <-- Media Folders
+ * ├── scenes/
+ * └── global/
+ */
 
 export function getProjectPaths(projectRoot: string) {
+    const mooDir = join(projectRoot, '.moo');
+
     return {
         root: projectRoot,
-        projectJson: join(projectRoot, 'project.json'),
+
+        // Catalog files (inside .moo/)
         catalog: {
-            actors: join(projectRoot, PATHS.CATALOG, 'actors.jsonl'),
-            content: join(projectRoot, PATHS.CATALOG, 'content.jsonl'),
-            sections: join(projectRoot, PATHS.CATALOG, 'sections.jsonl'),
-            scenes: join(projectRoot, PATHS.CATALOG, 'scenes.jsonl'),
-            takes: join(projectRoot, PATHS.CATALOG, 'takes.jsonl'),
-            generationJobs: join(projectRoot, PATHS.CATALOG, 'generation-jobs.jsonl'),
-            indexes: {
-                dir: join(projectRoot, PATHS.INDEXES),
-                byActor: (id: string) => join(projectRoot, PATHS.INDEXES, `by_actor`, `${id}.json`),
-                byContent: (id: string) => join(projectRoot, PATHS.INDEXES, `by_content`, `${id}.json`),
-            },
+            actors: join(mooDir, 'actors.jsonl'),
+            scenes: join(mooDir, 'scenes.jsonl'),
+            sections: join(mooDir, 'sections.jsonl'),
+            content: join(mooDir, 'content.jsonl'),
+            takes: join(mooDir, 'takes.jsonl'),
+            snapshots: join(mooDir, 'snapshots.jsonl'),
+            redoSnapshots: join(mooDir, 'redo-snapshots.jsonl'),
         },
-        media: join(projectRoot, PATHS.MEDIA),
-        exports: join(projectRoot, PATHS.EXPORTS),
+
+        // Media folders (at root)
+        media: {
+            actors: join(projectRoot, 'actors'),
+            scenes: join(projectRoot, 'scenes'),
+            global: join(projectRoot, 'global'),
+            exports: join(projectRoot, 'exports'),
+        },
+
+        // Metadata and Config
         moo: {
-            dir: join(projectRoot, PATHS.MOO),
-            auditLog: join(projectRoot, PATHS.MOO, 'audit.log'),
-            config: join(projectRoot, PATHS.MOO, 'config.json'),
+            dir: mooDir,
+            config: join(mooDir, 'config.json'),
+            defaults: join(projectRoot, 'defaults.json'),
         },
     };
 }

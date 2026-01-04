@@ -8,21 +8,21 @@ import CompleteButton from '../CompleteButton.jsx';
 import SectionManagement from '../SectionManagement.jsx';
 import ProviderSettingsEditor from '../ProviderSettingsEditor.jsx';
 
-export default function ActorView(props) {
-    // props: actor, sections, operations (useDataOperations result)
+export default function SceneView(props) {
+    // props: scene, sections, operations (useDataOperations result)
 
     const [editingName, setEditingName] = createSignal(false);
     const [tempName, setTempName] = createSignal('');
     const [deleteDialogOpen, setDeleteDialogOpen] = createSignal(false);
 
     const handleStartEdit = () => {
-        setTempName(props.actor.display_name);
+        setTempName(props.scene.name);
         setEditingName(true);
     };
 
     const handleSaveName = async () => {
-        if (tempName() && tempName() !== props.actor.display_name) {
-            await props.operations.updateActorField(props.actor.id, { display_name: tempName() });
+        if (tempName() && tempName() !== props.scene.name) {
+            await props.operations.updateSceneField(props.scene.id, { name: tempName() });
         }
         setEditingName(false);
     };
@@ -37,27 +37,26 @@ export default function ActorView(props) {
 
     const handleConfirmDelete = async () => {
         setDeleteDialogOpen(false);
-        await props.operations.deleteActor(props.actor.id, props.actor.display_name);
+        await props.operations.deleteScene(props.scene.id, props.scene.name);
     };
 
     const handleToggleComplete = async () => {
-        const newStatus = !props.actor.actor_complete;
-        await props.operations.updateActorField(props.actor.id, { actor_complete: newStatus });
+        const newStatus = !props.scene.scene_complete;
+        await props.operations.updateSceneField(props.scene.id, { scene_complete: newStatus });
     };
 
     return (
         <Box>
             <DetailHeader
-                title={props.actor.display_name}
-                subtitle={`Actor ID: ${props.actor.id}`}
+                title={props.scene.name}
+                subtitle={`Scene ID: ${props.scene.id}`}
                 onEdit={handleStartEdit}
                 onDelete={handleDeleteClick}
-                deleteDisabled={props.operations.deleting && props.operations.deleting()}
                 rightActions={
                     <CompleteButton
-                        isComplete={props.actor.actor_complete}
+                        isComplete={props.scene.scene_complete}
                         onToggle={handleToggleComplete}
-                        itemType="actor"
+                        itemType="scene"
                     />
                 }
             />
@@ -65,7 +64,7 @@ export default function ActorView(props) {
             {/* Inline Name Edit */}
             <Show when={editingName()}>
                 <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: 1, boxShadow: 1 }}>
-                    <Typography variant="subtitle2" gutterBottom>Rename Actor</Typography>
+                    <Typography variant="subtitle2" gutterBottom>Rename Scene</Typography>
                     <Stack direction="row" spacing={1}>
                         <TextField
                             size="small"
@@ -81,32 +80,22 @@ export default function ActorView(props) {
             </Show>
 
             <Stack spacing={3}>
-                {/* Base Filename */}
-                <Box>
-                    <Typography variant="overline" color="text.secondary">
-                        Base Filename
-                    </Typography>
-                    <Typography variant="body1" sx={{ fontFamily: 'monospace' }}>
-                        {props.actor.base_filename || 'Not set'}
-                    </Typography>
-                </Box>
-
                 {/* Default Blocks */}
                 <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
                     <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
-                        <Typography variant="subtitle2">Default Voice Settings (Dialogue)</Typography>
+                        <Typography variant="subtitle2">Default Settings</Typography>
                     </Box>
                     <Box sx={{ p: 2 }}>
                         <ProviderSettingsEditor
-                            contentType="dialogue"
-                            settings={props.actor.default_blocks?.dialogue}
+                            contentType="music" // Scenes often have music or sfx defaults
+                            settings={props.scene.default_blocks?.music}
                             voices={props.operations.voices()}
                             loadingVoices={props.operations.loadingVoices()}
                             allowInherit={true}
                             onSettingsChange={(settings) => {
-                                const current = props.actor.default_blocks || {};
-                                props.operations.updateActorField(props.actor.id, {
-                                    default_blocks: { ...current, dialogue: settings }
+                                const current = props.scene.default_blocks || {};
+                                props.operations.updateSceneField(props.scene.id, {
+                                    default_blocks: { ...current, music: settings }
                                 });
                             }}
                         />
@@ -115,8 +104,8 @@ export default function ActorView(props) {
 
                 {/* Section Management */}
                 <SectionManagement
-                    owner={props.actor}
-                    ownerType="actor"
+                    owner={props.scene}
+                    ownerType="scene"
                     sections={props.sections}
                     onCreateSection={props.operations.createSection}
                     creatingContent={props.operations.creatingContent()}
@@ -128,11 +117,11 @@ export default function ActorView(props) {
                 open={deleteDialogOpen()}
                 onClose={() => setDeleteDialogOpen(false)}
             >
-                <DialogTitle>Delete Actor?</DialogTitle>
+                <DialogTitle>Delete Scene?</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
-                        Are you sure you want to delete <strong>{props.actor.display_name}</strong>?
-                        This will delete all sections, content, and takes associated with this actor.
+                        Are you sure you want to delete <strong>{props.scene.name}</strong>?
+                        This will delete all sections, content, and takes associated with this scene.
                         This action cannot be undone.
                     </DialogContentText>
                 </DialogContent>

@@ -47,12 +47,21 @@ export const DefaultBlockSchema = z.object({
     // Common generation settings
     min_candidates: z.number().int().min(1).max(10).optional(),
     approval_count_default: z.number().int().min(1).max(5).optional(),
+
+    // Field-level derivation templates (e.g., prompt patterns, filename patterns)
+    templates: z.object({
+        prompt: z.string().optional(),
+        filename: z.string().optional(),
+    }).optional(),
 }).passthrough(); // Allow extra fields for future expansion
 
-export const DefaultBlocksSchema = z.record(
-    ContentTypeSchema,
-    DefaultBlockSchema
-).optional();
+export const DefaultBlocksSchema = z.object({
+    dialogue: DefaultBlockSchema.optional(),
+    music: DefaultBlockSchema.optional(),
+    sfx: DefaultBlockSchema.optional(),
+    image: DefaultBlockSchema.optional(),
+    video: DefaultBlockSchema.optional(),
+}).optional();
 
 // ============================================================================
 // Type Inference

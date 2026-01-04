@@ -6,12 +6,14 @@ import { ASSET_TYPES, getAssetTypeForContent, getFileIcon } from './assetTypes.j
 
 // Available dimensions for custom views
 export const DIMENSIONS = [
-  { id: 'actor_id', name: 'Actor', icon: 'person', displayField: 'actor_name' },
+  { id: 'owner_id', name: 'Owner', icon: 'person', displayField: 'owner_name' },
+  { id: 'owner_type', name: 'Owner Type', icon: 'folder', labelMap: { actor: 'Actors', scene: 'Scenes', global: 'Global' } },
   { id: 'scene_id', name: 'Scene', icon: 'folder', displayField: 'scene_name' },
+  { id: 'actor_id', name: 'Actor', icon: 'person', displayField: 'actor_name' },
   { id: 'section_id', name: 'Section', icon: 'folder', displayField: 'section_name' },
-  { id: 'content_type', name: 'Type', icon: 'type', labelMap: { dialogue: 'Dialogue', music: 'Music', sfx: 'SFX' } },
+  { id: 'content_type', name: 'Type', icon: 'type', labelMap: { dialogue: 'Dialogue', music: 'Music', sfx: 'SFX', image: 'Image', video: 'Video' } },
   { id: 'status', name: 'Status', icon: 'status' },
-  { id: 'content_id', name: 'Cue', icon: 'content', displayField: 'cue_id', isTerminal: true },
+  { id: 'content_id', name: 'Content', icon: 'content', displayField: 'name', isTerminal: true },
 ];
 
 export function getStickyName(view) {
@@ -32,9 +34,10 @@ export const PRESET_VIEWS = {
     name: '', // Sticky: by actor
     category: 'view',
     levels: [
-      { field: 'actor_id', displayField: 'actor_name', icon: 'person' },
+      { field: 'owner_type', labelMap: { actor: 'Actors', scene: 'Scenes', global: 'Global' }, icon: 'folder' },
+      { field: 'owner_id', displayField: 'owner_name', icon: 'person' },
       { field: 'section_id', displayField: 'section_name', icon: 'folder' },
-      { field: 'content_id', displayField: 'cue_id', icon: 'content', isTerminal: true },
+      { field: 'content_id', displayField: 'name', icon: 'content', isTerminal: true },
     ]
   },
   'by-scene': {
@@ -43,9 +46,9 @@ export const PRESET_VIEWS = {
     category: 'view',
     levels: [
       { field: 'scene_id', displayField: 'scene_name', icon: 'folder' },
-      { field: 'actor_id', displayField: 'actor_name', icon: 'person' },
+      { field: 'owner_id', displayField: 'owner_name', icon: 'person' },
       { field: 'section_id', displayField: 'section_name', icon: 'folder' },
-      { field: 'content_id', displayField: 'cue_id', icon: 'content', isTerminal: true },
+      { field: 'content_id', displayField: 'name', icon: 'content', isTerminal: true },
     ]
   },
   'unapproved': {
@@ -60,18 +63,8 @@ export const PRESET_VIEWS = {
         'hidden': 'Hidden',
         '__none__': 'No Takes'
       }},
-      { field: 'actor_id', displayField: 'actor_name', icon: 'person' },
-      { field: 'content_id', displayField: 'cue_id', icon: 'content', isTerminal: true },
-    ]
-  },
-  'missing-audio': {
-    id: 'missing-audio',
-    name: 'missing audio',
-    category: 'summary',
-    filter: (asset) => !asset.take_id,
-    levels: [
-      { field: 'actor_id', displayField: 'actor_name', icon: 'person' },
-      { field: 'content_id', displayField: 'cue_id', icon: 'content', isTerminal: true },
+      { field: 'owner_id', displayField: 'owner_name', icon: 'person' },
+      { field: 'content_id', displayField: 'name', icon: 'content', isTerminal: true },
     ]
   }
 };
@@ -95,27 +88,54 @@ export function buildAssetIndex(actors, sections, content, takes, scenes = []) {
 
   for (const c of content) {
     const s = sectionsById.get(c.section_id);
-    const a = actorsById.get(c.actor_id);
-    const sc = s?.scene_id ? scenesById.get(s.scene_id) : null;
+    
+    // Resolve owner details
+    let ownerName = 'Global';
+    let actorId = null;
+    let actorName = null;
+    let sceneId = null;
+    let sceneName = null;
+
+    if (c.owner_type === 'actor') {
+        const a = actorsById.get(c.owner_id);
+        ownerName = a?.display_name || 'Unknown Actor';
+        actorId = c.owner_id;
+        actorName = ownerName;
+    } else if (c.owner_type === 'scene') {
+        const sc = scenesById.get(c.owner_id);
+        ownerName = sc?.name || 'Unknown Scene';
+        sceneId = c.owner_id;
+        sceneName = ownerName;
+    }
+
+    // Secondary Scene lookup (if section has scene_id, though in V2 owner_id is primary)
+    // For now, let's keep compatibility with section-level scene_id if it exists
+    if (!sceneId && s?.scene_id) {
+        const sc = scenesById.get(s.scene_id);
+        sceneId = s.scene_id;
+        sceneName = sc?.name || 'Unknown Scene';
+    }
+
     const contentTakes = takesByContentId.get(c.id) || [];
 
     const baseRecord = {
       content_id: c.id,
-      cue_id: c.cue_id || 'unknown',
+      name: c.name || 'untitled',
       prompt: c.prompt,
       content_type: c.content_type || 'unknown',
       section_id: c.section_id,
       section_name: s?.name || 'Unknown Section',
-      scene_id: s?.scene_id || null,
-      scene_name: sc?.name || null,
-      actor_id: c.actor_id,
-      actor_name: a?.display_name || 'Unknown Actor',
+      owner_type: c.owner_type,
+      owner_id: c.owner_id,
+      owner_name: ownerName,
+      scene_id: sceneId,
+      scene_name: sceneName,
+      actor_id: actorId,
+      actor_name: actorName,
       asset_type: getAssetTypeForContent(c.content_type)?.id || 'audio',
       leaf_type: getAssetTypeForContent(c.content_type)?.leafType || 'take',
       _content: c,
       _section: s,
-      _actor: a,
-      _scene: sc,
     };
 
     if (contentTakes.length === 0) {
@@ -149,7 +169,7 @@ export function buildAssetIndex(actors, sections, content, takes, scenes = []) {
 // Grouping Engine
 // ============================================================================
 
-export function groupByLevels(items, levels, depth = 0) {
+export function groupByLevels(items, levels, depth = 0, parentPath = '') {
   if (!items || items.length === 0) return [];
   
   if (depth >= levels.length) {
@@ -162,7 +182,7 @@ export function groupByLevels(items, levels, depth = 0) {
       }
       return {
         type: 'leaf',
-        id: item.id,
+        id: `${parentPath}/leaf:${item.id}`,
         label,
         leafType: item.leaf_type || 'take',
         assetType: item.asset_type || 'audio',
@@ -190,7 +210,10 @@ export function groupByLevels(items, levels, depth = 0) {
     else if (level.labelMap && level.labelMap[key]) label = level.labelMap[key];
     else if (level.displayField && children[0]) label = children[0][level.displayField] || key;
     
-    const childNodes = groupByLevels(children, levels, depth + 1);
+    const currentId = `${level.field}:${key}`;
+    const fullId = parentPath ? `${parentPath}/${currentId}` : currentId;
+    
+    const childNodes = groupByLevels(children, levels, depth + 1, fullId);
     const statuses = children.map(c => c.status).filter(s => s !== '__none__');
     let groupStatus = 'gray';
     
@@ -206,7 +229,7 @@ export function groupByLevels(items, levels, depth = 0) {
     
     nodes.push({
       type: 'group',
-      id: `${level.field}:${key}`,
+      id: fullId,
       field: level.field,
       fieldValue: key,
       label,
@@ -219,6 +242,10 @@ export function groupByLevels(items, levels, depth = 0) {
   }
   
   nodes.sort((a, b) => {
+    if (level.field === 'owner_type') {
+        const order = { global: 0, actor: 1, scene: 2 };
+        return (order[a.fieldValue] ?? 99) - (order[b.fieldValue] ?? 99);
+    }
     if (level.field === 'status') {
       const order = { approved: 0, new: 1, rejected: 2, hidden: 3 };
       return (order[a.fieldValue] ?? 99) - (order[b.fieldValue] ?? 99);
@@ -229,17 +256,12 @@ export function groupByLevels(items, levels, depth = 0) {
   return nodes;
 }
 
-// ============================================================================
-// View Utilities
-// ============================================================================
-
+// utility to get view by id
 export function getViewById(viewId, customViews = []) {
   return customViews.find(v => v.id === viewId) || PRESET_VIEWS[viewId] || null;
 }
 
 export function getAllViews(customViews = []) {
-  // If no custom views yet, we could seed from presets.
-  // For now, we mix them.
   const seenIds = new Set(customViews.map(v => v.id));
   const combined = [...customViews];
   for (const p of Object.values(PRESET_VIEWS)) {

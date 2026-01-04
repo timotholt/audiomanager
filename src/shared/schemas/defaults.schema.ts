@@ -9,10 +9,13 @@ export const DefaultsSchema = z.object({
     schema_version: z.string().default('2.0.0'),
 
     // Global defaults for each content type
-    content_types: z.record(
-        ContentTypeSchema,
-        DefaultBlockSchema
-    ),
+    content_types: z.object({
+        dialogue: DefaultBlockSchema.optional(),
+        music: DefaultBlockSchema.optional(),
+        sfx: DefaultBlockSchema.optional(),
+        image: DefaultBlockSchema.optional(),
+        video: DefaultBlockSchema.optional(),
+    }),
 
     // Templates for creating new entities
     templates: z.object({

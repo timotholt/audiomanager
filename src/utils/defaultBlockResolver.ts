@@ -6,6 +6,7 @@
  */
 
 import type { ContentType, DefaultBlock, DefaultBlocks } from '../shared/schemas/index.js';
+import type { Content } from '../shared/schemas/content.schema.js';
 import type { Actor } from '../shared/schemas/actor.schema.js';
 import type { Scene } from '../shared/schemas/scene.schema.js';
 import type { Section } from '../shared/schemas/section.schema.js';
@@ -56,20 +57,36 @@ const HARDCODED_DEFAULTS: Record<ContentType, DefaultBlock> = {
 
 export type ResolvedBlock = {
     settings: DefaultBlock;
-    resolvedFrom: 'section' | 'owner' | 'global' | 'hardcoded';
+    resolvedFrom: 'content' | 'section' | 'owner' | 'global' | 'hardcoded';
     sourceName?: string;
 };
 
 /**
- * Resolve default block for a content type
+ * Deep merge templates object
+ */
+function mergeTemplates(base: any, overrides: any) {
+    if (!overrides) return base;
+    return {
+        ...(base || {}),
+        ...overrides
+    };
+}
+
+/**
+ * Resolve default block for a content type using property-level inheritance
  * 
- * Resolution order:
- * 1. Section's default_blocks[contentType] (if not "inherit")
- * 2. Owner's (Actor/Scene) default_blocks[contentType] (if not "inherit")
- * 3. Global defaults.content_types[contentType]
- * 4. Hardcoded fallback
+ * Resolution Order:
+ * 1. Hardcoded Fallback (Base)
+ * 2. Global Defaults
+ * 3. Owner (Actor/Scene) Overrides
+ * 4. Section Overrides
+ * 5. Content Overrides
+ * 
+ * A property is only overridden if it is explicitly defined and not set to "inherit"
+ * (Note: "inherit" primarily applies to the "provider" field in this version)
  * 
  * @param contentType - Type of content being generated
+ * @param content - Specific content item (optional overrides)
  * @param section - Section containing the content
  * @param owner - Owner (Actor or Scene) of the section
  * @param globalDefaults - Global defaults from defaults.json
@@ -77,48 +94,99 @@ export type ResolvedBlock = {
  */
 export function resolveDefaultBlock(
     contentType: ContentType,
+    content?: Content | null,
     section?: Section | null,
     owner?: Actor | Scene | null,
     globalDefaults?: Defaults | null
 ): ResolvedBlock {
-    // 1. Check section
-    if (section?.default_blocks?.[contentType]) {
-        const sectionBlock = section.default_blocks[contentType];
-        if (sectionBlock.provider !== 'inherit') {
-            return {
-                settings: sectionBlock,
-                resolvedFrom: 'section',
-                sourceName: section.name,
-            };
-        }
+    let settings = { ...HARDCODED_DEFAULTS[contentType] };
+    let resolvedFrom: ResolvedBlock['resolvedFrom'] = 'hardcoded';
+    let sourceName = 'System Defaults';
+
+    // 1. Global Defaults
+    if (globalDefaults?.content_types?.[contentType]) {
+        const globalBlock = globalDefaults.content_types[contentType];
+        const { templates, ...rest } = globalBlock;
+        settings = {
+            ...settings,
+            ...rest,
+            templates: mergeTemplates(settings.templates, templates)
+        };
+        resolvedFrom = 'global';
+        sourceName = 'Global Defaults';
     }
 
-    // 2. Check owner (Actor or Scene)
+    // 2. Owner Overrides
     if (owner?.default_blocks?.[contentType]) {
         const ownerBlock = owner.default_blocks[contentType];
         if (ownerBlock.provider !== 'inherit') {
-            return {
-                settings: ownerBlock,
-                resolvedFrom: 'owner',
-                sourceName: 'display_name' in owner ? owner.display_name : owner.name,
+            const { templates, ...rest } = ownerBlock;
+            settings = {
+                ...settings,
+                ...rest,
+                templates: mergeTemplates(settings.templates, templates)
+            };
+            resolvedFrom = 'owner';
+            sourceName = 'display_name' in owner ? owner.display_name : owner.name;
+        } else {
+            // Inherit provider from global, but merge other fields
+            const { provider, templates, ...rest } = ownerBlock;
+            settings = {
+                ...settings,
+                ...rest,
+                templates: mergeTemplates(settings.templates, templates)
             };
         }
     }
 
-    // 3. Check global defaults
-    if (globalDefaults?.content_types?.[contentType]) {
-        return {
-            settings: globalDefaults.content_types[contentType],
-            resolvedFrom: 'global',
-            sourceName: 'Global Defaults',
-        };
+    // 3. Section Overrides
+    if (section?.default_blocks?.[contentType]) {
+        const sectionBlock = section.default_blocks[contentType];
+        if (sectionBlock.provider !== 'inherit') {
+            const { templates, ...rest } = sectionBlock;
+            settings = {
+                ...settings,
+                ...rest,
+                templates: mergeTemplates(settings.templates, templates)
+            };
+            resolvedFrom = 'section';
+            sourceName = section.name;
+        } else {
+            const { provider, templates, ...rest } = sectionBlock;
+            settings = {
+                ...settings,
+                ...rest,
+                templates: mergeTemplates(settings.templates, templates)
+            };
+        }
     }
 
-    // 4. Hardcoded fallback
+    // 4. Content Overrides
+    if (content?.default_blocks?.[contentType]) {
+        const contentBlock = content.default_blocks[contentType];
+        if (contentBlock.provider !== 'inherit') {
+            const { templates, ...rest } = contentBlock;
+            settings = {
+                ...settings,
+                ...rest,
+                templates: mergeTemplates(settings.templates, templates)
+            };
+            resolvedFrom = 'content';
+            sourceName = content.name;
+        } else {
+            const { provider, templates, ...rest } = contentBlock;
+            settings = {
+                ...settings,
+                ...rest,
+                templates: mergeTemplates(settings.templates, templates)
+            };
+        }
+    }
+
     return {
-        settings: HARDCODED_DEFAULTS[contentType],
-        resolvedFrom: 'hardcoded',
-        sourceName: 'System Defaults',
+        settings,
+        resolvedFrom,
+        sourceName,
     };
 }
 

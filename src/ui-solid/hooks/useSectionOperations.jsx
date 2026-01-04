@@ -1,31 +1,5 @@
 import { createSignal } from 'solid-js';
-import { createSection, updateSection, updateActor } from '../api/client.js';
-
-/**
- * Sanitize provider settings to only include valid schema properties
- */
-function sanitizeProviderSettings(settings, contentType) {
-    if (!settings || settings.provider === 'inherit') {
-        return { provider: 'inherit' };
-    }
-
-    let validKeys;
-    if (contentType === 'dialogue') {
-        validKeys = ['provider', 'voice_id', 'model_id', 'min_candidates', 'approval_count_default', 'stability', 'similarity_boost'];
-    } else if (contentType === 'music') {
-        validKeys = ['provider', 'min_candidates', 'approval_count_default', 'duration_seconds'];
-    } else {
-        validKeys = ['provider', 'min_candidates', 'approval_count_default'];
-    }
-
-    const sanitized = {};
-    for (const key of validKeys) {
-        if (settings[key] !== undefined) {
-            sanitized[key] = settings[key];
-        }
-    }
-    return sanitized;
-}
+import { createSection, updateSection, updateActor, updateScene } from '../api/client.js';
 
 /**
  * Hook for section CRUD operations
@@ -34,19 +8,17 @@ export function useSectionOperations(props) {
     const [creating, setCreating] = createSignal(false);
     const [error, setError] = createSignal(null);
 
-    const createSectionForActor = async (actorId, contentType, customName = null) => {
+    const createSectionForOwner = async (ownerId, ownerType, contentType, customName = null) => {
         try {
             setCreating(true);
             setError(null);
 
             const sectionData = {
-                actor_id: actorId,
+                owner_id: ownerId,
+                owner_type: ownerType,
                 content_type: contentType,
+                name: customName || contentType
             };
-
-            if (customName) {
-                sectionData.name = customName;
-            }
 
             const result = await createSection(sectionData);
 
@@ -54,8 +26,8 @@ export function useSectionOperations(props) {
                 props.onSectionCreated(result.section);
 
                 if (props.expandNode) {
-                    props.expandNode('actors');
-                    props.expandNode(`actor-${actorId}`);
+                    props.expandNode(ownerType === 'actor' ? 'actors' : 'scenes');
+                    props.expandNode(`${ownerType}-${ownerId}`);
                 }
             }
         } catch (err) {
@@ -65,7 +37,7 @@ export function useSectionOperations(props) {
         }
     };
 
-    const updateSectionProviderSettings = async (sectionId, newSettings) => {
+    const updateSectionDefaultBlocks = async (sectionId, contentType, newSettings) => {
         try {
             const section = props.sections.find(s => s.id === sectionId);
             if (!section) {
@@ -73,9 +45,13 @@ export function useSectionOperations(props) {
                 return;
             }
 
-            const sanitizedSettings = sanitizeProviderSettings(newSettings, section.content_type);
+            const updatedBlocks = {
+                ...section.default_blocks,
+                [contentType]: newSettings
+            };
+
             const result = await updateSection(sectionId, {
-                provider_settings: sanitizedSettings
+                default_blocks: updatedBlocks
             });
 
             if (result && result.section && props.onSectionUpdated) {
@@ -105,17 +81,24 @@ export function useSectionOperations(props) {
                 props.onSectionUpdated(result.section);
             }
 
-            // If section is being marked incomplete, also mark parent actor as incomplete
+            // If section is being marked incomplete, also mark parent incomplete
             if (newCompleteValue === false) {
                 const section = props.sections.find((s) => s.id === sectionId);
-                if (section) {
+                if (section && section.owner_id) {
                     try {
-                        const actorResult = await updateActor(section.actor_id, { actor_complete: false });
-                        if (actorResult && actorResult.actor && props.onActorUpdated) {
-                            props.onActorUpdated(actorResult.actor);
+                        if (section.owner_type === 'actor') {
+                            const actorResult = await updateActor(section.owner_id, { actor_complete: false });
+                            if (actorResult && actorResult.actor && props.onActorUpdated) {
+                                props.onActorUpdated(actorResult.actor);
+                            }
+                        } else if (section.owner_type === 'scene') {
+                            const sceneResult = await updateScene(section.owner_id, { scene_complete: false });
+                            if (sceneResult && sceneResult.scene && props.onSceneUpdated) {
+                                props.onSceneUpdated(sceneResult.scene);
+                            }
                         }
-                    } catch (actorErr) {
-                        setError(actorErr.message || String(actorErr));
+                    } catch (err) {
+                        setError(err.message || String(err));
                     }
                 }
             }
@@ -135,7 +118,7 @@ export function useSectionOperations(props) {
         } catch (err) {
             setError(err.message || String(err));
         } finally {
-            creating(false);
+            setCreating(false);
         }
     };
 
@@ -143,8 +126,8 @@ export function useSectionOperations(props) {
         creating,
         error,
         setError,
-        createSection: createSectionForActor,
-        updateProviderSettings: updateSectionProviderSettings,
+        createSection: createSectionForOwner,
+        updateProviderSettings: updateSectionDefaultBlocks, // Kept same name for compatibility
         updateSectionName,
         toggleSectionComplete,
         deleteSection: deleteSectionById,

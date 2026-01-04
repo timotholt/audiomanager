@@ -90,7 +90,7 @@ export default function ProviderSettingsEditor(props) {
         if (!rawSettings || rawSettings.provider === 'inherit') {
             return { provider: 'inherit' };
         }
-        const validKeys = ['provider', 'voice_id', 'model_id', 'min_candidates', 'approval_count_default', 'stability', 'similarity_boost', 'duration_seconds'];
+        const validKeys = ['provider', 'voice_id', 'model_id', 'min_candidates', 'approval_count_default', 'stability', 'similarity_boost', 'duration_seconds', 'templates'];
         const sanitized = {};
         for (const key of validKeys) {
             if (rawSettings[key] !== undefined) {
@@ -361,6 +361,38 @@ export default function ProviderSettingsEditor(props) {
                             />
                         </Box>
                     </Show>
+                    {/* Advanced Templates */}
+                    <Box sx={{ mt: 2, borderTop: 1, borderColor: 'divider', pt: 2 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1, fontSize: '0.75rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Advanced Templates
+                        </Typography>
+                        <Stack spacing={2}>
+                            <TextField
+                                size="small"
+                                label="Prompt Template"
+                                placeholder="{prompt}"
+                                helperText="Variables: {name}, {prompt}, {section_name}"
+                                value={currentSettings().templates?.prompt || ''}
+                                onChange={(e) => {
+                                    const currentTemplates = currentSettings().templates || {};
+                                    handleChange('templates', { ...currentTemplates, prompt: e.target.value });
+                                }}
+                                fullWidth
+                            />
+                            <TextField
+                                size="small"
+                                label="Filename Template"
+                                placeholder="{name}_{take_number}"
+                                helperText="Variables: {name}, {take_number}, {owner_name}"
+                                value={currentSettings().templates?.filename || ''}
+                                onChange={(e) => {
+                                    const currentTemplates = currentSettings().templates || {};
+                                    handleChange('templates', { ...currentTemplates, filename: e.target.value });
+                                }}
+                                fullWidth
+                            />
+                        </Stack>
+                    </Box>
                 </Show>
             </Show>
 

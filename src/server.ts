@@ -48,7 +48,17 @@ fastify.get('/media/*', async (request, reply) => {
   }
 
   const relPath = (request.params as { '*': string })['*'];
-  const filePath = join(ctx.paths.media, relPath);
+
+  // Security: Ensure path stays within allowed subfolders at project root
+  const allowedFolders = ['actors', 'scenes', 'global', 'exports'];
+  const firstPart = relPath.split(/[/\\]/)[0];
+
+  if (!allowedFolders.includes(firstPart)) {
+    reply.code(403);
+    return 'Forbidden';
+  }
+
+  const filePath = join(ctx.projectRoot, relPath);
 
   if (!fs.existsSync(filePath)) {
     reply.code(404);
@@ -60,6 +70,12 @@ fastify.get('/media/*', async (request, reply) => {
     reply.type('audio/wav');
   } else if (filePath.endsWith('.mp3')) {
     reply.type('audio/mpeg');
+  } else if (filePath.endsWith('.mp4')) {
+    reply.type('video/mp4');
+  } else if (filePath.endsWith('.png')) {
+    reply.type('image/png');
+  } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+    reply.type('image/jpeg');
   }
 
   const stream = fs.createReadStream(filePath);

@@ -1,29 +1,13 @@
 import { join } from 'path';
+import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { Defaults } from '../../types/index.js';
+import { DefaultsSchema } from '../../shared/schemas/index.js';
+import { validate } from '../../utils/validation.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
 export function registerDefaultsRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {
-  const DEFAULTS: Record<string, Record<string, unknown>> = {
-    dialogue: { 
-      provider: 'elevenlabs', 
-      min_candidates: 1, 
-      approval_count_default: 1, 
-      stability: 0.5, 
-      similarity_boost: 0.75 
-    },
-    music: { 
-      provider: 'elevenlabs', 
-      min_candidates: 1, 
-      approval_count_default: 1 
-    },
-    sfx: { 
-      provider: 'elevenlabs', 
-      min_candidates: 1, 
-      approval_count_default: 1 
-    }
-  };
-
   // Global defaults endpoints
   fastify.get('/api/defaults', async (_request: FastifyRequest, reply: FastifyReply) => {
     const ctx = getProjectContext();
@@ -32,32 +16,55 @@ export function registerDefaultsRoutes(fastify: FastifyInstance, getProjectConte
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    const defaultsPath = join(paths.root, 'defaults.json');
-    
+    const defaultsPath = paths.moo.defaults;
+
     try {
-      const fs = await import('fs-extra').then(m => m.default);
-      
       if (await fs.pathExists(defaultsPath)) {
-        try {
-          const defaults = await fs.readJson(defaultsPath);
-          return { defaults };
-        } catch (err) {
-          // If the file is empty or invalid JSON, log and fall back to hardcoded defaults
-          fastify.log.warn({ err }, 'defaults.json invalid; falling back to DEFAULTS');
-          return { defaults: DEFAULTS };
-        }
+        const defaults = await fs.readJson(defaultsPath);
+        return { defaults };
       } else {
-        // Return hardcoded defaults if no file exists
-        return { defaults: DEFAULTS };
+        // Return default template if no file
+        const templatePath = join(process.cwd(), 'src', 'templates', 'defaults.template.json');
+        if (await fs.pathExists(templatePath)) {
+          return { defaults: await fs.readJson(templatePath) };
+        }
+        return { error: 'Defaults not found' };
       }
     } catch (err) {
       fastify.log.error(err, 'Failed to read defaults');
-      // Return structured 500 error so clients can handle it consistently
       reply.code(500);
       return { error: 'Failed to read defaults', details: (err as Error).message };
     }
   });
 
+  fastify.put('/api/defaults', async (request: FastifyRequest, reply: FastifyReply) => {
+    const ctx = getProjectContext();
+    if (!ctx) {
+      reply.code(400);
+      return { error: 'No project selected' };
+    }
+    const { paths } = ctx;
+    const defaultsPath = paths.moo.defaults;
+    const body = request.body as Defaults;
+
+    try {
+      // Validate full defaults object
+      const validation = validate('defaults', body);
+      if (!validation.valid) {
+        reply.code(400);
+        return { error: 'Invalid defaults data', details: validation.errors };
+      }
+
+      await fs.writeJson(defaultsPath, body, { spaces: 2 });
+      return { defaults: body };
+    } catch (err) {
+      fastify.log.error(err, 'Failed to update defaults');
+      reply.code(500);
+      return { error: 'Failed to update defaults', details: (err as Error).message };
+    }
+  });
+
+  // Update specific content type default
   fastify.put('/api/defaults/:contentType', async (request: FastifyRequest<{ Params: { contentType: string } }>, reply: FastifyReply) => {
     const ctx = getProjectContext();
     if (!ctx) {
@@ -65,61 +72,31 @@ export function registerDefaultsRoutes(fastify: FastifyInstance, getProjectConte
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    const defaultsPath = join(paths.root, 'defaults.json');
-    const contentType = (request.params as { contentType: string }).contentType as 'dialogue' | 'music' | 'sfx';
-    const body = request.body as Record<string, unknown>;
-
-    if (!['dialogue', 'music', 'sfx'].includes(contentType)) {
-      reply.code(400);
-      return { error: 'Invalid content type' };
-    }
+    const defaultsPath = paths.moo.defaults;
+    const { contentType } = request.params;
+    const settings = request.body as Record<string, unknown>;
 
     try {
-      const fs = await import('fs-extra').then(m => m.default);
-      
-      // Read existing defaults or create new ones
-      let defaults: Record<string, Record<string, unknown>> = {};
-      if (await fs.pathExists(defaultsPath)) {
-        try {
-          defaults = await fs.readJson(defaultsPath);
-        } catch (err) {
-          // If the file is empty or invalid, log and start from DEFAULTS instead of failing
-          fastify.log.warn({ err }, 'defaults.json invalid; reinitializing from DEFAULTS');
-          defaults = { ...DEFAULTS };
-        }
-      } else {
-        defaults = { ...DEFAULTS };
+      const defaults = await fs.readJson(defaultsPath) as any;
+
+      if (!defaults.content_types) defaults.content_types = {};
+
+      defaults.content_types[contentType] = {
+        ...defaults.content_types[contentType],
+        ...settings
+      };
+
+      const validation = validate('defaults', defaults);
+      if (!validation.valid) {
+        reply.code(400);
+        return { error: 'Invalid content type defaults', details: validation.errors };
       }
 
-      // Update the specific content type
-      defaults[contentType] = { ...defaults[contentType], ...body };
-
-      // Write back to file
       await fs.writeJson(defaultsPath, defaults, { spaces: 2 });
-
       return { defaults };
     } catch (err) {
-      const error = err as NodeJS.ErrnoException;
-
-      // If the defaults file or directory was missing, recreate it from DEFAULTS
-      if (error.code === 'ENOENT') {
-        try {
-          const fs = await import('fs-extra').then(m => m.default);
-          const path = await import('path');
-          await fs.ensureDir(path.dirname(defaultsPath));
-
-          const recreated = { ...DEFAULTS, [contentType]: { ...DEFAULTS[contentType], ...body } };
-          await fs.writeJson(defaultsPath, recreated, { spaces: 2 });
-
-          return { defaults: recreated };
-        } catch (innerErr) {
-          fastify.log.error(innerErr, 'Failed to recreate defaults after ENOENT');
-        }
-      }
-
-      fastify.log.error(err, 'Failed to update defaults');
       reply.code(500);
-      return { error: 'Failed to update defaults', details: error.message };
+      return { error: 'Failed to update content type defaults' };
     }
   });
 }

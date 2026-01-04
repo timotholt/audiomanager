@@ -1,12 +1,14 @@
 import { join } from 'path';
+import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Actor, Content, Take, Section } from '../../types/index.js';
+import type { Actor, Take, Section, Content, Defaults } from '../../types/index.js';
+import { ActorSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
-import { 
-  readCatalog, 
-  saveSnapshot, 
+import {
+  readCatalog,
+  saveSnapshot,
   snapshotMessageForActor,
   snapshotMessageForActorUpdate
 } from './snapshots.js';
@@ -21,7 +23,8 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
+    // Use schema validation on read
+    const actors = await readJsonl<Actor>(paths.catalog.actors, ActorSchema);
     return { actors };
   });
 
@@ -36,33 +39,27 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     const body = request.body as Partial<Actor> | undefined;
     const now = new Date().toISOString();
-    
+
     // Get actor name(s) for snapshot message
     const displayNameInput = body?.display_name ?? 'New Actor';
     const allNames = displayNameInput.split(',').map((n: string) => n.trim()).filter((n: string) => n.length > 0);
-    const snapshotMessage = allNames.length === 1 
+    const snapshotMessage = allNames.length === 1
       ? snapshotMessageForActor('create', allNames[0])
       : `Create actors: ${allNames.join(', ')}`;
-    
+
     // Read catalog once and save snapshot
     const catalog = await readCatalog(paths);
     await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Load global defaults
+    // Load global defaults to initialize actor blocks
     const defaultsPath = join(paths.root, 'defaults.json');
-    let globalDefaults: Record<string, Record<string, unknown>> = {
-      dialogue: { provider: 'elevenlabs', min_candidates: 1, approval_count_default: 1, stability: 0.5, similarity_boost: 0.75 },
-      music: { provider: 'elevenlabs', min_candidates: 1, approval_count_default: 1 },
-      sfx: { provider: 'elevenlabs', min_candidates: 1, approval_count_default: 1 },
-    };
-
+    let defaults: Defaults | null = null;
     try {
-      const fs = await import('fs-extra').then(m => m.default);
       if (await fs.pathExists(defaultsPath)) {
-        globalDefaults = await fs.readJson(defaultsPath);
+        defaults = await fs.readJson(defaultsPath);
       }
     } catch (err) {
-      fastify.log.warn(err, 'Failed to load global defaults, using hardcoded values');
+      fastify.log.warn(err, 'Failed to load defaults.json');
     }
 
     if (allNames.length === 0) {
@@ -71,7 +68,7 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     }
 
     // Check for existing actors and filter out duplicates
-    const existingActors = await readJsonl<Actor>(paths.catalog.actors);
+    const existingActors = await readJsonl<Actor>(paths.catalog.actors, ActorSchema);
     const existingNames = new Set(existingActors.map(a => a.display_name.toLowerCase()));
 
     const names = allNames.filter((n: string) => !existingNames.has(n.toLowerCase()));
@@ -85,6 +82,14 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     const createdActors: Actor[] = [];
 
     for (const name of names) {
+      // Determine auto-added blocks from template
+      const autoAddBlocks = defaults?.templates?.actor?.auto_add_blocks || ['dialogue'];
+      const defaultBlocks: any = {};
+
+      for (const type of autoAddBlocks) {
+        defaultBlocks[type] = { provider: 'inherit' };
+      }
+
       const actor: Actor = {
         id: generateId(),
         display_name: name,
@@ -94,10 +99,9 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '_')
             .replace(/^_+|_+$/g, ''),
-        all_approved: false,
-        provider_settings:
-          (body?.provider_settings as Actor['provider_settings']) ?? globalDefaults,
-        notes: body?.notes ?? '',
+        default_blocks:
+          (body?.default_blocks as Actor['default_blocks']) ?? (defaultBlocks as Actor['default_blocks']),
+        actor_complete: false,
         created_at: now,
         updated_at: now,
       };
@@ -108,15 +112,13 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
         return { error: `Invalid actor "${name}"`, details: validation.errors };
       }
 
-      await appendJsonl(paths.catalog.actors, actor);
+      await appendJsonl(paths.catalog.actors, actor, ActorSchema);
       createdActors.push(actor);
     }
 
-    // Return the first item for single creation, or array for batch
-    const result: { actor?: Actor; actors?: Actor[]; duplicates_skipped?: string[]; message?: string } = 
+    const result: { actor?: Actor; actors?: Actor[]; duplicates_skipped?: string[]; message?: string } =
       names.length === 1 ? { actor: createdActors[0] } : { actors: createdActors };
 
-    // Include information about duplicates if any were skipped
     if (duplicateNames.length > 0) {
       result.duplicates_skipped = duplicateNames;
       result.message = `Created ${names.length} actors. Skipped ${duplicateNames.length} duplicates: ${duplicateNames.join(', ')}`;
@@ -132,35 +134,33 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    
+
     const { id } = request.params as { id: string };
     const body = request.body as Partial<Actor>;
-    
+
     if (!body) {
       reply.code(400);
       return { error: 'Request body is required' };
     }
 
-    // Read catalog once for snapshot and logic
     const catalog = await readCatalog(paths);
     const actorIndex = catalog.actors.findIndex(a => a.id === id);
-    
+
     if (actorIndex === -1) {
       reply.code(404);
       return { error: 'Actor not found' };
     }
-    
+
     const currentActor = catalog.actors[actorIndex];
 
-    // Build the updated actor first so we can diff
     const updatedActor: Actor = {
-      ...catalog.actors[actorIndex],
+      ...currentActor,
       ...body,
       id, // Ensure ID doesn't change
       updated_at: new Date().toISOString(),
     };
 
-    // Build descriptive message with diff and save snapshot
+    // Save snapshot
     const snapshotMessage = snapshotMessageForActorUpdate(
       currentActor.display_name,
       currentActor as unknown as Record<string, unknown>,
@@ -168,16 +168,15 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     );
     await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Validate the updated actor
+    // Validate
     const validation = validate('actor', updatedActor);
     if (!validation.valid) {
       reply.code(400);
       return { error: 'Invalid actor data', details: validation.errors };
     }
 
-    // Replace the actor in the array and write back
     catalog.actors[actorIndex] = updatedActor;
-    await writeJsonlAll(paths.catalog.actors, catalog.actors);
+    await writeJsonlAll(paths.catalog.actors, catalog.actors, ActorSchema);
 
     return { actor: updatedActor };
   });
@@ -192,43 +191,49 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     const { id } = request.params as { id: string };
 
-    // Read catalog once for snapshot and logic
     const catalog = await readCatalog(paths);
     const actorToDelete = catalog.actors.find(a => a.id === id);
-    const actorName = actorToDelete?.display_name || id;
+    if (!actorToDelete) {
+      reply.code(404);
+      return { error: 'Actor not found' };
+    }
+    const actorName = actorToDelete.display_name;
 
-    // Save snapshot before mutation
     await saveSnapshot(paths, snapshotMessageForActor('delete', actorName), catalog);
-    
-    // Read takes separately (not in catalog)
-    const takes = await readJsonl<Take>(paths.catalog.takes);
 
     const remainingActors = catalog.actors.filter((a) => a.id !== id);
-    const remainingSections = catalog.sections.filter((s) => s.actor_id !== id);
-    const removedContent = catalog.content.filter((c) => c.actor_id === id);
-    const removedContentIds = new Set(removedContent.map((c) => c.id));
-    const remainingContent = catalog.content.filter((c) => c.actor_id !== id);
+
+    // Updated Cascade Delete Logic: 
+    // Delete all sections where owner_id is this actor and owner_type is 'actor'
+    const remainingSections = catalog.sections.filter((s) => !(s.owner_id === id && s.owner_type === 'actor'));
+
+    const removedSectionIds = new Set(catalog.sections
+      .filter((s) => s.owner_id === id && s.owner_type === 'actor')
+      .map(s => s.id));
+
+    // Delete content belonging to those sections (or directly owned by actor)
+    const remainingContent = catalog.content.filter((c) =>
+      !(c.owner_id === id && c.owner_type === 'actor') && !removedSectionIds.has(c.section_id)
+    );
+
+    const removedContentIds = new Set(catalog.content
+      .filter((c) => (c.owner_id === id && c.owner_type === 'actor') || removedSectionIds.has(c.section_id))
+      .map(c => c.id));
+
+    // Delete takes for removed content
+    const takes = await readJsonl<Take>(paths.catalog.takes);
     const remainingTakes = takes.filter((t) => !removedContentIds.has(t.content_id));
 
-    await ensureJsonlFile(paths.catalog.actors);
-    await ensureJsonlFile(paths.catalog.sections);
-    await ensureJsonlFile(paths.catalog.content);
-    await ensureJsonlFile(paths.catalog.takes);
-
-    await fastify.log.debug?.({ id }, 'Deleting actor and related sections/content/takes');
-
-    await fastify.log.debug?.({ remainingActors: remainingActors.length }, 'Actors after delete');
-
-    await writeJsonlAll(paths.catalog.actors, remainingActors);
-    await writeJsonlAll(paths.catalog.sections, remainingSections);
-    await writeJsonlAll(paths.catalog.content, remainingContent);
-    await writeJsonlAll(paths.catalog.takes, remainingTakes);
+    await writeJsonlAll(paths.catalog.actors, remainingActors, ActorSchema);
+    await writeJsonlAll(paths.catalog.sections, remainingSections); // Schema for section added later
+    await writeJsonlAll(paths.catalog.content, remainingContent);   // Schema for content added later
+    await writeJsonlAll(paths.catalog.takes, remainingTakes);       // Schema for take added later
 
     reply.code(204);
     return null;
   });
 
-  // Restore an actor with all related data (for undo)
+  // Restore actor for undo
   fastify.post('/api/actors/restore', async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = getProjectContext();
     if (!ctx) {
@@ -248,22 +253,15 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'Actor data is required' };
     }
 
-    await ensureJsonlFile(paths.catalog.actors);
-    await ensureJsonlFile(paths.catalog.sections);
-    await ensureJsonlFile(paths.catalog.content);
+    await appendJsonl(paths.catalog.actors, body.actor, ActorSchema);
 
-    // Append actor
-    await appendJsonl(paths.catalog.actors, body.actor);
-
-    // Append sections
-    if (body.sections && body.sections.length > 0) {
+    if (body.sections) {
       for (const section of body.sections) {
         await appendJsonl(paths.catalog.sections, section);
       }
     }
 
-    // Append content
-    if (body.content && body.content.length > 0) {
+    if (body.content) {
       for (const item of body.content) {
         await appendJsonl(paths.catalog.content, item);
       }

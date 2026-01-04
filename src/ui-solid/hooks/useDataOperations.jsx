@@ -1,5 +1,5 @@
 import { createSignal } from 'solid-js';
-import { updateActor } from '../api/client.js';
+import { updateActor, updateScene } from '../api/client.js';
 import { useVoices } from './useVoices.jsx';
 import { useSectionOperations } from './useSectionOperations.jsx';
 import { useContentOperations } from './useContentOperations.jsx';
@@ -18,10 +18,10 @@ export function useDataOperations(props) {
 
     const contentOps = useContentOperations(props);
 
-    // Actor-specific operations (kept here as they're simple)
-    const updateBaseFilename = async (actorId, newBaseFilename) => {
+    // Actor-specific operations
+    const updateActorField = async (actorId, fields) => {
         try {
-            const result = await updateActor(actorId, { base_filename: newBaseFilename });
+            const result = await updateActor(actorId, fields);
             if (result && result.actor && props.onActorUpdated) {
                 props.onActorUpdated(result.actor);
             }
@@ -30,11 +30,12 @@ export function useDataOperations(props) {
         }
     };
 
-    const updateDisplayName = async (actorId, newDisplayName, oldDisplayName) => {
+    // Scene-specific operations
+    const updateSceneField = async (sceneId, fields) => {
         try {
-            const result = await updateActor(actorId, { display_name: newDisplayName });
-            if (result && result.actor && props.onActorUpdated) {
-                props.onActorUpdated(result.actor, oldDisplayName);
+            const result = await updateScene(sceneId, fields);
+            if (result && result.scene && props.onSceneUpdated) {
+                props.onSceneUpdated(result.scene);
             }
         } catch (err) {
             setActorError(err.message || String(err));
@@ -51,27 +52,28 @@ export function useDataOperations(props) {
     };
 
     return {
-        // State (backward compatible interface)
+        // State
         contentPrompt: contentOps.contentPrompt,
-        contentCueId: contentOps.contentCueId,
+        contentName: contentOps.contentName,
         creatingContent: () => contentOps.creating() || sectionOps.creating(),
         voices: voiceOps.voices,
         loadingVoices: voiceOps.loadingVoices,
         error,
         setError,
 
-        // Handlers (backward compatible interface)
+        // Handlers
         setContentPrompt: contentOps.setContentPrompt,
-        setContentCueId: contentOps.setContentCueId,
+        setContentName: contentOps.setContentName,
         createContent: contentOps.createContent,
         createSection: sectionOps.createSection,
         updateProviderSettings: sectionOps.updateProviderSettings,
         updateSectionName: sectionOps.updateSectionName,
-        updateBaseFilename,
-        updateDisplayName,
+        updateActorField,
+        updateSceneField,
         toggleSectionComplete: sectionOps.toggleSectionComplete,
         deleteSection: sectionOps.deleteSection,
-        deleteActor: props.deleteActor || (() => { }), // Need to ensure it's passed or used from useActorOperations
+        deleteActor: props.deleteActor || (() => { }),
+        deleteScene: props.deleteScene || (() => { }),
 
         // Expose voice loader for refresh if needed
         loadVoices: voiceOps.loadVoices

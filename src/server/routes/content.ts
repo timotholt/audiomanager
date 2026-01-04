@@ -1,14 +1,19 @@
 import { join } from 'path';
+import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Actor, Content, Section, Take } from '../../types/index.js';
+import type { Actor, Content, Section, Take, Defaults, Scene } from '../../types/index.js';
+import { ContentSchema, TakeSchema, ActorSchema, SectionSchema, SceneSchema, DefaultsSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
 import { getAudioProvider } from '../../services/provider-factory.js';
 import { writeMetadata, buildMetadataFromTake } from '../../services/audio/metadata.js';
-import { 
-  readCatalog, 
-  saveSnapshot, 
+import { resolveDefaultBlock } from '../../utils/defaultBlockResolver.js';
+import { buildTemplateContext, resolveTemplate } from '../../utils/templateResolver.js';
+import { constructTakePath, constructSectionPath, getExtensionForType } from '../../utils/pathConstruction.js';
+import {
+  readCatalog,
+  saveSnapshot,
   snapshotMessageForContent,
   snapshotMessageForContentUpdate
 } from './snapshots.js';
@@ -23,15 +28,17 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    const contentItems = await readJsonl<Content>(paths.catalog.content);
+    const contentItems = await readJsonl<Content>(paths.catalog.content, ContentSchema);
 
-    const query = request.query as { actorId?: string; type?: string; sectionId?: string };
-    const actorId = query.actorId;
+    const query = request.query as { ownerId?: string; ownerType?: string; type?: string; sectionId?: string };
+    const ownerId = query.ownerId;
+    const ownerType = query.ownerType;
     const type = query.type as Content['content_type'] | undefined;
     const sectionId = query.sectionId;
 
     const filtered = contentItems.filter((c: Content) => {
-      if (actorId && c.actor_id !== actorId) return false;
+      if (ownerId && c.owner_id !== ownerId) return false;
+      if (ownerType && c.owner_type !== ownerType) return false;
       if (type && c.content_type !== type) return false;
       if (sectionId && c.section_id !== sectionId) return false;
       return true;
@@ -49,69 +56,61 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
     const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.content);
 
-    const body = request.body as {
-      actor_id: string;
-      content_type: Content['content_type'];
-      section_id: string;
-      cue_id: string;
-      prompt?: string;
-      tags?: string[];
-    } | null;
+    const body = request.body as Partial<Content> & { names?: string } | null;
 
-    if (!body || !body.actor_id || !body.content_type || !body.section_id || !body.cue_id) {
+    if (!body || !body.owner_type || !body.content_type || !body.section_id || (!body.name && !body.names)) {
       reply.code(400);
-      return { error: 'actor_id, content_type, section_id, and cue_id are required' };
+      return { error: 'owner_type, content_type, section_id, and name/names are required' };
     }
 
     const now = new Date().toISOString();
 
-    // Support batch creation by splitting comma-separated cue_ids
-    const allCueIds = body.cue_id.split(',').map((id: string) => id.trim()).filter((id: string) => id.length > 0);
-    
-    if (allCueIds.length === 0) {
+    // Support batch creation
+    const inputNames = body.names || body.name || '';
+    const allNames = inputNames.split(',').map((n: string) => n.trim()).filter((n: string) => n.length > 0);
+
+    if (allNames.length === 0) {
       reply.code(400);
-      return { error: 'At least one valid cue_id is required' };
+      return { error: 'At least one valid name is required' };
     }
 
-    // Read catalog once for snapshot and logic
+    // Read catalog for snapshots and duplicate checking
     const catalog = await readCatalog(paths);
-    const cueNames = allCueIds.length === 1 ? allCueIds[0] : `${allCueIds.length} cues`;
+    const displayNames = allNames.length === 1 ? allNames[0] : `${allNames.length} items`;
+
     await saveSnapshot(
-      paths, 
-      snapshotMessageForContent('create', body.actor_id, body.section_id, cueNames, catalog), 
+      paths,
+      snapshotMessageForContent('create', body.owner_type as any, body.owner_id ?? null, body.section_id, displayNames, catalog),
       catalog
     );
 
     // Check for existing content and filter out duplicates
-    const existingCueIds = new Set(
+    const existingNames = new Set(
       catalog.content
-        .filter(c => c.actor_id === body.actor_id && c.content_type === body.content_type)
-        .map(c => c.cue_id)
+        .filter(c => c.owner_id === body.owner_id && c.owner_type === body.owner_type as any && c.section_id === body.section_id)
+        .map(c => c.name.toLowerCase())
     );
-    
-    const cueIds = allCueIds.filter((id: string) => !existingCueIds.has(id));
-    const duplicateIds = allCueIds.filter((id: string) => existingCueIds.has(id));
-    
-    if (cueIds.length === 0) {
+
+    const names = allNames.filter((n: string) => !existingNames.has(n.toLowerCase()));
+    const duplicateNames = allNames.filter((n: string) => existingNames.has(n.toLowerCase()));
+
+    if (names.length === 0) {
       reply.code(400);
-      return { error: 'All provided cue_ids already exist for this actor and content type', duplicates: duplicateIds };
+      return { error: 'All provided names already exist for this section', duplicates: duplicateNames };
     }
 
     const createdContent: Content[] = [];
 
-    for (const cueId of cueIds) {
-      // Default prompt to the individual cue_id (title-cased) if no custom prompt provided
-      const defaultPrompt = cueId.charAt(0).toUpperCase() + cueId.slice(1);
+    for (const name of names) {
       const content: Content = {
         id: generateId(),
-        actor_id: body.actor_id,
-        content_type: body.content_type,
+        owner_type: body.owner_type as any,
+        owner_id: body.owner_id ?? null,
+        content_type: body.content_type as any,
         section_id: body.section_id,
-        cue_id: cueId,
-        prompt: body.prompt || defaultPrompt,
-        complete: false,
+        name: name,
+        prompt: body.prompt || (name.charAt(0).toUpperCase() + name.slice(1)),
         all_approved: false,
-        tags: body.tags ?? [],
         created_at: now,
         updated_at: now,
       };
@@ -119,22 +118,20 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       const validation = validate('content', content);
       if (!validation.valid) {
         reply.code(400);
-        return { error: `Invalid content for cue_id "${cueId}"`, details: validation.errors };
+        return { error: `Invalid content for name "${name}"`, details: validation.errors };
       }
 
-      await appendJsonl(paths.catalog.content, content);
+      await appendJsonl(paths.catalog.content, content, ContentSchema);
       createdContent.push(content);
     }
 
-    // Return the first item for single creation, or array for batch
-    const result: { content: Content | Content[]; duplicates_skipped?: string[]; message?: string } = cueIds.length === 1 ? { content: createdContent[0] } : { content: createdContent };
-    
-    // Include information about duplicates if any were skipped
-    if (duplicateIds.length > 0) {
-      result.duplicates_skipped = duplicateIds;
-      result.message = `Created ${cueIds.length} items. Skipped ${duplicateIds.length} duplicates: ${duplicateIds.join(', ')}`;
+    const result: { content: Content | Content[]; duplicates_skipped?: string[]; message?: string } = names.length === 1 ? { content: createdContent[0] } : { content: createdContent };
+
+    if (duplicateNames.length > 0) {
+      result.duplicates_skipped = duplicateNames;
+      result.message = `Created ${names.length} items. Skipped ${duplicateNames.length} duplicates: ${duplicateNames.join(', ')}`;
     }
-    
+
     return result;
   });
 
@@ -145,19 +142,18 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    
-    const { id } = request.params as { id: string };
+
+    const { id } = request.params;
     const body = request.body as Partial<Content>;
-    
+
     if (!body) {
       reply.code(400);
       return { error: 'Request body is required' };
     }
 
-    // Read catalog once for snapshot and logic
     const catalog = await readCatalog(paths);
     const contentIndex = catalog.content.findIndex(c => c.id === id);
-    
+
     if (contentIndex === -1) {
       reply.code(404);
       return { error: 'Content not found' };
@@ -165,36 +161,33 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
 
     const currentContent = catalog.content[contentIndex];
 
-    // Build the updated content first so we can diff
     const updatedContent: Content = {
-      ...catalog.content[contentIndex],
+      ...currentContent,
       ...body,
-      id, // Ensure ID doesn't change
+      id,
       updated_at: new Date().toISOString(),
     };
 
-    // Build descriptive message with diff and save snapshot
-    const currentCueName = currentContent.cue_id || currentContent.id;
+    // Save snapshot
     const snapshotMessage = snapshotMessageForContentUpdate(
-      currentContent.actor_id,
+      currentContent.owner_type as any,
+      currentContent.owner_id ?? null,
       currentContent.section_id,
-      currentCueName,
+      currentContent.name,
       catalog,
       currentContent as unknown as Record<string, unknown>,
       updatedContent as unknown as Record<string, unknown>
     );
     await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Validate the updated content
     const validation = validate('content', updatedContent);
     if (!validation.valid) {
       reply.code(400);
       return { error: 'Invalid content data', details: validation.errors };
     }
 
-    // Replace the content in the array and write back
     catalog.content[contentIndex] = updatedContent;
-    await writeJsonlAll(paths.catalog.content, catalog.content);
+    await writeJsonlAll(paths.catalog.content, catalog.content, ContentSchema);
 
     return { content: updatedContent };
   });
@@ -206,41 +199,35 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
+    const { id } = request.params;
 
-    const { id } = request.params as { id: string };
-
-    // Read catalog once for snapshot and logic
     const catalog = await readCatalog(paths);
     const contentToDelete = catalog.content.find(c => c.id === id);
-    const cueName = contentToDelete?.cue_id || id;
-    
-    // Save snapshot before mutation
-    if (contentToDelete) {
-      await saveSnapshot(
-        paths, 
-        snapshotMessageForContent('delete', contentToDelete.actor_id, contentToDelete.section_id, cueName, catalog), 
-        catalog
-      );
-    } else {
-      await saveSnapshot(paths, `Delete content: ${id}`, catalog);
+    if (!contentToDelete) {
+      reply.code(404);
+      return { error: 'Content not found' };
     }
 
-    const takes = await readJsonl<Take>(paths.catalog.takes);
+    await saveSnapshot(
+      paths,
+      snapshotMessageForContent('delete', contentToDelete.owner_type as any, contentToDelete.owner_id ?? null, contentToDelete.section_id, contentToDelete.name, catalog),
+      catalog
+    );
 
     const remainingContent = catalog.content.filter((c) => c.id !== id);
+
+    const takes = await readJsonl<Take>(paths.catalog.takes);
     const remainingTakes = takes.filter((t) => t.content_id !== id);
 
-    await ensureJsonlFile(paths.catalog.content);
-    await ensureJsonlFile(paths.catalog.takes);
-
-    await writeJsonlAll(paths.catalog.content, remainingContent);
-    await writeJsonlAll(paths.catalog.takes, remainingTakes);
+    await writeJsonlAll(paths.catalog.content, remainingContent, ContentSchema);
+    await writeJsonlAll(paths.catalog.takes, remainingTakes, TakeSchema);
 
     reply.code(204);
     return null;
   });
 
   // Generate takes for a specific content item
+  // Refactored to use resolveDefaultBlock and constructTakePath
   fastify.post('/api/content/:id/generate', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const ctx = getProjectContext();
     if (!ctx) {
@@ -248,273 +235,151 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'No project selected' };
     }
     const { projectRoot, paths } = ctx;
-    const { id } = request.params as { id: string };
+    const { id } = request.params;
     const body = request.body as { count?: number } | undefined;
     const count = body?.count || 1;
 
     try {
-      // Load content and actor
-      const contentItems = await readJsonl<Content>(paths.catalog.content);
-      const content = contentItems.find(c => c.id === id);
+      // 1. Load context data
+      const catalog = await readCatalog(paths);
+      const content = catalog.content.find(c => c.id === id);
       if (!content) {
         reply.code(404);
         return { error: 'Content not found' };
       }
 
-      const actors = await readJsonl<Actor>(paths.catalog.actors);
-      const actor = actors.find(a => a.id === content.actor_id);
-      if (!actor) {
-        reply.code(404);
-        return { error: 'Actor not found' };
-      }
-
-      // Load section to get per-section provider settings
-      const sectionsData = await readJsonl<Section>(paths.catalog.sections);
-      const section = sectionsData.find(s => s.id === content.section_id);
+      const section = catalog.sections.find(s => s.id === content.section_id);
       if (!section) {
         reply.code(404);
-        return { error: 'Section not found for this content' };
+        return { error: 'Section not found' };
       }
 
-      // Get section settings, falling back to global defaults if 'inherit'
-      let sectionSettings = section.provider_settings;
-      if (!sectionSettings || sectionSettings.provider === 'inherit') {
-        // Load global defaults
-        const defaultsPath = join(paths.root, 'defaults.json');
-        let globalDefaults: Record<string, Record<string, unknown>> = {
-          dialogue: { provider: 'elevenlabs', stability: 0.5, similarity_boost: 0.75 },
-          music: { provider: 'elevenlabs', duration_seconds: 30 },
-          sfx: { provider: 'elevenlabs' },
-        };
-        try {
-          const fs = await import('fs-extra').then(m => m.default);
-          if (await fs.pathExists(defaultsPath)) {
-            globalDefaults = await fs.readJson(defaultsPath);
-          }
-        } catch (err) {
-          fastify.log.warn(err, 'Failed to load global defaults, using hardcoded values');
-        }
-        sectionSettings = globalDefaults[content.content_type] as Section['provider_settings'];
+      let owner: Actor | Scene | null = null;
+      if (content.owner_type === 'actor' && content.owner_id) {
+        owner = catalog.actors.find(a => a.id === content.owner_id) || null;
+      } else if (content.owner_type === 'scene' && content.owner_id) {
+        owner = catalog.scenes.find(s => s.id === content.owner_id) || null;
       }
 
+      // Load global defaults
+      const defaultsPath = join(paths.root, 'defaults.json');
+      let globalDefaults: Defaults | null = null;
+      if (await fs.pathExists(defaultsPath)) {
+        globalDefaults = await fs.readJson(defaultsPath);
+      }
+
+      // 2. Resolve Settings
+      const resolved = resolveDefaultBlock(content.content_type, content, section, owner, globalDefaults);
+      const settings = resolved.settings;
+
+      // 3. Setup Generation
       const provider = await getAudioProvider(projectRoot);
-      await ensureJsonlFile(paths.catalog.takes);
-      const existingTakes = await readJsonl<Take>(paths.catalog.takes);
-      const takesForContent = existingTakes.filter(t => t.content_id === content.id);
-      
-      // Determine the next take number to use.
-      // We never reuse numbers, even if some takes are deleted.
-      const maxExistingTakeNumber = takesForContent.reduce((max, t) => Math.max(max, t.take_number), 0);
-      const nextFromExisting = maxExistingTakeNumber + 1;
-      const nextFromContent = content.next_take_number ?? 1;
-      let nextTakeNumber = Math.max(nextFromExisting, nextFromContent);
-
-      // Compute the base filename used for all generated takes.
-      // Pattern: actorname_{dialog|music|sfx}_cue_v001
-      // - actor.base_filename is normalized to remove trailing underscores
-      // - cue_id is normalized to lowercase with underscores for spaces
-      // - content type is mapped to a short suffix (dialog, music, sfx)
-      const actorBase = (actor.base_filename || 'unknown').replace(/_+$/, '');
-      const safeCueId = (content.cue_id || 'untitled')
-        .trim()
-        .replace(/\s+/g, '_')
-        .toLowerCase();
-
-      let typeSuffix: string;
-      if (content.content_type === 'dialogue') {
-        typeSuffix = 'dialog';
-      } else if (content.content_type === 'music') {
-        typeSuffix = 'music';
-      } else if (content.content_type === 'sfx') {
-        typeSuffix = 'sfx';
-      } else {
-        typeSuffix = String(content.content_type || 'content');
-      }
-
-      const derivedBaseFilename = `${actorBase}_${typeSuffix}_${safeCueId}`;
-      const contentFilename = (content as Content & { filename?: string }).filename;
-
-      // If a custom filename is provided, use it; otherwise use the derived one.
-      // In either case, normalize multiple underscores and trim leading/trailing underscores.
-      const rawBase = contentFilename && contentFilename.trim().length > 0
-        ? contentFilename.trim()
-        : derivedBaseFilename;
-
-      const baseFilename = rawBase
-        .replace(/_+/g, '_')
-        .replace(/^_+|_+$/g, '');
+      const takes = await readJsonl<Take>(paths.catalog.takes, TakeSchema);
+      const takesForContent = takes.filter(t => t.content_id === content.id);
+      let nextTakeNumber = takesForContent.reduce((max, t) => Math.max(max, t.take_number), 0) + 1;
 
       const generatedTakes: Take[] = [];
 
-      // Capture dialogue settings we want to record on the take metadata
-      let dialogSettingsForMetadata: { voice_id?: string; model_id?: string; stability?: number; similarity_boost?: number } | null = null;
-
       for (let i = 0; i < count; i++) {
-        const textPrompt = content.prompt || content.cue_id || 'Hello';
-        let buffer: Buffer;
-        let relativePath: string;
-        let mediaDir: string;
-
         const takeNumber = nextTakeNumber++;
-        const paddedTake = String(takeNumber).padStart(3, '0');
-        const filename = `${baseFilename}_v${paddedTake}.wav`;
 
-        if (content.content_type === 'dialogue') {
-          if (!sectionSettings || sectionSettings.provider !== 'elevenlabs') {
-            reply.code(400);
-            return { error: 'No ElevenLabs provider configured for dialogue in this section' };
-          }
-          if (!sectionSettings.voice_id) {
-            reply.code(400);
-            return { error: 'No voice selected for this section' };
-          }
-
-          buffer = await provider.generateDialogue(
-            textPrompt,
-            sectionSettings.voice_id,
-            {
-              stability: sectionSettings.stability,
-              similarity_boost: sectionSettings.similarity_boost,
-            },
-            sectionSettings.model_id
-          );
-
-          relativePath = join('actors', actor.id, 'dialogue', content.id, 'raw', filename);
-          mediaDir = join(paths.media, 'actors', actor.id, 'dialogue', content.id, 'raw');
-
-          dialogSettingsForMetadata = {
-            voice_id: sectionSettings.voice_id,
-            model_id: sectionSettings.model_id,
-            stability: sectionSettings.stability,
-            similarity_boost: sectionSettings.similarity_boost,
-          };
-        } else if (content.content_type === 'music') {
-          if (!sectionSettings || sectionSettings.provider !== 'elevenlabs') {
-            reply.code(400);
-            return { error: 'No ElevenLabs provider configured for music in this section' };
-          }
-
-          buffer = await provider.generateMusic(textPrompt, {
-            duration_seconds: sectionSettings.duration_seconds || 30,
-          });
-          relativePath = join('actors', actor.id, 'music', content.id, 'raw', filename);
-          mediaDir = join(paths.media, 'actors', actor.id, 'music', content.id, 'raw');
-        } else if (content.content_type === 'sfx') {
-          if (!sectionSettings || sectionSettings.provider !== 'elevenlabs') {
-            reply.code(400);
-            return { error: 'No ElevenLabs provider configured for sfx in this section' };
-          }
-
-          buffer = await provider.generateSFX(textPrompt, {});
-
-          relativePath = join('actors', actor.id, 'sfx', content.id, 'raw', filename);
-          mediaDir = join(paths.media, 'actors', actor.id, 'sfx', content.id, 'raw');
-        } else {
-          reply.code(400);
-          return { error: `Generation not supported for content type "${content.content_type}"` };
-        }
-
-        const filePath = join(mediaDir, filename);
-
-        await import('fs-extra').then(async (fsMod) => {
-          const fs = fsMod.default;
-          await fs.ensureDir(mediaDir);
-          await fs.writeFile(filePath, buffer);
+        // 4. Resolve Template Variables
+        const templateContext = buildTemplateContext({
+          content,
+          section,
+          owner,
+          takeNumber
         });
 
-        const { probeAudio } = await import('../../services/audio/ffprobe.js');
-        const { hashFile } = await import('../../services/audio/hash.js');
-        
-        const probeResult = await probeAudio(filePath);
-        const hash = await hashFile(filePath);
+        const promptTemplate = settings.templates?.prompt || '{prompt}';
+        const prompt = resolveTemplate(promptTemplate, templateContext) || content.name;
 
-        const primaryStream = probeResult.streams[0];
-        const durationSec = probeResult.format.duration;
-        const rawSampleRate = primaryStream?.sample_rate ? Number(primaryStream.sample_rate) : 44100;
-        const rawChannels = primaryStream?.channels ?? 1;
-
-        const now = new Date().toISOString();
-
-        let generationParams: Record<string, unknown>;
-        if (content.content_type === 'dialogue' && dialogSettingsForMetadata) {
-          generationParams = {
-            provider: 'elevenlabs',
-            voice_id: dialogSettingsForMetadata.voice_id,
-            model_id: dialogSettingsForMetadata.model_id,
-            stability: dialogSettingsForMetadata.stability,
-            similarity_boost: dialogSettingsForMetadata.similarity_boost,
-            prompt: textPrompt,
-            generated_at: now,
-          };
+        // Generate buffer
+        let buffer: Buffer;
+        if (content.content_type === 'dialogue') {
+          if (!settings.voice_id) throw new Error('No voice_id resolved for dialogue');
+          buffer = await provider.generateDialogue(prompt, settings.voice_id, {
+            stability: settings.stability,
+            similarity_boost: settings.similarity_boost
+          }, settings.model_id);
         } else if (content.content_type === 'music') {
-          generationParams = {
-            provider: 'elevenlabs',
-            model_id: 'music_v1',
-            prompt: textPrompt,
-            generated_at: now,
-          };
+          buffer = await provider.generateMusic(prompt, { duration_seconds: settings.duration_seconds || 30 });
         } else if (content.content_type === 'sfx') {
-          generationParams = {
-            provider: 'elevenlabs',
-            type: 'sfx',
-            prompt: textPrompt,
-            generated_at: now,
-          };
+          buffer = await provider.generateSFX(prompt, {});
         } else {
-          generationParams = {
-            provider: 'elevenlabs',
-            prompt: textPrompt,
-            generated_at: now,
-          };
+          throw new Error(`Generation not supported for ${content.content_type}`);
         }
 
+        // Construct path
+        const actorBaseFilename = (owner && 'base_filename' in owner) ? (owner as any).base_filename : undefined;
+        const relativePath = constructTakePath(content, section, takeNumber, actorBaseFilename);
+        const fullFilePath = join(paths.root, relativePath);
+        const folderPath = join(projectRoot, join(paths.root, relativePath), '..');
+
+        // Save file
+        await fs.ensureDir(folderPath);
+        await fs.writeFile(fullFilePath, buffer);
+
+        // Analyze file
+        const { probeAudio } = await import('../../services/audio/ffprobe.js');
+        const { hashFile } = await import('../../services/audio/hash.js');
+        const probeResult = await probeAudio(fullFilePath);
+        const hash = await hashFile(fullFilePath);
+
+        const now = new Date().toISOString();
+        const primaryStream = probeResult.streams[0];
+
+        // Create Take object with full provenance
         const take: Take = {
           id: generateId(),
           content_id: content.id,
           take_number: takeNumber,
-          filename,
-          status: 'new',
+          filename: join(relativePath).split(/[/\\]/).pop() || 'file.mp3',
           path: relativePath,
+          status: 'new',
+          format: getExtensionForType(content.content_type) as any,
+          size_bytes: buffer.length,
+          duration_sec: probeResult.format.duration || 0,
           hash_sha256: hash,
-          duration_sec: durationSec,
-          format: 'wav',
-          sample_rate: rawSampleRate === 48000 ? 48000 : 44100,
-          bit_depth: 16,
-          channels: rawChannels === 2 ? 2 : 1,
+          sample_rate: (primaryStream?.sample_rate ? Number(primaryStream.sample_rate) : 41000) as any,
+          channels: (primaryStream?.channels || 1) as any,
+          bit_depth: 16, // Default
           lufs_integrated: 0,
           peak_dbfs: 0,
-          generated_by: 'elevenlabs',
-          generation_params: generationParams,
+          generation_params: {
+            provider: settings.provider as any,
+            resolved_from: resolved.resolvedFrom as any,
+            full_settings: settings,
+            prompt: prompt,
+            owner_type: content.owner_type,
+            owner_id: content.owner_id ?? null,
+            owner_name: owner ? (('display_name' in owner) ? (owner as any).display_name : (owner as any).name) : 'Global',
+            section_name: section.name,
+            generated_at: now
+          },
           created_at: now,
           updated_at: now,
         };
 
-        await appendJsonl(paths.catalog.takes, take);
-        
-        // Dual-write: Embed metadata in the audio file
+        const takeValidation = validate('take', take);
+        if (!takeValidation.valid) {
+          console.error('Generated invalid take:', takeValidation.errors);
+        }
+
+        await appendJsonl(paths.catalog.takes, take, TakeSchema);
+
+        // Write metadata
         try {
-          const metadata = buildMetadataFromTake(take, content, {
-            actor_name: actor.display_name,
+          const metadata = buildMetadataFromTake(take as any, content as any, {
+            actor_name: owner ? (('display_name' in owner) ? (owner as any).display_name : (owner as any).name) : 'Global',
             section_name: section.name,
           });
-          await writeMetadata(filePath, filePath, metadata);
-        } catch (metaErr) {
-          // Log but don't fail generation if metadata write fails
-          request.log.warn({ err: metaErr, takeId: take.id }, 'Failed to write metadata to audio file');
+          await writeMetadata(fullFilePath, fullFilePath, metadata);
+        } catch (mErr) {
+          fastify.log.warn(mErr, 'Failed to write metadata');
         }
-        
-        generatedTakes.push(take);
-      }
 
-      // Update content's next_take_number to prevent reuse of deleted take numbers
-      const contentIndex = contentItems.findIndex(c => c.id === id);
-      if (contentIndex !== -1) {
-        contentItems[contentIndex] = {
-          ...contentItems[contentIndex],
-          next_take_number: nextTakeNumber,
-          updated_at: new Date().toISOString(),
-        };
-        await writeJsonlAll(paths.catalog.content, contentItems);
+        generatedTakes.push(take);
       }
 
       return { takes: generatedTakes };

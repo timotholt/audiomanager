@@ -1,8 +1,11 @@
 import { join } from 'path';
+import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Scene } from '../../types/index.js';
+import type { Scene, Defaults } from '../../types/index.js';
+import { SceneSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
+import { validate } from '../../utils/validation.js';
 import {
     readCatalog,
     saveSnapshot
@@ -18,7 +21,7 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
             return { error: 'No project selected' };
         }
         const { paths } = ctx;
-        const scenes = await readJsonl<Scene>(paths.catalog.scenes).catch(() => []);
+        const scenes = await readJsonl<Scene>(paths.catalog.scenes, SceneSchema);
         return { scenes };
     });
 
@@ -31,33 +34,131 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
         const { paths } = ctx;
         await ensureJsonlFile(paths.catalog.scenes);
 
-        const body = request.body as {
-            name: string;
-            description?: string;
-        };
+        const body = request.body as Partial<Scene> | undefined;
 
         if (!body || !body.name) {
             reply.code(400);
-            return { error: 'name is required' };
+            return { error: 'Scene name is required' };
         }
 
+        const snapshotMessage = `Create scene: ${body.name}`;
         const catalog = await readCatalog(paths);
-        await saveSnapshot(
-            paths,
-            `Create scene: ${body.name}`,
-            catalog
-        );
+        await saveSnapshot(paths, snapshotMessage, catalog);
+
+        // Load global defaults for potential auto-blocks (though scenes often start empty)
+        const defaultsPath = join(paths.root, 'defaults.json');
+        let defaults: Defaults | null = null;
+        try {
+            if (await fs.pathExists(defaultsPath)) {
+                defaults = await fs.readJson(defaultsPath);
+            }
+        } catch (err) {
+            fastify.log.warn(err, 'Failed to load defaults.json');
+        }
 
         const now = new Date().toISOString();
+
+        // Determine auto-added blocks from template
+        const autoAddBlocks = defaults?.templates?.scene?.auto_add_blocks || [];
+        const defaultBlocks: Scene['default_blocks'] = {};
+        for (const type of autoAddBlocks) {
+            defaultBlocks[type as keyof Scene['default_blocks'] & string] = { provider: 'inherit' };
+        }
+
         const scene: Scene = {
             id: generateId(),
             name: body.name,
-            description: body.description,
+            description: body.description || '',
+            default_blocks: body.default_blocks || defaultBlocks,
+            scene_complete: false,
             created_at: now,
             updated_at: now,
         };
 
-        await appendJsonl(paths.catalog.scenes, scene);
+        const validation = validate('scene', scene);
+        if (!validation.valid) {
+            reply.code(400);
+            return { error: 'Invalid scene data', details: validation.errors };
+        }
+
+        await appendJsonl(paths.catalog.scenes, scene, SceneSchema);
         return { scene };
+    });
+
+    fastify.put('/api/scenes/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+        const ctx = getProjectContext();
+        if (!ctx) {
+            reply.code(400);
+            return { error: 'No project selected' };
+        }
+        const { paths } = ctx;
+        const { id } = request.params;
+        const body = request.body as Partial<Scene>;
+
+        const catalog = await readCatalog(paths);
+        const sceneIndex = catalog.scenes.findIndex(s => s.id === id);
+        if (sceneIndex === -1) {
+            reply.code(404);
+            return { error: 'Scene not found' };
+        }
+
+        const updatedScene: Scene = {
+            ...catalog.scenes[sceneIndex],
+            ...body,
+            id,
+            updated_at: new Date().toISOString(),
+        };
+
+        await saveSnapshot(paths, `Update scene: ${updatedScene.name}`, catalog);
+
+        const validation = validate('scene', updatedScene);
+        if (!validation.valid) {
+            reply.code(400);
+            return { error: 'Invalid scene data', details: validation.errors };
+        }
+
+        catalog.scenes[sceneIndex] = updatedScene;
+        await writeJsonlAll(paths.catalog.scenes, catalog.scenes, SceneSchema);
+
+        return { scene: updatedScene };
+    });
+
+    fastify.delete('/api/scenes/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+        const ctx = getProjectContext();
+        if (!ctx) {
+            reply.code(400);
+            return { error: 'No project selected' };
+        }
+        const { paths } = ctx;
+        const { id } = request.params;
+
+        const catalog = await readCatalog(paths);
+        const sceneToDelete = catalog.scenes.find(s => s.id === id);
+        if (!sceneToDelete) {
+            reply.code(404);
+            return { error: 'Scene not found' };
+        }
+
+        await saveSnapshot(paths, `Delete scene: ${sceneToDelete.name}`, catalog);
+
+        const remainingScenes = catalog.scenes.filter(s => s.id !== id);
+
+        // Cascade delete logic: Sections/Content belonging to this scene
+        // We handle sections owned by 'scene' type
+        const remainingSections = catalog.sections.filter(s => !(s.owner_id === id && s.owner_type === 'scene'));
+        const removedSectionIds = new Set(catalog.sections
+            .filter(s => s.owner_id === id && s.owner_type === 'scene')
+            .map(s => s.id));
+
+        const remainingContent = catalog.content.filter(c =>
+            !(c.owner_id === id && c.owner_type === 'scene') && !removedSectionIds.has(c.section_id)
+        );
+
+        await writeJsonlAll(paths.catalog.scenes, remainingScenes, SceneSchema);
+        await writeJsonlAll(paths.catalog.sections, remainingSections);
+        await writeJsonlAll(paths.catalog.content, remainingContent);
+
+        reply.code(204);
+        return null;
     });
 }

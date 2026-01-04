@@ -98,23 +98,45 @@ export default async function projectRoutes(fastify: FastifyInstance) {
         return { error: 'Project already exists' };
       }
 
-      // Create project structure
+      // Create project structure (V2)
       const mooPath = join(projectPath, '.moo');
       await fs.ensureDir(mooPath);
-      await fs.ensureDir(join(projectPath, 'media'));
 
-      // Create empty catalog files
-      await fs.writeFile(join(mooPath, 'actors.jsonl'), '');
-      await fs.writeFile(join(mooPath, 'content.jsonl'), '');
-      await fs.writeFile(join(mooPath, 'sections.jsonl'), '');
-      await fs.writeFile(join(mooPath, 'takes.jsonl'), '');
+      // V2 Folders
+      await fs.ensureDir(join(projectPath, 'actors'));
+      await fs.ensureDir(join(projectPath, 'scenes'));
+      await fs.ensureDir(join(projectPath, 'global'));
 
-      // Create config file
+      // Initialize all V2 JSONL files
+      const jsonlFiles = [
+        'actors.jsonl',
+        'scenes.jsonl',
+        'sections.jsonl',
+        'content.jsonl',
+        'takes.jsonl',
+        'snapshots.jsonl'
+      ];
+      for (const file of jsonlFiles) {
+        await fs.writeFile(join(mooPath, file), '');
+      }
+
+      // Create config file with versioning
       const config = {
         name: body.name.trim(),
+        schema_version: '2.0.0',
         created_at: new Date().toISOString(),
       };
       await fs.writeJson(join(mooPath, 'config.json'), config, { spaces: 2 });
+
+      // Create defaults.json from template
+      const templatePath = join(process.cwd(), 'src', 'templates', 'defaults.template.json');
+      if (await fs.pathExists(templatePath)) {
+        const template = await fs.readJson(templatePath);
+        await fs.writeJson(join(projectPath, 'defaults.json'), template, { spaces: 2 });
+      } else {
+        // Fallback if template missing (though it shouldn't be)
+        await fs.writeJson(join(projectPath, 'defaults.json'), { schema_version: '2.0.0', content_types: {} }, { spaces: 2 });
+      }
 
       return {
         project: {

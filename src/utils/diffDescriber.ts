@@ -16,21 +16,18 @@ export interface DiffResult {
 const FIELD_LABELS: Record<string, string> = {
   display_name: 'name',
   base_filename: 'filename',
-  voice_id: 'voice',
-  model_id: 'model',
-  min_candidates: 'minimum candidates',
-  approval_count_default: 'approval count',
-  similarity_boost: 'similarity',
-  duration_seconds: 'duration',
-  provider_settings: 'provider settings',
+  default_blocks: 'default settings',
   content_type: 'type',
-  cue_id: 'cue',
+  name: 'name',
   filename: 'filename',
   prompt: 'prompt',
-  all_approved: 'cue completion',
+  all_approved: 'completion status',
   actor_complete: 'actor completion',
   section_complete: 'section completion',
+  scene_complete: 'scene completion',
   status: 'take status',
+  owner_type: 'owner type',
+  owner_id: 'owner id',
 };
 
 /** Fields to ignore when comparing */
@@ -84,7 +81,7 @@ export function describeChanges(
   prefix = ''
 ): DiffResult {
   const changes: string[] = [];
-  
+
   // Handle null/undefined cases
   if (!oldObj && !newObj) {
     return { changes: [], hasChanges: false, summary: '' };
@@ -95,20 +92,20 @@ export function describeChanges(
   if (!newObj) {
     return { changes: ['deleted'], hasChanges: true, summary: 'deleted' };
   }
-  
+
   // Get all keys from both objects
   const allKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
   const changedFields: string[] = [];
-  
+
   for (const key of allKeys) {
     // Skip ignored fields
     if (IGNORED_FIELDS.has(key)) continue;
-    
+
     const oldVal = oldObj[key];
     const newVal = newObj[key];
     const fieldName = prefix + key;
     const label = getFieldLabel(key);
-    
+
     // Handle nested objects (like provider_settings)
     if (
       typeof oldVal === 'object' && oldVal !== null && !Array.isArray(oldVal) &&
@@ -125,14 +122,14 @@ export function describeChanges(
       }
       continue;
     }
-    
+
     // Compare values
     const oldStr = JSON.stringify(oldVal);
     const newStr = JSON.stringify(newVal);
-    
+
     if (oldStr !== newStr) {
       changedFields.push(label);
-      
+
       // Special handling for completion flags
       // Note: These return just the action - the caller adds the path prefix
       if (key === 'all_approved') {
@@ -161,12 +158,12 @@ export function describeChanges(
       }
     }
   }
-  
+
   const hasChanges = changes.length > 0;
-  const summary = changedFields.length > 0 
+  const summary = changedFields.length > 0
     ? `Changed ${changedFields.join(', ')}`
     : '';
-  
+
   return { changes, hasChanges, summary };
 }
 
@@ -186,16 +183,16 @@ export function generateUpdateMessage(
   newObj: Record<string, unknown> | null | undefined
 ): string {
   const diff = describeChanges(oldObj, newObj);
-  
+
   if (!diff.hasChanges) {
     return `Update ${entityType}: ${entityName} (no changes)`;
   }
-  
+
   // For single change, be more specific
   if (diff.changes.length === 1) {
     return `${entityType}: ${entityName} - ${diff.changes[0]}`;
   }
-  
+
   // For multiple changes, use summary
   return `Update ${entityType}: ${entityName} (${diff.summary.toLowerCase()})`;
 }

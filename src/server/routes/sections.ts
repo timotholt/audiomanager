@@ -1,11 +1,13 @@
 import { join } from 'path';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Section, Content, Take } from '../../types/index.js';
+import type { Section, Take } from '../../types/index.js';
+import { SectionSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
-import { 
-  readCatalog, 
-  saveSnapshot, 
+import { validate } from '../../utils/validation.js';
+import {
+  readCatalog,
+  saveSnapshot,
   snapshotMessageForSection,
   snapshotMessageForSectionUpdate
 } from './snapshots.js';
@@ -20,7 +22,7 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    const sections = await readJsonl<Section>(paths.catalog.sections);
+    const sections = await readJsonl<Section>(paths.catalog.sections, SectionSchema);
     return { sections };
   });
 
@@ -33,37 +35,46 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
     const { paths } = ctx;
     await ensureJsonlFile(paths.catalog.sections);
 
-    const body = request.body as {
-      actor_id: string;
-      content_type: 'dialogue' | 'music' | 'sfx';
-      name?: string;
-    };
-    
-    if (!body || !body.actor_id || !body.content_type) {
+    const body = request.body as Partial<Section> | undefined;
+
+    if (!body || !body.owner_type || !body.content_type) {
       reply.code(400);
-      return { error: 'actor_id and content_type are required' };
+      return { error: 'owner_type and content_type are required' };
     }
 
     // Read catalog once and save snapshot
     const catalog = await readCatalog(paths);
     const sectionName = body.name || body.content_type;
-    await saveSnapshot(
-      paths, 
-      snapshotMessageForSection('create', body.actor_id, sectionName, catalog), 
+
+    const snapshotMessage = snapshotMessageForSection(
+      'create',
+      body.owner_type as any,
+      body.owner_id ?? null,
+      sectionName,
       catalog
     );
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
     const now = new Date().toISOString();
     const section: Section = {
       id: generateId(),
-      actor_id: body.actor_id,
-      content_type: body.content_type,
-      name: body.name,
+      owner_type: body.owner_type as any,
+      owner_id: body.owner_id ?? null,
+      content_type: body.content_type as any,
+      name: body.name || body.content_type,
+      default_blocks: body.default_blocks || { [body.content_type]: { provider: 'inherit' } },
+      section_complete: false,
       created_at: now,
       updated_at: now,
     };
 
-    await appendJsonl(paths.catalog.sections, section);
+    const validation = validate('section', section);
+    if (!validation.valid) {
+      reply.code(400);
+      return { error: 'Invalid section data', details: validation.errors };
+    }
+
+    await appendJsonl(paths.catalog.sections, section, SectionSchema);
     return { section };
   });
 
@@ -74,51 +85,52 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    
-    const { id } = request.params as { id: string };
+
+    const { id } = request.params;
     const body = request.body as Partial<Section>;
-    
+
     if (!body) {
       reply.code(400);
       return { error: 'Request body is required' };
     }
 
-    // Read catalog once for snapshot and logic
     const catalog = await readCatalog(paths);
     const sectionIndex = catalog.sections.findIndex(s => s.id === id);
-    
+
     if (sectionIndex === -1) {
       reply.code(404);
       return { error: 'Section not found' };
     }
 
-    // Check for duplicate section names if name is being updated
     const currentSection = catalog.sections[sectionIndex];
-    if (body.name) {
-      const duplicateSection = catalog.sections.find(s => 
-        s.id !== id && 
-        s.actor_id === currentSection.actor_id && 
+
+    // Check for duplicate names within same owner/type
+    if (body.name && body.name !== currentSection.name) {
+      const duplicate = catalog.sections.find(s =>
+        s.id !== id &&
+        s.owner_type === currentSection.owner_type &&
+        s.owner_id === currentSection.owner_id &&
+        s.content_type === currentSection.content_type &&
         s.name === body.name
       );
-      
-      if (duplicateSection) {
+      if (duplicate) {
         reply.code(400);
-        return { error: `A section with the name "${body.name}" already exists for this actor` };
+        return { error: 'A section with this name already exists for this owner and type' };
       }
     }
 
-    // Build the updated section first so we can diff
     const updatedSection: Section = {
-      ...catalog.sections[sectionIndex],
+      ...currentSection,
       ...body,
-      id, // Ensure ID doesn't change
+      id,
       updated_at: new Date().toISOString(),
     };
 
-    // Build descriptive message with diff and save snapshot
+    // Save snapshot
     const currentName = currentSection.name || currentSection.content_type;
     const snapshotMessage = snapshotMessageForSectionUpdate(
-      currentSection.actor_id,
+      currentSection.owner_type as any,
+      currentSection.owner_id ?? null,
       currentName,
       catalog,
       currentSection as unknown as Record<string, unknown>,
@@ -126,9 +138,15 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
     );
     await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Replace the section in the array and write back
+    // Validate
+    const validation = validate('section', updatedSection);
+    if (!validation.valid) {
+      reply.code(400);
+      return { error: 'Invalid section data', details: validation.errors };
+    }
+
     catalog.sections[sectionIndex] = updatedSection;
-    await writeJsonlAll(paths.catalog.sections, catalog.sections);
+    await writeJsonlAll(paths.catalog.sections, catalog.sections, SectionSchema);
 
     return { section: updatedSection };
   });
@@ -140,10 +158,8 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
+    const { id } = request.params;
 
-    const { id } = request.params as { id: string };
-
-    // Read catalog once for snapshot and logic
     const catalog = await readCatalog(paths);
     const section = catalog.sections.find(s => s.id === id);
     if (!section) {
@@ -151,33 +167,21 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       return { error: 'Section not found' };
     }
 
-    // Build descriptive message and save snapshot
     const sectionName = section.name || section.content_type;
-    await saveSnapshot(
-      paths, 
-      snapshotMessageForSection('delete', section.actor_id, sectionName, catalog), 
-      catalog
-    );
+    const snapshotMessage = snapshotMessageForSection('delete', section.owner_type as any, section.owner_id ?? null, sectionName, catalog);
+    await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Read takes separately (not in catalog)
-    const takes = await readJsonl<Take>(paths.catalog.takes);
-
-    // Remove section
     const remainingSections = catalog.sections.filter(s => s.id !== id);
-    
-    // Remove all content in this section
-    const removedContent = catalog.content.filter(c => c.section_id === section.id);
+
+    // Cascade delete content and takes
+    const removedContent = catalog.content.filter(c => c.section_id === id);
     const removedContentIds = new Set(removedContent.map(c => c.id));
-    const remainingContent = catalog.content.filter(c => !removedContentIds.has(c.id));
-    
-    // Remove all takes for removed content
+    const remainingContent = catalog.content.filter(c => c.section_id !== id);
+
+    const takes = await readJsonl<Take>(paths.catalog.takes);
     const remainingTakes = takes.filter(t => !removedContentIds.has(t.content_id));
 
-    await ensureJsonlFile(paths.catalog.sections);
-    await ensureJsonlFile(paths.catalog.content);
-    await ensureJsonlFile(paths.catalog.takes);
-
-    await writeJsonlAll(paths.catalog.sections, remainingSections);
+    await writeJsonlAll(paths.catalog.sections, remainingSections, SectionSchema);
     await writeJsonlAll(paths.catalog.content, remainingContent);
     await writeJsonlAll(paths.catalog.takes, remainingTakes);
 

@@ -1,14 +1,23 @@
 import { join } from 'path';
+import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { readJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import type { Actor, Content, Section, Scene } from '../../types/index.js';
 import {
   buildActorPath,
+  buildScenePath,
   buildSectionPath,
   buildContentPath,
   type PathContext
 } from '../../utils/pathBuilder.js';
 import { describeChanges } from '../../utils/diffDescriber.js';
+import {
+  ActorSchema,
+  SectionSchema,
+  ContentSchema,
+  SceneSchema
+} from '../../shared/schemas/index.js';
+import type { OwnerType } from '../../shared/schemas/common.schema.js';
 
 const DEBUG_SNAPSHOT = false;
 
@@ -37,14 +46,13 @@ const MAX_SNAPSHOTS = 50;
 
 /**
  * Read all catalog files and return cached data
- * Use this before mutations to avoid redundant reads
  */
 export async function readCatalog(paths: ProjectPaths): Promise<CatalogCache> {
   const [actors, sections, content, scenes] = await Promise.all([
-    readJsonl<Actor>(paths.catalog.actors).catch(() => [] as Actor[]),
-    readJsonl<Section>(paths.catalog.sections).catch(() => [] as Section[]),
-    readJsonl<Content>(paths.catalog.content).catch(() => [] as Content[]),
-    readJsonl<Scene>(paths.catalog.scenes).catch(() => [] as Scene[]),
+    readJsonl<Actor>(paths.catalog.actors, ActorSchema).catch(() => [] as Actor[]),
+    readJsonl<Section>(paths.catalog.sections, SectionSchema).catch(() => [] as Section[]),
+    readJsonl<Content>(paths.catalog.content, ContentSchema).catch(() => [] as Content[]),
+    readJsonl<Scene>(paths.catalog.scenes, SceneSchema).catch(() => [] as Scene[]),
   ]);
   return { actors, sections, content, scenes };
 }
@@ -66,21 +74,38 @@ export function snapshotMessageForActor(
 }
 
 /**
+ * Build snapshot message for scene operations
+ */
+export function snapshotMessageForScene(
+  operation: 'create' | 'delete' | 'update' | 'rename',
+  sceneName: string,
+  newName?: string
+): string {
+  switch (operation) {
+    case 'create': return `Create scene: ${sceneName}`;
+    case 'delete': return `Delete scene: ${sceneName}`;
+    case 'rename': return `Rename scene: ${sceneName} → ${newName}`;
+    case 'update': return `Update scene: ${sceneName}`;
+  }
+}
+
+/**
  * Build snapshot message for section operations
  */
 export function snapshotMessageForSection(
   operation: 'create' | 'delete' | 'update' | 'rename',
-  actorId: string,
+  ownerType: OwnerType,
+  ownerId: string | null,
   sectionName: string,
   ctx: PathContext,
   newName?: string
 ): string {
-  const path = buildSectionPath(actorId, sectionName, ctx);
+  const path = buildSectionPath(ownerType, ownerId, sectionName, ctx);
   switch (operation) {
-    case 'create': return `Create section: ${path.replace('Actors → ', '')}`;
-    case 'delete': return `Delete section: ${path.replace('Actors → ', '')}`;
-    case 'rename': return `Rename section: ${path.replace('Actors → ', '')} → ${newName}`;
-    case 'update': return `Update section: ${path.replace('Actors → ', '')}`;
+    case 'create': return `Create section: ${path}`;
+    case 'delete': return `Delete section: ${path}`;
+    case 'rename': return `Rename section: ${path} → ${newName}`;
+    case 'update': return `Update section: ${path}`;
   }
 }
 
@@ -89,73 +114,36 @@ export function snapshotMessageForSection(
  */
 export function snapshotMessageForContent(
   operation: 'create' | 'delete' | 'update' | 'rename',
-  actorId: string,
+  ownerType: OwnerType,
+  ownerId: string | null,
   sectionId: string,
-  cueName: string,
+  contentName: string,
   ctx: PathContext,
   newName?: string
 ): string {
-  const path = buildContentPath(actorId, sectionId, cueName, ctx);
+  const path = buildContentPath(ownerType, ownerId, sectionId, contentName, ctx);
   switch (operation) {
-    case 'create': return `Create content: ${path.replace('Actors → ', '')}`;
-    case 'delete': return `Delete content: ${path.replace('Actors → ', '')}`;
-    case 'rename': return `Rename cue: ${path.replace('Actors → ', '')} → ${newName}`;
-    case 'update': return `Update content: ${path.replace('Actors → ', '')}`;
+    case 'create': return `Create content: ${path}`;
+    case 'delete': return `Delete content: ${path}`;
+    case 'rename': return `Rename cue: ${path} → ${newName}`;
+    case 'update': return `Update content: ${path}`;
   }
-}
-
-/**
- * Build a snapshot message from a path and diff result
- * Centralizes the logic for formatting update messages
- */
-function buildSnapshotMessage(
-  path: string,
-  diff: ReturnType<typeof describeChanges>,
-  options?: { renameFrom?: string; renameTo?: string }
-): string {
-  if (!diff.hasChanges) {
-    return `Update: ${path} (no changes)`;
-  }
-
-  // Check for rename specifically
-  if (options?.renameFrom && options?.renameTo) {
-    return `Rename actor: ${options.renameFrom} → ${options.renameTo}`;
-  }
-
-  // For completion changes:
-  // - "marked as incomplete" = system cascade (parent marked incomplete when child is)
-  // - "marked as complete" = user action, but UI already logs this, so use generic format
-  //   to avoid duplicate "user marked" entries in history
-  if (diff.changes.length === 1 && diff.changes[0] === 'marked as incomplete') {
-    return `system marked ${path} as incomplete`;
-  }
-  if (diff.changes.length === 1 && diff.changes[0] === 'marked as complete') {
-    // Use same format as UI for consistent undo message
-    return `user marked ${path} as complete`;
-  }
-
-  // For single change, be specific
-  if (diff.changes.length === 1) {
-    return `${path}: ${diff.changes[0]}`;
-  }
-
-  // For multiple changes, use summary
-  return `Update: ${path} (${diff.summary.toLowerCase()})`;
 }
 
 /**
  * Build snapshot message for section update with diff details
  */
 export function snapshotMessageForSectionUpdate(
-  actorId: string,
+  ownerType: OwnerType,
+  ownerId: string | null,
   sectionName: string,
   ctx: PathContext,
   oldSection: Record<string, unknown>,
   newSection: Record<string, unknown>
 ): string {
-  const path = buildSectionPath(actorId, sectionName, ctx);
+  const path = buildSectionPath(ownerType, ownerId, sectionName, ctx);
   const diff = describeChanges(oldSection, newSection);
-  return buildSnapshotMessage(path, diff);
+  return `${path} updated: ${diff.changes.join(', ')}`;
 }
 
 /**
@@ -168,48 +156,38 @@ export function snapshotMessageForActorUpdate(
 ): string {
   const path = `actor → ${actorName}`;
   const diff = describeChanges(oldActor, newActor);
-
-  // Check for rename
-  const renameOptions = oldActor.display_name !== newActor.display_name
-    ? { renameFrom: oldActor.display_name as string, renameTo: newActor.display_name as string }
-    : undefined;
-
-  return buildSnapshotMessage(path, diff, renameOptions);
+  return `${path} updated: ${diff.changes.join(', ')}`;
 }
 
 /**
  * Build snapshot message for content update with diff details
  */
 export function snapshotMessageForContentUpdate(
-  actorId: string,
+  ownerType: OwnerType,
+  ownerId: string | null,
   sectionId: string,
-  cueName: string,
+  contentName: string,
   ctx: PathContext,
   oldContent: Record<string, unknown>,
   newContent: Record<string, unknown>
 ): string {
-  const path = buildContentPath(actorId, sectionId, cueName, ctx);
+  const path = buildContentPath(ownerType, ownerId, sectionId, contentName, ctx);
   const diff = describeChanges(oldContent, newContent);
-  return buildSnapshotMessage(path, diff);
+  return `${path} updated: ${diff.changes.join(', ')}`;
 }
 
 /**
  * Save a snapshot using pre-read catalog data
- * @param paths - Project paths
- * @param message - Description of the operation
- * @param catalog - Pre-read catalog data (avoids redundant reads)
  */
 export async function saveSnapshot(
   paths: ProjectPaths,
   message: string,
   catalog: CatalogCache
 ): Promise<void> {
-  const snapshotPath = join(paths.moo.dir, 'snapshots.jsonl');
-  const redoPath = join(paths.moo.dir, 'redo-snapshots.jsonl');
+  const snapshotPath = paths.catalog.snapshots;
+  const redoPath = paths.catalog.redoSnapshots;
 
   try {
-    // Clear redo stack on new mutation
-    const fs = await import('fs-extra').then(m => m.default);
     await fs.writeFile(redoPath, '', 'utf8');
 
     const snapshot: Snapshot = {
@@ -222,39 +200,21 @@ export async function saveSnapshot(
       scenes: catalog.scenes,
     };
 
-    if (DEBUG_SNAPSHOT) {
-      console.log('[Snapshot] Saving snapshot:', message);
-    }
-
-    // Read existing snapshots
     await ensureJsonlFile(snapshotPath);
-    let snapshots: Snapshot[] = await readJsonl<Snapshot>(snapshotPath).catch(() => [] as Snapshot[]);
+    let snapshots = await readJsonl<Snapshot>(snapshotPath).catch(() => []);
 
-    // Add new snapshot
     snapshots.push(snapshot);
-
-    // Trim to max size
     if (snapshots.length > MAX_SNAPSHOTS) {
       snapshots = snapshots.slice(-MAX_SNAPSHOTS);
     }
 
-    // Write back (use fs directly to avoid recursion)
-    const snapshotContent = snapshots.map(s => JSON.stringify(s)).join('\n') + '\n';
-    await fs.writeFile(snapshotPath, snapshotContent, 'utf8');
-
-    if (DEBUG_SNAPSHOT) {
-      console.log('[Snapshot] Saved, total snapshots:', snapshots.length);
-    }
+    await fs.writeFile(snapshotPath, snapshots.map(s => JSON.stringify(s)).join('\n') + '\n', 'utf8');
   } catch (err) {
     console.error('[Snapshot] Failed to save snapshot:', err);
-    // Don't throw - we don't want to block the actual write
   }
 }
 
-
 export function registerSnapshotRoutes(fastify: FastifyInstance, getProjectContext: () => ProjectContext | null) {
-
-  // Get snapshot stack info
   fastify.get('/api/snapshots', async (_request: FastifyRequest, reply: FastifyReply) => {
     const ctx = getProjectContext();
     if (!ctx) {
@@ -263,13 +223,8 @@ export function registerSnapshotRoutes(fastify: FastifyInstance, getProjectConte
     }
     const { paths } = ctx;
 
-    const snapshotPath = join(paths.moo.dir, 'snapshots.jsonl');
-    const redoPath = join(paths.moo.dir, 'redo-snapshots.jsonl');
-    await ensureJsonlFile(snapshotPath);
-    await ensureJsonlFile(redoPath);
-
-    const snapshots = await readJsonl<Snapshot>(snapshotPath);
-    const redoSnapshots = await readJsonl<Snapshot>(redoPath);
+    const snapshots = await readJsonl<Snapshot>(paths.catalog.snapshots);
+    const redoSnapshots = await readJsonl<Snapshot>(paths.catalog.redoSnapshots);
     const lastSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
     const lastRedoSnapshot = redoSnapshots.length > 0 ? redoSnapshots[redoSnapshots.length - 1] : null;
 
@@ -282,7 +237,6 @@ export function registerSnapshotRoutes(fastify: FastifyInstance, getProjectConte
     };
   });
 
-  // Undo - restore last snapshot, save current to redo
   fastify.post('/api/snapshots/undo', async (_request: FastifyRequest, reply: FastifyReply) => {
     const ctx = getProjectContext();
     if (!ctx) {
@@ -291,86 +245,43 @@ export function registerSnapshotRoutes(fastify: FastifyInstance, getProjectConte
     }
     const { paths } = ctx;
 
-    const snapshotPath = join(paths.moo.dir, 'snapshots.jsonl');
-    const redoPath = join(paths.moo.dir, 'redo-snapshots.jsonl');
-    await ensureJsonlFile(snapshotPath);
-    await ensureJsonlFile(redoPath);
-
-    const snapshots = await readJsonl<Snapshot>(snapshotPath);
-
-    if (DEBUG_SNAPSHOT) {
-      console.log('[Snapshot] Undo requested, total snapshots:', snapshots.length);
-    }
-
+    const snapshots = await readJsonl<Snapshot>(paths.catalog.snapshots);
     if (snapshots.length === 0) {
       reply.code(400);
       return { error: 'Nothing to undo' };
     }
 
-    // Save current state to redo stack before restoring
-    const [currentActors, currentSections, currentContent] = await Promise.all([
-      readJsonl<Actor>(paths.catalog.actors).catch(() => [] as Actor[]),
-      readJsonl<Section>(paths.catalog.sections).catch(() => [] as Section[]),
-      readJsonl<Content>(paths.catalog.content).catch(() => [] as Content[]),
-    ]);
-
-    // Pop the last snapshot (this is what we're undoing)
+    const currentCatalog = await readCatalog(paths);
     const snapshot = snapshots.pop()!;
 
-    // Create redo snapshot with the operation message (what was done, now being undone)
+    // Save current to redo
     const redoSnapshot: Snapshot = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: generateId(),
       timestamp: new Date().toISOString(),
-      message: snapshot.message, // Same message - this is what we're undoing
-      actors: currentActors as Actor[],
-      sections: currentSections as Section[],
-      content: currentContent as Content[],
-      scenes: (await readJsonl<Scene>(paths.catalog.scenes).catch(() => [] as Scene[])),
+      message: snapshot.message,
+      ...currentCatalog
     };
 
-    // Add to redo stack
-    let redoSnapshots = await readJsonl<Snapshot>(redoPath).catch(() => [] as Snapshot[]);
+    const redoSnapshots = await readJsonl<Snapshot>(paths.catalog.redoSnapshots);
     redoSnapshots.push(redoSnapshot);
-    if (redoSnapshots.length > MAX_SNAPSHOTS) {
-      redoSnapshots = redoSnapshots.slice(-MAX_SNAPSHOTS);
-    }
-    await writeJsonlAll(redoPath, redoSnapshots);
+    await writeJsonlAll(paths.catalog.redoSnapshots, redoSnapshots.slice(-MAX_SNAPSHOTS));
 
-    if (DEBUG_SNAPSHOT) {
-      console.log('[Snapshot] Undoing:', snapshot.message);
-      console.log('[Snapshot] Restoring to:', snapshot.timestamp);
-      console.log('[Snapshot] Actors:', snapshot.actors.length);
-      console.log('[Snapshot] Sections:', snapshot.sections.length);
-      console.log('[Snapshot] Content:', snapshot.content.length);
-    }
+    // Restore catalog
+    await writeJsonlAll(paths.catalog.actors, snapshot.actors, ActorSchema);
+    await writeJsonlAll(paths.catalog.sections, snapshot.sections, SectionSchema);
+    await writeJsonlAll(paths.catalog.content, snapshot.content, ContentSchema);
+    await writeJsonlAll(paths.catalog.scenes, snapshot.scenes, SceneSchema);
+    await writeJsonlAll(paths.catalog.snapshots, snapshots);
 
-    // Restore state from snapshot
-    await writeJsonlAll(paths.catalog.actors, snapshot.actors);
-    await writeJsonlAll(paths.catalog.sections, snapshot.sections);
-    await writeJsonlAll(paths.catalog.content, snapshot.content);
-    await writeJsonlAll(paths.catalog.scenes, snapshot.scenes || []);
-
-    // Save remaining snapshots
-    await writeJsonlAll(snapshotPath, snapshots);
-
-    // Get next undo message
-    const nextSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
-
-    // Return the restored state
     return {
       success: true,
       message: `UNDO: ${snapshot.message}`,
-      actors: snapshot.actors,
-      sections: snapshot.sections,
-      content: snapshot.content,
+      ...snapshot,
       canUndo: snapshots.length > 0,
-      undoMessage: nextSnapshot?.message || null,
       canRedo: true,
-      redoMessage: redoSnapshot.message,
     };
   });
 
-  // Redo - restore from redo stack, save current to undo
   fastify.post('/api/snapshots/redo', async (_request: FastifyRequest, reply: FastifyReply) => {
     const ctx = getProjectContext();
     if (!ctx) {
@@ -379,95 +290,40 @@ export function registerSnapshotRoutes(fastify: FastifyInstance, getProjectConte
     }
     const { paths } = ctx;
 
-    const snapshotPath = join(paths.moo.dir, 'snapshots.jsonl');
-    const redoPath = join(paths.moo.dir, 'redo-snapshots.jsonl');
-    await ensureJsonlFile(snapshotPath);
-    await ensureJsonlFile(redoPath);
-
-    const redoSnapshots = await readJsonl<Snapshot>(redoPath);
-
-    if (DEBUG_SNAPSHOT) {
-      console.log('[Snapshot] Redo requested, total redo snapshots:', redoSnapshots.length);
-    }
-
+    const redoSnapshots = await readJsonl<Snapshot>(paths.catalog.redoSnapshots);
     if (redoSnapshots.length === 0) {
       reply.code(400);
       return { error: 'Nothing to redo' };
     }
 
-    // Save current state to undo stack before restoring
-    const [currentActors, currentSections, currentContent, currentScenes] = await Promise.all([
-      readJsonl<Actor>(paths.catalog.actors).catch(() => [] as Actor[]),
-      readJsonl<Section>(paths.catalog.sections).catch(() => [] as Section[]),
-      readJsonl<Content>(paths.catalog.content).catch(() => [] as Content[]),
-      readJsonl<Scene>(paths.catalog.scenes).catch(() => [] as Scene[]),
-    ]);
-
-    // Pop the last redo snapshot
+    const currentCatalog = await readCatalog(paths);
     const redoSnapshot = redoSnapshots.pop()!;
 
-    // Create undo snapshot
+    // Save current to undo
     const undoSnapshot: Snapshot = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: generateId(),
       timestamp: new Date().toISOString(),
       message: redoSnapshot.message,
-      actors: currentActors as Actor[],
-      sections: currentSections as Section[],
-      content: currentContent as Content[],
-      scenes: (currentScenes || []) as unknown as Scene[],
+      ...currentCatalog
     };
 
-    // Add to undo stack
-    let snapshots = await readJsonl<Snapshot>(snapshotPath).catch(() => [] as Snapshot[]);
+    const snapshots = await readJsonl<Snapshot>(paths.catalog.snapshots);
     snapshots.push(undoSnapshot);
-    if (snapshots.length > MAX_SNAPSHOTS) {
-      snapshots = snapshots.slice(-MAX_SNAPSHOTS);
-    }
-    await writeJsonlAll(snapshotPath, snapshots);
+    await writeJsonlAll(paths.catalog.snapshots, snapshots.slice(-MAX_SNAPSHOTS));
 
-    if (DEBUG_SNAPSHOT) {
-      console.log('[Snapshot] Redoing:', redoSnapshot.message);
-      console.log('[Snapshot] Restoring to:', redoSnapshot.timestamp);
-    }
+    // Restore from redo
+    await writeJsonlAll(paths.catalog.actors, redoSnapshot.actors, ActorSchema);
+    await writeJsonlAll(paths.catalog.sections, redoSnapshot.sections, SectionSchema);
+    await writeJsonlAll(paths.catalog.content, redoSnapshot.content, ContentSchema);
+    await writeJsonlAll(paths.catalog.scenes, redoSnapshot.scenes, SceneSchema);
+    await writeJsonlAll(paths.catalog.redoSnapshots, redoSnapshots);
 
-    // Restore state from redo snapshot
-    await writeJsonlAll(paths.catalog.actors, redoSnapshot.actors);
-    await writeJsonlAll(paths.catalog.sections, redoSnapshot.sections);
-    await writeJsonlAll(paths.catalog.content, redoSnapshot.content);
-    await writeJsonlAll(paths.catalog.scenes, redoSnapshot.scenes || []);
-
-    // Save remaining redo snapshots
-    await writeJsonlAll(redoPath, redoSnapshots);
-
-    // Get next redo message
-    const nextRedoSnapshot = redoSnapshots.length > 0 ? redoSnapshots[redoSnapshots.length - 1] : null;
-
-    // Return the restored state
     return {
       success: true,
       message: `REDO: ${redoSnapshot.message}`,
-      actors: redoSnapshot.actors,
-      sections: redoSnapshot.sections,
-      content: redoSnapshot.content,
+      ...redoSnapshot,
       canUndo: true,
-      undoMessage: undoSnapshot.message,
       canRedo: redoSnapshots.length > 0,
-      redoMessage: nextRedoSnapshot?.message || null,
     };
-  });
-
-  // Clear all snapshots
-  fastify.delete('/api/snapshots', async (_request: FastifyRequest, reply: FastifyReply) => {
-    const ctx = getProjectContext();
-    if (!ctx) {
-      reply.code(400);
-      return { error: 'No project selected' };
-    }
-    const { paths } = ctx;
-
-    const snapshotPath = join(paths.moo.dir, 'snapshots.jsonl');
-    await writeJsonlAll(snapshotPath, []);
-
-    return { success: true };
   });
 }

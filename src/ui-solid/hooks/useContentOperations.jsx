@@ -6,20 +6,21 @@ import { createContent } from '../api/client.js';
  */
 export function useContentOperations(props) {
     const [contentPrompt, setContentPrompt] = createSignal('');
-    const [contentCueId, setContentCueId] = createSignal('');
+    const [contentName, setContentName] = createSignal('');
     const [creating, setCreating] = createSignal(false);
     const [error, setError] = createSignal(null);
 
-    const createContentItem = async (actorId, contentType, sectionId) => {
+    const createContentItem = async (ownerId, ownerType, contentType, sectionId) => {
         try {
             setCreating(true);
             setError(null);
 
             const result = await createContent({
-                actor_id: actorId,
+                owner_id: ownerId,
+                owner_type: ownerType,
                 content_type: contentType,
                 section_id: sectionId,
-                cue_id: contentCueId(),
+                names: contentName(),
                 prompt: contentPrompt() || undefined,
             });
 
@@ -32,8 +33,8 @@ export function useContentOperations(props) {
 
                 // Auto-expand to show the new content
                 if (props.expandNode) {
-                    props.expandNode('actors');
-                    props.expandNode(`actor-${actorId}`);
+                    props.expandNode(ownerType === 'actor' ? 'actors' : 'scenes');
+                    props.expandNode(`${ownerType}-${ownerId}`);
                     if (sectionId) {
                         props.expandNode(`section-${sectionId}`);
                     }
@@ -45,7 +46,7 @@ export function useContentOperations(props) {
             }
 
             setContentPrompt('');
-            setContentCueId('');
+            setContentName('');
         } catch (err) {
             setError(err.message || String(err));
         } finally {
@@ -55,11 +56,11 @@ export function useContentOperations(props) {
 
     return {
         contentPrompt,
-        contentCueId,
+        contentName,
         creating,
         error,
         setContentPrompt,
-        setContentCueId,
+        setContentName,
         setError,
         createContent: createContentItem,
     };

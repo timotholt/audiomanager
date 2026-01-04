@@ -2,7 +2,7 @@ import { Box, Typography, Button, Stack } from '@suid/material';
 import { For, Show } from 'solid-js';
 
 export default function SectionManagement(props) {
-    // props: actor, sections, onCreateSection, creatingContent
+    // props: owner, ownerType, sections, onCreateSection, creatingContent
 
     return (
         <Box sx={{ mt: 3 }}>
@@ -10,15 +10,15 @@ export default function SectionManagement(props) {
                 Content Sections
             </Typography>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-                Create multiple sections for different types of content (e.g., combat dialog, story music, etc.)
+                Create multiple sections for different types of content (e.g., combat dialogue, story music, etc.)
             </Typography>
 
             <Stack spacing={1} sx={{ mt: 1 }}>
                 {/* Show existing sections categorized by type */}
-                <For each={['dialogue', 'music', 'sfx']}>
+                <For each={['dialogue', 'music', 'sfx', 'image', 'video']}>
                     {(contentType) => {
                         const sectionsOfType = () => props.sections.filter(
-                            (s) => s.actor_id === props.actor.id && s.content_type === contentType
+                            (s) => s.owner_id === props.owner.id && s.owner_type === props.ownerType && s.content_type === contentType
                         );
 
                         return (
@@ -73,33 +73,19 @@ export default function SectionManagement(props) {
                         mt: 1,
                     }}
                 >
-                    <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => props.onCreateSection(props.actor.id, 'dialogue')}
-                        disabled={props.creatingContent}
-                        sx={{ fontSize: '0.75rem' }}
-                    >
-                        + Add dialogue section
-                    </Button>
-                    <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => props.onCreateSection(props.actor.id, 'music')}
-                        disabled={props.creatingContent}
-                        sx={{ fontSize: '0.75rem' }}
-                    >
-                        + Add music section
-                    </Button>
-                    <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => props.onCreateSection(props.actor.id, 'sfx')}
-                        disabled={props.creatingContent}
-                        sx={{ fontSize: '0.75rem' }}
-                    >
-                        + Add sfx section
-                    </Button>
+                    <For each={['dialogue', 'music', 'sfx', 'image', 'video']}>
+                        {(type) => (
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                onClick={() => props.onCreateSection(props.owner.id, props.ownerType, type)}
+                                disabled={props.creatingContent}
+                                sx={{ fontSize: '0.75rem' }}
+                            >
+                                + Add {type} section
+                            </Button>
+                        )}
+                    </For>
                 </Box>
             </Stack>
         </Box>

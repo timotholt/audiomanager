@@ -1,53 +1,46 @@
 /**
  * Utility for building hierarchical display paths for logging
- * e.g., "Actors → Tim → Dialogue → hello"
+ * e.g., "actor → Tim → Dialogue → hello"
  */
 
 /**
- * Build a display path for an actor
- * @param {string} actorName
- * @returns {string}
+ * Build a display path for an owner (Actor, Scene, or Global)
  */
-export function buildActorPath(actorName) {
-  return `actor → ${actorName}`;
+export function buildOwnerPath(ownerType, ownerName) {
+  if (ownerType === 'global') return 'global';
+  return `${ownerType} → ${ownerName || 'unknown'}`;
 }
 
 /**
  * Build a display path for a section
- * @param {string} actorName
- * @param {string} sectionName
- * @returns {string}
  */
-export function buildSectionPath(actorName, sectionName) {
-  return `actor → ${actorName} → ${sectionName}`;
+export function buildSectionPath(ownerType, ownerName, sectionName) {
+  return `${buildOwnerPath(ownerType, ownerName)} → ${sectionName}`;
 }
 
 /**
  * Build a display path for content/cue
- * @param {string} actorName
- * @param {string} sectionName
- * @param {string} cueName
- * @returns {string}
  */
-export function buildContentPath(actorName, sectionName, cueName) {
-  return `actor → ${actorName} → ${sectionName} → ${cueName}`;
+export function buildContentPath(ownerType, ownerName, sectionName, contentName) {
+  return `${buildSectionPath(ownerType, ownerName, sectionName)} → ${contentName}`;
 }
 
 /**
- * Lookup actor name by ID
- * @param {string} actorId
- * @param {Array<{id: string, display_name: string}>} actors
- * @returns {string}
+ * Lookup owner name by ID and Type
  */
-export function getActorName(actorId, actors) {
-  return actors?.find(a => a.id === actorId)?.display_name || 'Unknown';
+export function getOwnerName(ownerType, ownerId, actors, scenes) {
+  if (ownerType === 'global') return 'Global';
+  if (ownerType === 'actor') {
+    return actors?.find(a => a.id === ownerId)?.display_name || 'Unknown';
+  }
+  if (ownerType === 'scene') {
+    return scenes?.find(s => s.id === ownerId)?.name || 'Unknown';
+  }
+  return 'Unknown';
 }
 
 /**
  * Lookup section name by ID
- * @param {string} sectionId
- * @param {Array<{id: string, name?: string, content_type: string}>} sections
- * @returns {string}
  */
 export function getSectionName(sectionId, sections) {
   const section = sections?.find(s => s.id === sectionId);

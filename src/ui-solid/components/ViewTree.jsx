@@ -200,11 +200,45 @@ export default function ViewTree(props) {
 
     const [expanded, setExpanded] = createSignal(loadExpandedState());
 
+    // Persistence Effect
     createEffect(() => {
         try {
             localStorage.setItem(storageKey(), JSON.stringify(expanded()));
         } catch (e) {
             console.warn('Failed to save view state:', e);
+        }
+    });
+
+    // Programmatic Expansion Effect
+    createEffect(() => {
+        const req = props.expandNode;
+        if (!req) return;
+
+        const findAndExpand = (nodes) => {
+            let found = false;
+            for (const node of nodes) {
+                const matches = node.id === req ||
+                    node.id.endsWith(`/${req}`) ||
+                    node.id.split(':')[1] === req ||
+                    (node.field === 'owner_type' && node.fieldValue === req.replace(/s$/, ''));
+
+                if (matches) {
+                    setExpanded(prev => ({ ...prev, [node.id]: true }));
+                    found = true;
+                }
+
+                if (node.children && node.children.length > 0) {
+                    if (findAndExpand(node.children)) {
+                        setExpanded(prev => ({ ...prev, [node.id]: true }));
+                        found = true;
+                    }
+                }
+            }
+            return found;
+        };
+
+        if (props.tree) {
+            findAndExpand(props.tree);
         }
     });
 

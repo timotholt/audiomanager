@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IdSchema, TimestampSchema, OwnerTypeSchema, ContentTypeSchema } from './common.schema.js';
+import { IdSchema, TimestampSchema, OwnerTypeSchema, ContentTypeSchema, DefaultBlocksSchema } from './common.schema.js';
 
 // ============================================================================
 // Content Schema
@@ -27,6 +27,9 @@ export const ContentSchema = z.object({
     // Filename (without take number)
     filename: z.string().optional(),
 
+    // Default blocks (overrides for this specific item)
+    default_blocks: DefaultBlocksSchema.optional(),
+
     // Completion tracking
     all_approved: z.boolean().default(false),
 
@@ -51,6 +54,7 @@ export const CreateContentSchema = ContentSchema.omit({
     filename: true,
     all_approved: true,
     scene_id: true,
+    default_blocks: true,
 });
 
 export const UpdateContentSchema = ContentSchema.partial().omit({

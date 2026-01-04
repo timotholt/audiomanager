@@ -1,12 +1,15 @@
 import { join } from 'path';
+import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Take, Content } from '../../types/index.js';
+import { TakeSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { validate } from '../../utils/validation.js';
 import { readCatalog, saveSnapshot } from './snapshots.js';
 import { describeChanges } from '../../utils/diffDescriber.js';
 import { updateMetadata } from '../../services/audio/metadata.js';
+import { buildContentPath } from '../../utils/pathBuilder.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -18,7 +21,7 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    const takes = await readJsonl<Take>(paths.catalog.takes);
+    const takes = await readJsonl<Take>(paths.catalog.takes, TakeSchema);
 
     const query = request.query as { contentId?: string };
     const contentId = query.contentId;
@@ -35,20 +38,19 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    
-    const { id } = request.params as { id: string };
+
+    const { id } = request.params;
     const body = request.body as Partial<Take>;
-    
+
     if (!body) {
       reply.code(400);
       return { error: 'Request body is required' };
     }
 
-    // Read catalog for snapshot
     const catalog = await readCatalog(paths);
-    const takes = await readJsonl<Take>(paths.catalog.takes);
+    const takes = await readJsonl<Take>(paths.catalog.takes, TakeSchema);
     const takeIndex = takes.findIndex(t => t.id === id);
-    
+
     if (takeIndex === -1) {
       reply.code(404);
       return { error: 'Take not found' };
@@ -58,32 +60,23 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
     const updatedTake: Take = {
       ...currentTake,
       ...body,
-      id, // Ensure ID doesn't change
+      id,
       updated_at: new Date().toISOString(),
     };
 
-    // Find the content and actor for this take to build descriptive message
+    // Find context for snapshot message
     const content = catalog.content.find(c => c.id === currentTake.content_id);
-    const actor = content ? catalog.actors.find(a => a.id === content.actor_id) : null;
-    const section = content ? catalog.sections.find(s => s.id === content.section_id) : null;
-    
-    // Build descriptive message with diff
-    const diff = describeChanges(
-      currentTake as unknown as Record<string, unknown>,
-      updatedTake as unknown as Record<string, unknown>
-    );
-    
-    // Format the change description
-    let changeDesc = diff.changes.length > 0 ? diff.changes[0] : 'updated';
-    
     let snapshotMessage = '';
-    if (actor && content) {
-      const sectionName = section?.name || content.content_type;
-      snapshotMessage = `${actor.display_name} → ${sectionName} → ${content.cue_id} → ${currentTake.filename}: ${changeDesc}`;
+
+    if (content) {
+      const displayPath = buildContentPath(content.owner_type, content.owner_id || null, content.section_id, content.name, catalog);
+      const diff = describeChanges(currentTake as any, updatedTake as any);
+      const changeDesc = diff.changes.length > 0 ? diff.changes[0] : 'updated';
+      snapshotMessage = `${displayPath} → Take ${currentTake.take_number}: ${changeDesc}`;
     } else {
-      snapshotMessage = `Take ${currentTake.filename || id}: ${changeDesc}`;
+      snapshotMessage = `Take ${currentTake.id}: updated`;
     }
-    
+
     await saveSnapshot(paths, snapshotMessage, catalog);
 
     const validation = validate('take', updatedTake);
@@ -93,25 +86,24 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
     }
 
     takes[takeIndex] = updatedTake;
-    await ensureJsonlFile(paths.catalog.takes);
-    await writeJsonlAll(paths.catalog.takes, takes);
+    await writeJsonlAll(paths.catalog.takes, takes, TakeSchema);
 
-    // Dual-write: Update metadata in the audio file
+    // Update metadata in audio file
     try {
-      const filePath = join(paths.media, updatedTake.path);
-      await updateMetadata(filePath, {
-        status: updatedTake.status,
-        updated_at: updatedTake.updated_at,
-      });
+      const fullPath = join(ctx.projectRoot, updatedTake.path);
+      if (await fs.pathExists(fullPath)) {
+        await updateMetadata(fullPath, {
+          status: updatedTake.status,
+          updated_at: updatedTake.updated_at,
+        });
+      }
     } catch (metaErr) {
-      // Log but don't fail if metadata update fails
       request.log.warn({ err: metaErr, takeId: id }, 'Failed to update metadata in audio file');
     }
 
     return { take: updatedTake };
   });
 
-  // Delete a take
   fastify.delete('/api/takes/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const ctx = getProjectContext();
     if (!ctx) {
@@ -119,38 +111,28 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    
-    const { id } = request.params as { id: string };
+    const { id } = request.params;
 
-    const takes = await readJsonl<Take>(paths.catalog.takes);
+    const takes = await readJsonl<Take>(paths.catalog.takes, TakeSchema);
     const takeIndex = takes.findIndex(t => t.id === id);
-    
+
     if (takeIndex === -1) {
       reply.code(404);
       return { error: 'Take not found' };
     }
 
     const deletedTake = takes[takeIndex];
-    
-    // Remove the take from the array
     takes.splice(takeIndex, 1);
+    await writeJsonlAll(paths.catalog.takes, takes, TakeSchema);
 
-    // Write back to file
-    await ensureJsonlFile(paths.catalog.takes);
-    await writeJsonlAll(paths.catalog.takes, takes);
-
-    const fsMod = await import('fs-extra');
-    const fs = fsMod.default;
-
-    // Optionally delete the audio file
+    // Optional: Delete physical file
     try {
-      const filePath = join(paths.media, deletedTake.path);
-      if (await fs.pathExists(filePath)) {
-        await fs.remove(filePath);
+      const fullPath = join(ctx.projectRoot, deletedTake.path);
+      if (await fs.pathExists(fullPath)) {
+        await fs.remove(fullPath);
       }
     } catch (err) {
-      // Log but don't fail if file deletion fails
-      console.error('Failed to delete audio file:', err);
+      console.error('Failed to delete physical take file:', err);
     }
 
     reply.code(204);

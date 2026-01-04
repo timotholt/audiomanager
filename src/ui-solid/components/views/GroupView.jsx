@@ -1,8 +1,8 @@
-
 import { createMemo, createSignal, Show, Switch, Match, For } from 'solid-js';
 import { Box, Typography, Button, Paper, Stack, Divider } from '@suid/material';
 import ActorView from './ActorView.jsx';
-import SectionView from '../../SectionView.jsx'; // Adjust path as needed
+import SceneView from './SceneView.jsx';
+import SectionView from '../../SectionView.jsx';
 import DetailHeader from '../../DetailHeader.jsx';
 import CompleteButton from '../../CompleteButton.jsx';
 import { DESIGN_SYSTEM } from '../../theme/designSystem.js';
@@ -15,7 +15,7 @@ function GroupItemList(props) {
                 {(item) => (
                     <Paper sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                            {item.filename || item.cue_id || 'Unknown Item'}
+                            {item.name || item.filename || 'Unknown Item'}
                         </Typography>
                         <Typography variant="caption" sx={{ color: item.status === 'approved' ? 'success.main' : 'text.secondary' }}>
                             {item.status || 'new'}
@@ -71,33 +71,12 @@ function TypeGroupView(props) {
     );
 }
 
-function SceneGroupView(props) {
-    // props: groupNode (fieldValue=scene_id), data (scenes list), items
-    const scene = () => props.data?.scenes?.find(s => s.id === props.groupNode.fieldValue);
-
-    return (
-        <Box>
-            <DetailHeader
-                title={scene()?.name || `Scene ${props.groupNode.label}`}
-                subtitle={`Scene ID: ${props.groupNode.fieldValue}`}
-            />
-            <Box sx={{ p: 3 }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Settings for specific actors in this scene will be available here.
-                </Typography>
-                <Typography variant="overline" sx={{ mt: 2, display: 'block', color: 'text.secondary' }}>Scene Items</Typography>
-                <GroupItemList items={props.items} />
-            </Box>
-        </Box>
-    );
-}
-
 export default function GroupView(props) {
-    // props: groupNode (selectedNode with field, fieldValue), data (actors, sections, scenes), operations, items (flattened children?)
+    // props: groupNode (selectedNode with field, fieldValue), data (actors, sections, scenes, content, takes), operations
 
     const flattenItems = (node) => {
         if (!node) return [];
-        if (node.type === 'leaf') return [node.data]; // node.data is the asset index record
+        if (node.type === 'leaf') return [node.data];
         if (node.children) return node.children.flatMap(flattenItems);
         return [];
     };
@@ -106,50 +85,53 @@ export default function GroupView(props) {
 
     return (
         <Switch>
-            <Match when={props.groupNode.field === 'actor_id'}>
-                {/* Reuse ActorView by finding the actor object */}
+            <Match when={props.groupNode.field === 'owner_id' || props.groupNode.field === 'actor_id'}>
                 {(() => {
-                    const actor = props.data.actors.find(a => String(a.id) === String(props.groupNode.fieldValue));
-                    if (!actor) return <Box sx={{ p: 3 }}>Actor not found: {props.groupNode.fieldValue}</Box>;
-
-                    const actorSections = props.data.sections.filter(s => s.actor_id === actor.id);
-
-                    return (
-                        <ActorView
-                            actor={actor}
-                            sections={actorSections}
-                            operations={props.operations}
-                        />
-                    );
+                    const id = props.groupNode.fieldValue;
+                    const actor = props.data.actors.find(a => String(a.id) === String(id));
+                    if (actor) {
+                        const actorSections = props.data.sections.filter(s => s.owner_id === actor.id && s.owner_type === 'actor');
+                        return (
+                            <ActorView
+                                actor={actor}
+                                sections={actorSections}
+                                operations={props.operations}
+                            />
+                        );
+                    }
+                    const scene = props.data.scenes.find(s => String(s.id) === String(id));
+                    if (scene) {
+                        const sceneSections = props.data.sections.filter(s => s.owner_id === scene.id && s.owner_type === 'scene');
+                        return (
+                            <SceneView
+                                scene={scene}
+                                sections={sceneSections}
+                                operations={props.operations}
+                            />
+                        );
+                    }
+                    return <Box sx={{ p: 3 }}>Owner not found: {id}</Box>;
                 })()}
             </Match>
 
             <Match when={props.groupNode.field === 'section_id'}>
-                {/* Reuse SectionView */}
                 {(() => {
                     const section = props.data.sections.find(s => String(s.id) === String(props.groupNode.fieldValue));
                     if (!section) return <Box sx={{ p: 3 }}>Section not found: {props.groupNode.fieldValue}</Box>;
 
-                    const actor = props.data.actors.find(a => a.id === section.actor_id);
-                    const contentType = section.content_type || 'unknown';
+                    let owner = null;
+                    if (section.owner_type === 'actor') owner = props.data.actors.find(a => a.id === section.owner_id);
+                    else if (section.owner_type === 'scene') owner = props.data.scenes.find(s => s.id === section.owner_id);
 
                     return (
                         <SectionView
                             sectionData={section}
-                            actor={actor}
-                            contentType={contentType}
+                            owner={owner}
+                            contentType={section.content_type}
                             operations={props.operations}
                         />
                     );
                 })()}
-            </Match>
-
-            <Match when={props.groupNode.field === 'scene_id'}>
-                <SceneGroupView
-                    groupNode={props.groupNode}
-                    data={props.data}
-                    items={groupItems()}
-                />
             </Match>
 
             <Match when={props.groupNode.field === 'content_type'}>
@@ -159,7 +141,6 @@ export default function GroupView(props) {
                 />
             </Match>
 
-            {/* Fallback for status or other groups */}
             <Match when={true}>
                 <TypeGroupView
                     groupNode={props.groupNode}

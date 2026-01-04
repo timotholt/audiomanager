@@ -5,6 +5,7 @@ import SectionView from './SectionView.jsx';
 import ContentView from './ContentView.jsx';
 import ProviderDefaultsView from './ProviderDefaultsView.jsx';
 import ActorView from './views/ActorView.jsx';
+import SceneView from './views/SceneView.jsx';
 import RootView from './views/RootView.jsx';
 import DefaultsView from './views/DefaultsView.jsx';
 import HistoryView from './HistoryView.jsx';
@@ -13,12 +14,10 @@ import ViewConfigView from './ViewConfigView.jsx';
 import GroupView from './views/GroupView.jsx';
 import { PRESET_VIEWS } from '../utils/viewEngine.js';
 import { useActorOperations } from '../hooks/useActorOperations.jsx';
+import { useSceneOperations } from '../hooks/useSceneOperations.jsx';
 import { useDataOperations } from '../hooks/useDataOperations.jsx';
 
 export default function DetailPane(props) {
-    // props: actors, content, sections, takes, selectedNode, expandNode, 
-    //        onExpandNode, onRefresh, logs, consoleEntries, blankSpaceConversion, capitalizationConversion
-
     const actorOps = useActorOperations({
         onActorCreated: props.onRefresh,
         onActorUpdated: props.onRefresh,
@@ -26,9 +25,17 @@ export default function DetailPane(props) {
         expandNode: props.onExpandNode
     });
 
+    const sceneOps = useSceneOperations({
+        onSceneCreated: props.onRefresh,
+        onSceneUpdated: props.onRefresh,
+        onSceneDeleted: props.onRefresh,
+        expandNode: props.onExpandNode
+    });
+
     const dataOps = useDataOperations({
         actors: props.actors,
         sections: props.sections,
+        scenes: props.scenes,
         selectedNode: props.selectedNode,
         expandNode: props.onExpandNode,
         onContentCreated: props.onRefresh,
@@ -36,7 +43,9 @@ export default function DetailPane(props) {
         onActorUpdated: props.onRefresh,
         onSectionUpdated: props.onRefresh,
         onSectionDeleted: props.onRefresh,
-        deleteActor: actorOps.deleteActor
+        onSceneUpdated: props.onRefresh,
+        deleteActor: actorOps.deleteActor,
+        deleteScene: sceneOps.deleteScene
     });
 
     const viewData = createMemo(() => {
@@ -59,31 +68,57 @@ export default function DetailPane(props) {
                 const actor = props.actors.find(a => a.id === id);
                 return { view: 'actor', actor };
             }
-            case 'dialogue-section':
-            case 'music-section':
-            case 'sfx-section': {
+            case 'scene': {
+                const scene = props.scenes.find(s => s.id === id);
+                return { view: 'scene', scene };
+            }
+            case 'section': {
                 const section = props.sections.find(s => s.id === id);
-                const actor = props.actors.find(a => a.id === section?.actor_id);
-                const contentType = type.split('-')[0];
-                return { view: 'section', section, actor, contentType };
+                let owner = null;
+                if (section?.owner_type === 'actor') owner = props.actors.find(a => a.id === section.owner_id);
+                else if (section?.owner_type === 'scene') owner = props.scenes.find(s => s.id === section.owner_id);
+                return { view: 'section', section, owner, contentType: section?.content_type };
             }
             case 'content': {
                 const item = props.content.find(c => c.id === id);
-                const actor = props.actors.find(a => a.id === item?.actor_id);
-                return { view: 'content', item, actor };
+                let owner = null;
+                if (item?.owner_type === 'actor') owner = props.actors.find(a => a.id === item.owner_id);
+                else if (item?.owner_type === 'scene') owner = props.scenes.find(s => s.id === item.owner_id);
+                return { view: 'content', item, owner };
             }
             case 'take': {
-                // Find content by id, but take id is passed
                 const take = props.takes.find(t => t.id === id);
                 const item = props.content.find(c => c.id === take?.content_id);
-                const actor = props.actors.find(a => a.id === item?.actor_id);
-                return { view: 'content', item, actor };
+                let owner = null;
+                if (item?.owner_type === 'actor') owner = props.actors.find(a => a.id === item.owner_id);
+                else if (item?.owner_type === 'scene') owner = props.scenes.find(s => s.id === item.owner_id);
+                return { view: 'content', item, owner };
             }
             case 'view-config': {
                 const view = props.customViews.find(v => v.id === id) || PRESET_VIEWS[id];
                 return { view: 'view-config', viewData: view };
             }
             case 'view-group': {
+                // If it's a known entity group, redirect to that entity's view
+                if (props.selectedNode.field === 'owner_id' || props.selectedNode.field === 'actor_id') {
+                    const actor = props.actors.find(a => a.id === props.selectedNode.fieldValue);
+                    if (actor) return { view: 'actor', actor };
+                    const scene = props.scenes.find(s => s.id === props.selectedNode.fieldValue);
+                    if (scene) return { view: 'scene', scene };
+                }
+                if (props.selectedNode.field === 'scene_id') {
+                    const scene = props.scenes.find(s => s.id === props.selectedNode.fieldValue);
+                    if (scene) return { view: 'scene', scene };
+                }
+                if (props.selectedNode.field === 'section_id') {
+                    const section = props.sections.find(s => s.id === props.selectedNode.fieldValue);
+                    if (section) {
+                        let owner = null;
+                        if (section.owner_type === 'actor') owner = props.actors.find(a => a.id === section.owner_id);
+                        else if (section.owner_type === 'scene') owner = props.scenes.find(s => s.id === section.owner_id);
+                        return { view: 'section', section, owner, contentType: section.content_type };
+                    }
+                }
                 return { view: 'view-group', id };
             }
             default:
@@ -91,7 +126,7 @@ export default function DetailPane(props) {
         }
     });
 
-    const commonError = () => dataOps.error() || actorOps.error();
+    const commonError = () => dataOps.error() || actorOps.error() || sceneOps.error();
 
     return (
         <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}>
@@ -105,7 +140,7 @@ export default function DetailPane(props) {
                 </Match>
 
                 <Match when={viewData().view === 'root'}>
-                    <RootView actorOps={actorOps} error={commonError()} />
+                    <RootView actorOps={actorOps} sceneOps={sceneOps} error={commonError()} />
                 </Match>
 
                 <Match when={viewData().view === 'defaults'}>
@@ -144,10 +179,18 @@ export default function DetailPane(props) {
                     />
                 </Match>
 
+                <Match when={viewData().view === 'scene'}>
+                    <SceneView
+                        scene={viewData().scene}
+                        sections={props.sections}
+                        operations={dataOps}
+                    />
+                </Match>
+
                 <Match when={viewData().view === 'section'}>
                     <SectionView
                         sectionData={viewData().section}
-                        actor={viewData().actor}
+                        owner={viewData().owner}
                         contentType={viewData().contentType}
                         operations={dataOps}
                     />
@@ -156,7 +199,7 @@ export default function DetailPane(props) {
                 <Match when={viewData().view === 'content'}>
                     <ContentView
                         item={viewData().item}
-                        actor={viewData().actor}
+                        owner={viewData().owner}
                         sections={props.sections}
                         allTakes={props.takes}
                         onContentUpdated={props.onRefresh}
@@ -191,7 +234,7 @@ export default function DetailPane(props) {
                         data={{
                             actors: props.actors,
                             sections: props.sections,
-                            scenes: props.scenes || [], // Assuming scenes might be passed or empty
+                            scenes: props.scenes || [],
                             content: props.content,
                             takes: props.takes
                         }}

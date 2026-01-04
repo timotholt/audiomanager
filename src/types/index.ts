@@ -1,5 +1,41 @@
+/**
+ * MOO V2 Type System
+ * 
+ * This file consolidates types from Zod schemas for application-wide use.
+ */
+
+import { z } from 'zod';
+import * as Schemas from '../shared/schemas/index.js';
+
+// Re-export all types from schemas
+export type {
+    OwnerType,
+    ContentType,
+    TakeStatus,
+    Provider,
+    DefaultBlock,
+    DefaultBlocks,
+    Actor,
+    CreateActorInput,
+    UpdateActorInput,
+    Scene,
+    CreateSceneInput,
+    UpdateSceneInput,
+    Section,
+    CreateSectionInput,
+    UpdateSectionInput,
+    Content,
+    CreateContentInput,
+    UpdateContentInput,
+    Take,
+    CreateTakeInput,
+    UpdateTakeInput,
+    GenerationParams,
+    Defaults
+} from '../shared/schemas/index.js';
+
+// Legacy / App-specific types not in JSONL core
 export interface ProjectSettings {
-    media_root: string;
     sample_rate: 44100 | 48000;
     bit_depth: 16 | 24;
     channels: 1 | 2;
@@ -8,113 +44,10 @@ export interface ProjectSettings {
     lra_max: number;
 }
 
-export interface Project {
-    id: string;
+export interface ProjectInfo {
     name: string;
-    schema_version: '2.0.0';
-    created_at: string;
-    updated_at: string;
-    settings: ProjectSettings;
-}
-
-export interface Actor {
-    id: string;
-    display_name: string;
-    base_filename: string;
-    all_approved: boolean;
-    provider_settings: {
-        dialogue?: {
-            provider: 'elevenlabs' | 'manual' | 'inherit';
-            voice_id?: string;
-            model_id?: string;
-            min_candidates?: number;
-            approval_count_default?: number;
-            stability?: number;
-            similarity_boost?: number;
-        };
-        music?: {
-            provider: 'elevenlabs' | 'manual' | 'inherit';
-            min_candidates?: number;
-            approval_count_default?: number;
-            duration_seconds?: number;
-        };
-        sfx?: {
-            provider: 'elevenlabs' | 'manual' | 'inherit';
-            min_candidates?: number;
-            approval_count_default?: number;
-        };
-    };
-    notes: string;
-    created_at: string;
-    updated_at: string;
-}
-
-export type ContentType = 'dialogue' | 'music' | 'sfx';
-
-export interface Content {
-    id: string;
-    actor_id: string;
-    content_type: ContentType;
-    section_id: string; // Section this content belongs to
-    cue_id: string;
-    prompt: string;
-    complete: boolean;
-    all_approved: boolean;
-    tags: string[];
-    next_take_number?: number; // Tracks the next take number to use (never decreases)
-    created_at: string;
-    updated_at: string;
-}
-
-export interface Scene {
-    id: string;
-    name: string;
-    description?: string;
-    order?: number; // For sorting scenes
-    tags?: string[];
-    created_at: string;
-    updated_at: string;
-}
-
-export interface Section {
-    id: string;
-    actor_id: string;
-    scene_id?: string; // Optional - sections can belong to a scene
-    content_type: ContentType;
-    name?: string; // Custom section name like "Story Dialog", "Combat Dialog"
-    section_complete?: boolean;
-    provider_settings?: {
-        provider: 'elevenlabs' | 'manual' | 'inherit';
-        voice_id?: string;
-        model_id?: string;
-        min_candidates?: number;
-        approval_count_default?: number;
-        stability?: number;
-        similarity_boost?: number;
-        duration_seconds?: number;
-    };
-    created_at: string;
-    updated_at: string;
-}
-
-export interface Take {
-    id: string;
-    content_id: string;
-    take_number: number;
-    filename: string;
-    status: 'new' | 'approved' | 'rejected' | 'hidden';
-    status_changed_at?: string;
     path: string;
-    hash_sha256: string;
-    duration_sec: number;
-    format: 'wav' | 'flac' | 'aiff' | 'mp3';
-    sample_rate: 44100 | 48000;
-    bit_depth: 16 | 24;
-    channels: 1 | 2;
-    lufs_integrated: number;
-    peak_dbfs: number;
-    generated_by: 'elevenlabs' | 'manual' | null;
-    generation_params: Record<string, unknown>;
+    schema_version: string;
     created_at: string;
     updated_at: string;
 }

@@ -17,11 +17,11 @@ import RefreshIcon from '@suid/icons-material/Refresh';
 import AutoAwesomeIcon from '@suid/icons-material/AutoAwesome';
 import AutoFixHighIcon from '@suid/icons-material/AutoFixHigh';
 import RestartAltIcon from '@suid/icons-material/RestartAlt';
-import { deleteContent, updateContent, updateSection, updateActor, updateTake, generateTakes, deleteTake } from '../api/client.js';
+import { deleteContent, updateContent, updateSection, updateActor, updateScene, updateTake, generateTakes, deleteTake } from '../api/client.js';
 import CompleteButton from './CompleteButton.jsx';
 import DetailHeader from './DetailHeader.jsx';
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
-import { buildContentPath, buildSectionPath, buildActorPath, getSectionName } from '../utils/pathBuilder.js';
+import { buildContentPath, getSectionName } from '../utils/pathBuilder.js';
 import { useLog, usePlayback, useStatus, useCredits } from '../contexts/AppContext.jsx';
 
 // Local storage key for LLM settings
@@ -40,32 +40,8 @@ function formatStatusDate(isoString) {
     return `${month}/${day} @ ${hours}:${minutes}${ampm}`;
 }
 
-// Helper: blank space conversion
-function applyBlankSpaceConversion(str, conversion) {
-    if (!str) return str;
-    switch (conversion) {
-        case 'underscore': return str.replace(/\s+/g, '_');
-        case 'delete': return str.replace(/\s+/g, '');
-        case 'keep': default: return str;
-    }
-}
-
-// Helper: strip trailing underscore
-function stripTrailingUnderscore(str) {
-    return str ? str.replace(/_+$/, '') : str;
-}
-
-// Helper: capitalization conversion
-function applyCapitalizationConversion(str, conversion) {
-    if (!str) return str;
-    switch (conversion) {
-        case 'lowercase': return str.toLowerCase();
-        case 'keep': default: return str;
-    }
-}
-
 export default function ContentView(props) {
-    // props: item, actor, sections, allTakes, onContentDeleted, onContentUpdated, onSectionUpdated, onActorUpdated, 
+    // props: item, owner, sections, allTakes, onContentDeleted, onContentUpdated, onSectionUpdated, onActorUpdated, 
     //        sectionComplete, blankSpaceConversion, capitalizationConversion, onTakesGenerated, onTakeUpdated, error
 
     const baseLog = useLog();
@@ -73,34 +49,20 @@ export default function ContentView(props) {
     const status = useStatus();
     const credits = useCredits();
 
-    // Create derived filename helpers
-    const actorBase = () => stripTrailingUnderscore(props.actor?.base_filename || 'unknown');
-
-    const cueIdConverted = () => applyCapitalizationConversion(
-        applyBlankSpaceConversion(props.item.cue_id || 'untitled', props.blankSpaceConversion || 'underscore'),
-        props.capitalizationConversion || 'lowercase'
-    );
-
-    const baseFilename = () => applyCapitalizationConversion(
-        `${actorBase()}_${props.item.content_type}_${cueIdConverted()}`,
-        props.capitalizationConversion || 'lowercase'
-    );
-
     const [confirmDeleteContentOpen, setConfirmDeleteContentOpen] = createSignal(false);
     const [deleting, setDeleting] = createSignal(false);
     const [localError, setLocalError] = createSignal(null);
 
     // Editable fields
-    const [cueId, setCueId] = createSignal(props.item.cue_id || '');
+    const [name, setName] = createSignal(props.item.name || '');
     const [prompt, setPrompt] = createSignal(props.item.prompt || '');
-    const [filename, setFilename] = createSignal(props.item.filename || baseFilename());
     const [saving, setSaving] = createSignal(false);
 
     // AI State
     const [aiLoading, setAiLoading] = createSignal(false);
     const [aiError, setAiError] = createSignal('');
 
-    // Local takes state (optimistic updates + merged with props)
+    // Local takes state
     const filteredTakes = createMemo(() =>
         (props.allTakes || []).filter(t => t.content_id === props.item.id)
     );
@@ -111,39 +73,21 @@ export default function ContentView(props) {
     const takes = createMemo(() => {
         const parentTakes = filteredTakes();
         const parentIds = new Set(parentTakes.map(t => t.id));
-        // Filter out optimistic takes that are now in parent props
         const neededOptimistic = optimisticTakes().filter(t => !parentIds.has(t.id));
         return [...parentTakes, ...neededOptimistic];
     });
 
     const [generatingTakes, setGeneratingTakes] = createSignal(false);
-    const [expandedTakeId, setExpandedTakeId] = createSignal(null); // Track expanded take ID
-    const [editingCueId, setEditingCueId] = createSignal(false);
+    const [expandedTakeId, setExpandedTakeId] = createSignal(null);
+    const [editingName, setEditingName] = createSignal(false);
 
     const isDisabled = () => !!props.item.all_approved;
 
     // Sync state when item changes
     createEffect(() => {
         const item = props.item;
-        setCueId(item.cue_id || '');
-
-        // Default prompt logic
-        const defPrompt = item.cue_id ? item.cue_id.charAt(0).toUpperCase() + item.cue_id.slice(1) : '';
-        setPrompt(item.prompt || defPrompt);
-
-        // Filename logic
-        const effective = item.filename || baseFilename();
-        setFilename(effective);
-
-        // Auto-save generated filename if missing on server
-        if (!item.filename && !props.sectionComplete) {
-            // Debounce or just do it? In Solid, maybe better to do it on lazy save or just let it be.
-            // React version did handleSaveField immediately. Let's replicate safely.
-            // Calling handleSaveField here might cause loop if not careful. 
-            // We'll skip auto-save for parity to avoid complexity in port, unless strictly needed.
-        }
-
-        // Clear optimistic takes on item switch
+        setName(item.name || '');
+        setPrompt(item.prompt || '');
         setOptimisticTakes([]);
         setLocalError(null);
     });
@@ -170,11 +114,11 @@ export default function ContentView(props) {
             setLocalError(null);
             if (status.onStatusChange) status.onStatusChange('Processing');
 
-            const oldCueId = field === 'cue_id' ? props.item.cue_id : null;
+            const oldName = field === 'name' ? props.item.name : null;
             const result = await updateContent(props.item.id, { [field]: value });
 
             if (result.content && props.onContentUpdated) {
-                props.onContentUpdated(result.content, oldCueId);
+                props.onContentUpdated(result.content, oldName);
             }
         } catch (err) {
             setLocalError(err.message || String(err));
@@ -203,7 +147,6 @@ export default function ContentView(props) {
             const result = await updateTake(takeId, { status: newStatus });
 
             if (result.take) {
-                // Update optimistic takes if it was one
                 setOptimisticTakes(prev => {
                     const existing = prev.find(t => t.id === takeId);
                     if (existing) return prev.map(t => t.id === takeId ? result.take : t);
@@ -214,16 +157,15 @@ export default function ContentView(props) {
                 if (result.content && props.onContentUpdated) props.onContentUpdated(result.content);
 
                 // Log
-                const filename = result.take.filename || takeId;
-                const actorName = props.actor?.display_name || 'Unknown';
+                const filenameStr = result.take.filename || takeId;
+                const ownerName = props.owner ? (props.owner.display_name || props.owner.name) : 'Global';
                 const sectionName = getSectionName(props.item.section_id, props.sections);
-                const cueName = props.item.cue_id || props.item.id;
-                const path = buildContentPath(actorName, sectionName, cueName);
+                const path = buildContentPath(props.item.owner_type, ownerName, sectionName, props.item.name);
 
-                if (newStatus === 'approved') baseLog.logInfo(`user approved ${path} → ${filename}`);
-                else if (newStatus === 'rejected') baseLog.logInfo(`user rejected ${path} → ${filename}`);
-                else if (newStatus === 'new' && previousStatus === 'approved') baseLog.logInfo(`user unapproved ${path} → ${filename}`);
-                else if (newStatus === 'new' && previousStatus === 'rejected') baseLog.logInfo(`user unrejected ${path} → ${filename}`);
+                if (newStatus === 'approved') baseLog.logInfo(`user approved ${path} → ${filenameStr}`);
+                else if (newStatus === 'rejected') baseLog.logInfo(`user rejected ${path} → ${filenameStr}`);
+                else if (newStatus === 'new' && previousStatus === 'approved') baseLog.logInfo(`user unapproved ${path} → ${filenameStr}`);
+                else if (newStatus === 'new' && previousStatus === 'rejected') baseLog.logInfo(`user unrejected ${path} → ${filenameStr}`);
             }
         } catch (err) {
             setLocalError(err.message);
@@ -244,9 +186,6 @@ export default function ContentView(props) {
             if (result.takes && result.takes.length > 0) {
                 setOptimisticTakes(prev => [...prev, ...result.takes]);
                 if (props.onTakesGenerated) props.onTakesGenerated(result.takes);
-
-                const filenames = result.takes.map(t => t.filename).join(', ');
-                console.log(`[Generate] Created ${result.takes.length} take(s): ${filenames}`);
             }
         } catch (err) {
             const errorMsg = err.message || String(err);
@@ -264,22 +203,7 @@ export default function ContentView(props) {
             if (status.onStatusChange) status.onStatusChange('Processing');
             const take = takes().find(t => t.id === takeId);
             await deleteTake(takeId);
-
-            // Remove from optimistic
             setOptimisticTakes(prev => prev.filter(t => t.id !== takeId));
-            // Note: If take is in parent props, it won't disappear until parent refreshes data or we have a callback to remove it from parent state.
-            // Ideally ProjectShell reloadData() is called or we optimistically hide it.
-            // Since we passed direct takes list from parent... we can't mutate it easily.
-            // BUT, we can filter it out in our derived 'takes' memo if we tracked deleted IDs.
-            // For now, we'll rely on parent refresh or just optimistically hide via a local 'deletedIds' set if needed.
-            // Actually, let's trigger a reload in parent if possible? No, too heavy. 
-            // Best way: parent should provide onTakeDeleted? Or just let it be and wait for eventual reload.
-            // React version relied on 'onTakeUpdated' maybe? No, 'setLocalTakes' in React masked it.
-            // We can add a localDeletedIds set.
-
-            if (props.onTakeUpdated) {
-                // Mock a "deleted" update? Or just nothing.
-            }
             baseLog.logInfo(`Take deleted: ${take?.filename || takeId}`);
         } catch (err) {
             setLocalError(err.message);
@@ -289,7 +213,6 @@ export default function ContentView(props) {
         }
     };
 
-    // AI Handlers
     const getLLMSettings = () => {
         try {
             const stored = localStorage.getItem(LLM_STORAGE_KEY);
@@ -314,8 +237,8 @@ export default function ContentView(props) {
                     apiKey: settings.apiKey,
                     model: settings.model,
                     systemPrompt: settings.systemPrompts?.generate || '',
-                    contentName: props.item.cue_id || 'untitled',
-                    actorName: props.actor?.name || '',
+                    contentName: props.item.name || 'untitled',
+                    ownerName: props.owner ? (props.owner.display_name || props.owner.name) : 'Global',
                     sectionType: props.item.content_type
                 })
             });
@@ -331,7 +254,6 @@ export default function ContentView(props) {
     };
 
     const handleAIImprove = async () => {
-        // Similar structure to Generate
         const settings = getLLMSettings();
         if (!settings?.apiKey) return setAiError('Configure AI first');
         if (!prompt().trim()) return setAiError('Enter prompt first');
@@ -347,7 +269,7 @@ export default function ContentView(props) {
                     model: settings.model,
                     systemPrompt: settings.systemPrompts?.improve || '',
                     currentPrompt: prompt(),
-                    contentName: props.item.cue_id || 'untitled',
+                    contentName: props.item.name || 'untitled',
                     sectionType: props.item.content_type
                 })
             });
@@ -363,32 +285,35 @@ export default function ContentView(props) {
     };
 
     const handleResetPrompt = () => {
-        const def = props.item.cue_id ? props.item.cue_id.charAt(0).toUpperCase() + props.item.cue_id.slice(1) : '';
-        setPrompt(def);
-        handleSaveField('prompt', def);
+        setPrompt('');
+        handleSaveField('prompt', '');
         setAiError('');
     };
 
     const approvedCount = () => takes().filter(t => t.status === 'approved').length;
-    const requiredApprovals = () => props.actor?.provider_settings?.[props.item.content_type]?.approval_count_default || 1;
-    const subtitle = () => `actor: ${props.actor?.display_name || 'unknown'} • type: ${props.item.content_type}`;
+    const requiredApprovals = () => {
+        const blocks = props.item.default_blocks || props.owner?.default_blocks || {};
+        const settings = blocks[props.item.content_type] || {};
+        return settings.approval_count_default || 1;
+    };
+    const subtitle = () => `${props.item.owner_type}: ${props.owner ? (props.owner.display_name || props.owner.name) : 'Global'} • type: ${props.item.content_type}`;
 
-    const handleSaveCueId = () => {
-        if (cueId() !== props.item.cue_id) {
-            handleSaveField('cue_id', cueId());
+    const handleSaveName = () => {
+        if (name() !== props.item.name) {
+            handleSaveField('name', name());
         }
-        setEditingCueId(false);
+        setEditingName(false);
     };
 
     return (
         <Box sx={{ flexGrow: 1, overflow: 'auto', p: 3, minWidth: 0 }}>
-            <Show when={editingCueId()} fallback={
+            <Show when={editingName()} fallback={
                 <DetailHeader
-                    title={props.item.cue_id || 'untitled'}
+                    title={props.item.name || 'untitled'}
                     subtitle={subtitle()}
                     onEdit={() => {
-                        setEditingCueId(true);
-                        setCueId(props.item.cue_id || '');
+                        setEditingName(true);
+                        setName(props.item.name || '');
                     }}
                     onDelete={() => setConfirmDeleteContentOpen(true)}
                     editDisabled={isDisabled()}
@@ -406,23 +331,26 @@ export default function ContentView(props) {
                                     if (result.content && props.onContentUpdated) props.onContentUpdated(result.content);
 
                                     // Logging
-                                    const actorName = props.actor?.display_name || 'Unknown';
+                                    const ownerName = props.owner ? (props.owner.display_name || props.owner.name) : 'Global';
                                     const sectionName = getSectionName(props.item.section_id, props.sections);
-                                    const cueName = props.item.cue_id || props.item.id;
-                                    const path = buildContentPath(actorName, sectionName, cueName);
+                                    const path = buildContentPath(props.item.owner_type, ownerName, sectionName, props.item.name);
                                     if (nextAllApproved) baseLog.logInfo(`user marked ${path} as complete`);
                                     else baseLog.logInfo(`user marked ${path} as incomplete`);
 
                                     // Cascade incomplete
                                     if (!nextAllApproved) {
-                                        // Update section/actor incomplete logic here if needed
                                         if (props.item.section_id) {
                                             const sResult = await updateSection(props.item.section_id, { section_complete: false });
                                             if (sResult.section && props.onSectionUpdated) props.onSectionUpdated(sResult.section);
                                         }
-                                        if (props.item.actor_id) {
-                                            const aResult = await updateActor(props.item.actor_id, { actor_complete: false });
-                                            if (aResult.actor && props.onActorUpdated) props.onActorUpdated(aResult.actor);
+                                        if (props.item.owner_id) {
+                                            if (props.item.owner_type === 'actor') {
+                                                const aResult = await updateActor(props.item.owner_id, { actor_complete: false });
+                                                if (aResult.actor && props.onActorUpdated) props.onActorUpdated(aResult.actor);
+                                            } else if (props.item.owner_type === 'scene') {
+                                                const scResult = await updateScene(props.item.owner_id, { scene_complete: false });
+                                                if (scResult.scene && props.onSceneUpdated) props.onSceneUpdated(scResult.scene);
+                                            }
                                         }
                                     }
                                 } catch (err) {
@@ -441,42 +369,16 @@ export default function ContentView(props) {
                 <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <TextField
                         size="small"
-                        value={cueId()}
-                        onChange={(e) => setCueId(e.target.value)}
-                        placeholder={props.item.cue_id}
+                        value={name()}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder={props.item.name}
                         autoFocus
                         sx={{ flexGrow: 1 }}
                     />
-                    <Button variant="contained" onClick={handleSaveCueId}>Save</Button>
-                    <Button onClick={() => setEditingCueId(false)}>Cancel</Button>
+                    <Button variant="contained" onClick={handleSaveName}>Save</Button>
+                    <Button onClick={() => setEditingName(false)}>Cancel</Button>
                 </Box>
             </Show>
-
-            {/* Filename Editor */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <TextField
-                    size="small"
-                    label="Filename"
-                    value={filename()}
-                    onChange={(e) => setFilename(e.target.value)}
-                    onBlur={() => filename() !== (props.item.filename || baseFilename()) && handleSaveField('filename', filename())}
-                    disabled={isDisabled() || saving()}
-                    placeholder={baseFilename()}
-                    sx={{ flexGrow: 1 }}
-                    InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.8rem' } }}
-                />
-                <Typography variant="body2" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>_001</Typography>
-                <IconButton
-                    size="small"
-                    onClick={() => {
-                        setFilename(baseFilename());
-                        handleSaveField('filename', baseFilename());
-                    }}
-                    disabled={isDisabled() || saving() || filename() === baseFilename()}
-                >
-                    <RefreshIcon />
-                </IconButton>
-            </Box>
 
             {/* Prompt Editor */}
             <Box sx={{ mb: 2 }}>
@@ -539,7 +441,7 @@ export default function ContentView(props) {
                                     </ListItemIcon>
                                     <Box sx={{ flexGrow: 1, cursor: 'pointer' }} onClick={() => handlePlayTake(take)}>
                                         <ListItemText
-                                            primary={`${take.filename || `${filename()}_${String(take.take_number).padStart(3, '0')}`}${take.status === 'new' && !playback.playedTakes[take.id] ? ' (new)' : ''}`}
+                                            primary={`${take.filename || `take_${take.take_number}`}${take.status === 'new' && !playback.playedTakes[take.id] ? ' (new)' : ''}`}
                                             secondary={
                                                 take.status === 'approved' && take.status_changed_at
                                                     ? `${take.duration_sec?.toFixed(1) || '?'}s • approved ${formatStatusDate(take.status_changed_at)}`
@@ -627,7 +529,7 @@ export default function ContentView(props) {
                                             </Typography>
                                         </Show>
                                         <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block' }}>
-                                            <strong>Prompt:</strong> {take.generation_params?.prompt || props.item.prompt || props.item.cue_id || 'unknown'}
+                                            <strong>Prompt:</strong> {take.generation_params?.prompt || props.item.prompt || props.item.name || 'unknown'}
                                         </Typography>
                                         <Typography variant="caption" sx={{ fontSize: '0.65rem', fontFamily: 'monospace', display: 'block' }}>
                                             <strong>Generated:</strong> {formatStatusDate(take.generation_params?.generated_at || take.created_at)}
@@ -648,24 +550,16 @@ export default function ContentView(props) {
                 {/* Generate Takes Buttons */}
                 <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                     {(() => {
-                        const dialogueProvider = props.actor?.provider_settings?.dialogue;
-                        const voiceMissing = props.item.content_type === 'dialogue' && (!dialogueProvider || !dialogueProvider.voice_id);
+                        const blocks = props.item.default_blocks || props.owner?.default_blocks || {};
+                        const settings = blocks[props.item.content_type] || {};
+                        const voiceMissing = props.item.content_type === 'dialogue' && (!settings || !settings.voice_id);
                         const disabled = () => isDisabled() || generatingTakes() || voiceMissing;
-
-                        // Get settings
-                        const section = props.sections?.find(s => s.id === props.item.section_id);
-                        const sectionSettings = section?.provider_settings;
-                        const actorSettings = props.actor?.provider_settings?.[props.item.content_type];
-                        const minCandidates = (sectionSettings?.provider !== 'inherit' && sectionSettings?.min_candidates)
-                            ? sectionSettings.min_candidates
-                            : (actorSettings?.min_candidates || 1);
-                        const minApprovedTakes = (sectionSettings?.provider !== 'inherit' && sectionSettings?.approval_count_default)
-                            ? sectionSettings.approval_count_default
-                            : (actorSettings?.approval_count_default || 1);
 
                         // Calculate counts
                         const undecidedCount = takes().filter(t => t.status === 'new').length;
                         const approvedCountVal = approvedCount();
+                        const minCandidates = settings.min_candidates || 1;
+                        const minApprovedTakes = settings.approval_count_default || 1;
 
                         const isComplete = props.item.all_approved;
                         const hasEnoughApproved = approvedCountVal >= minApprovedTakes;
@@ -741,7 +635,7 @@ export default function ContentView(props) {
             <Dialog open={confirmDeleteContentOpen()} onClose={() => setConfirmDeleteContentOpen(false)}>
                 <DialogTitle>Delete Content?</DialogTitle>
                 <DialogContent>
-                    Are you sure you want to delete this cue ID and all associated takes?
+                    Are you sure you want to delete this content and all associated takes?
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setConfirmDeleteContentOpen(false)}>Cancel</Button>

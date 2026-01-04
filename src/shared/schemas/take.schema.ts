@@ -16,7 +16,7 @@ export const GenerationParamsSchema = z.object({
     negative_prompt: z.string().optional(),
 
     // Provenance: Where settings came from
-    resolved_from: z.enum(['section', 'owner', 'global', 'hardcoded']),
+    resolved_from: z.enum(['content', 'section', 'owner', 'global', 'hardcoded']),
 
     // Full settings snapshot (for reproducibility)
     full_settings: DefaultBlockSchema,
@@ -59,6 +59,8 @@ export const TakeSchema = z.object({
     width: z.number().int().positive().optional(),
     height: z.number().int().positive().optional(),
     fps: z.number().positive().optional(),
+    lufs_integrated: z.number().optional(),
+    peak_dbfs: z.number().optional(),
 
     // Hash for deduplication
     hash_sha256: z.string().optional(),
@@ -98,6 +100,8 @@ export const CreateTakeSchema = TakeSchema.omit({
     width: true,
     height: true,
     fps: true,
+    lufs_integrated: true,
+    peak_dbfs: true,
     hash_sha256: true,
 });
 

@@ -11,7 +11,7 @@ import CompleteButton from './CompleteButton.jsx';
 import ProviderSettingsEditor from './ProviderSettingsEditor.jsx';
 
 export default function SectionView(props) {
-    // props: sectionData, actor, contentType, operations (useDataOperations result)
+    // props: sectionData, owner, contentType, operations (useDataOperations result)
 
     const [editingName, setEditingName] = createSignal(false);
     const [tempName, setTempName] = createSignal('');
@@ -20,7 +20,7 @@ export default function SectionView(props) {
 
     // Content creation state
     const [contentPrompt, setContentPrompt] = createSignal('');
-    const [contentCueId, setContentCueId] = createSignal('');
+    const [contentName, setContentName] = createSignal('');
 
     const handleStartEdit = () => {
         setTempName(props.sectionData.name || props.sectionData.content_type);
@@ -40,13 +40,8 @@ export default function SectionView(props) {
 
     const handleConfirmDelete = async () => {
         setDeleteDialogOpen(false);
-        // Note: deleteSection needs to be exposed in operations
-        // Assuming operations.deleteSection exists based on implementation plan
-        // If not, we need to add it to useSectionOperations/useDataOperations
         if (props.operations.deleteSection) {
             await props.operations.deleteSection(props.sectionData.id);
-        } else {
-            console.error("Delete section operation not found");
         }
     };
 
@@ -57,20 +52,20 @@ export default function SectionView(props) {
 
     const handleCreateContent = async (e) => {
         e.preventDefault();
-        if (!contentCueId()) return;
+        if (!contentName()) return;
 
-        // Use exposed setters from operations to pass data before calling create
-        props.operations.setContentCueId(contentCueId());
+        props.operations.setContentName(contentName());
         props.operations.setContentPrompt(contentPrompt());
 
         await props.operations.createContent(
-            props.actor.id,
+            props.sectionData.owner_id,
+            props.sectionData.owner_type,
             props.contentType,
             props.sectionData.id
         );
 
         // Clear local form
-        setContentCueId('');
+        setContentName('');
         setContentPrompt('');
     };
 
@@ -108,10 +103,12 @@ export default function SectionView(props) {
             </Show>
 
             <Stack spacing={3}>
-                {/* Parent Actor Link */}
+                {/* Parent Owner Link */}
                 <Box>
-                    <Typography variant="overline" color="text.secondary">Parent Actor</Typography>
-                    <Typography variant="body1">{props.actor?.display_name || 'Unknown Actor'}</Typography>
+                    <Typography variant="overline" color="text.secondary">Parent {props.sectionData.owner_type}</Typography>
+                    <Typography variant="body1">
+                        {props.owner ? (props.owner.display_name || props.owner.name) : 'Global'}
+                    </Typography>
                 </Box>
 
                 {/* Collapsible Provider Settings */}
@@ -134,11 +131,11 @@ export default function SectionView(props) {
                         <Box sx={{ p: 2 }}>
                             <ProviderSettingsEditor
                                 contentType={props.contentType}
-                                settings={props.sectionData.provider_settings}
+                                settings={props.sectionData.default_blocks?.[props.contentType]}
                                 voices={props.operations.voices()}
                                 loadingVoices={props.operations.loadingVoices()}
                                 allowInherit={true}
-                                onSettingsChange={(settings) => props.operations.updateProviderSettings(props.sectionData.id, settings)}
+                                onSettingsChange={(settings) => props.operations.updateProviderSettings(props.sectionData.id, props.contentType, settings)}
                                 error={props.operations.error()}
                             />
                         </Box>
@@ -150,11 +147,11 @@ export default function SectionView(props) {
                     <Typography variant="subtitle2" gutterBottom>Add Content to Section</Typography>
                     <Stack spacing={2} component="form" onSubmit={handleCreateContent}>
                         <TextField
-                            label="Cue ID (e.g., CUE_001)"
+                            label="Name (e.g., CUE_001)"
                             size="small"
                             fullWidth
-                            value={contentCueId()}
-                            onChange={(e) => setContentCueId(e.target.value)}
+                            value={contentName()}
+                            onChange={(e) => setContentName(e.target.value)}
                             required
                         />
                         <TextField
@@ -169,7 +166,7 @@ export default function SectionView(props) {
                         <Button
                             variant="contained"
                             type="submit"
-                            disabled={props.operations.creatingContent() || !contentCueId()}
+                            disabled={props.operations.creatingContent() || !contentName()}
                         >
                             {props.operations.creatingContent() ? 'Creating...' : 'Add Content'}
                         </Button>

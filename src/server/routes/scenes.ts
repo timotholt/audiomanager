@@ -43,6 +43,20 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
 
         const snapshotMessage = `Create scene: ${body.name}`;
         const catalog = await readCatalog(paths);
+        const existingScene = catalog.scenes.find(s => s.name.toLowerCase() === body.name?.toLowerCase());
+
+        if (existingScene) {
+            // MERGE: If scene exists, just link the new actors to it
+            const newActorIds = body.actor_ids || [];
+            const currentActorIds = existingScene.actor_ids || [];
+            const mergedIds = Array.from(new Set([...currentActorIds, ...newActorIds]));
+
+            existingScene.actor_ids = mergedIds;
+            existingScene.updated_at = new Date().toISOString();
+
+            await writeJsonlAll(paths.catalog.scenes, catalog.scenes, SceneSchema);
+            return { scene: existingScene, reused: true };
+        }
 
         // Validate Referential Integrity (RI)
         const ri = validateReferences(body, catalog);
@@ -53,7 +67,7 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
 
         await saveSnapshot(paths, snapshotMessage, catalog);
 
-        // Load global defaults for potential auto-blocks (though scenes often start empty)
+        // Load global defaults for potential auto-blocks
         const defaultsPath = join(paths.root, 'defaults.json');
         let defaults: Defaults | null = null;
         try {

@@ -75,62 +75,45 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'At least one valid actor name is required' };
     }
 
-    // Check for existing actors and filter out duplicates
     const existingActors = await readJsonl<Actor>(paths.catalog.actors, ActorSchema);
-    const existingNames = new Set(existingActors.map(a => a.display_name.toLowerCase()));
+    const finalActors: Actor[] = [];
+    const existingActorsByName = new Map<string, Actor>(existingActors.map(a => [a.display_name.toLowerCase(), a]));
 
-    const names = allNames.filter((n: string) => !existingNames.has(n.toLowerCase()));
-    const duplicateNames = allNames.filter((n: string) => existingNames.has(n.toLowerCase()));
+    for (const name of allNames) {
+      const existing = existingActorsByName.get(name.toLowerCase());
+      if (existing) {
+        finalActors.push(existing);
+      } else {
+        // Create new actor
+        const autoAddBlocks = defaults?.templates?.actor?.auto_add_blocks || ['dialogue'];
+        const defaultBlocks: any = {};
+        for (const type of autoAddBlocks) {
+          defaultBlocks[type] = { provider: 'inherit' };
+        }
 
-    if (names.length === 0) {
-      reply.code(400);
-      return { error: 'All provided actor names already exist', duplicates: duplicateNames };
-    }
+        const actor: Actor = {
+          id: generateId(),
+          display_name: name,
+          base_filename: name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''),
+          default_blocks: (body?.default_blocks as Actor['default_blocks']) ?? (defaultBlocks as Actor['default_blocks']),
+          actor_complete: false,
+          created_at: now,
+          updated_at: now,
+        };
 
-    const createdActors: Actor[] = [];
+        const validation = validate('actor', actor);
+        if (!validation.valid) {
+          reply.code(400);
+          return { error: `Invalid actor "${name}"`, details: validation.errors };
+        }
 
-    for (const name of names) {
-      // Determine auto-added blocks from template
-      const autoAddBlocks = defaults?.templates?.actor?.auto_add_blocks || ['dialogue'];
-      const defaultBlocks: any = {};
-
-      for (const type of autoAddBlocks) {
-        defaultBlocks[type] = { provider: 'inherit' };
+        await appendJsonl(paths.catalog.actors, actor, ActorSchema);
+        finalActors.push(actor);
       }
-
-      const actor: Actor = {
-        id: generateId(),
-        display_name: name,
-        base_filename:
-          body?.base_filename ??
-          name
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '_')
-            .replace(/^_+|_+$/g, ''),
-        default_blocks:
-          (body?.default_blocks as Actor['default_blocks']) ?? (defaultBlocks as Actor['default_blocks']),
-        actor_complete: false,
-        created_at: now,
-        updated_at: now,
-      };
-
-      const validation = validate('actor', actor);
-      if (!validation.valid) {
-        reply.code(400);
-        return { error: `Invalid actor "${name}"`, details: validation.errors };
-      }
-
-      await appendJsonl(paths.catalog.actors, actor, ActorSchema);
-      createdActors.push(actor);
     }
 
-    const result: { actor?: Actor; actors?: Actor[]; duplicates_skipped?: string[]; message?: string } =
-      names.length === 1 ? { actor: createdActors[0] } : { actors: createdActors };
-
-    if (duplicateNames.length > 0) {
-      result.duplicates_skipped = duplicateNames;
-      result.message = `Created ${names.length} actors. Skipped ${duplicateNames.length} duplicates: ${duplicateNames.join(', ')}`;
-    }
+    const result: { actor?: Actor; actors?: Actor[]; message?: string } =
+      finalActors.length === 1 ? { actor: finalActors[0] } : { actors: finalActors };
 
     return result;
   });

@@ -109,9 +109,12 @@ export default function ProjectSelector(props) {
             setNewProjectName('');
 
             // Auto-select the new project
-            if (result.project && props.onProjectChange) {
-                props.onProjectChange(result.project);
-                localStorage.setItem(LAST_PROJECT_KEY, result.project.name);
+            if (result.project) {
+                const switchResult = await switchProject(result.project.name);
+                if (props.onProjectChange) {
+                    props.onProjectChange(switchResult.project);
+                    localStorage.setItem(LAST_PROJECT_KEY, switchResult.project.name);
+                }
             }
         } catch (err) {
             setError(err.message);

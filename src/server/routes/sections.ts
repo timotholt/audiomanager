@@ -51,6 +51,8 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
     const catalog = await readCatalog(paths);
     const sectionName = body.name || body.content_type;
 
+    console.log('[API] Creating section. Body:', JSON.stringify(body, null, 2));
+
     const snapshotMessage = snapshotMessageForSection(
       'create',
       body.owner_type as any,
@@ -67,15 +69,18 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
       owner_id: body.owner_id ?? null,
       content_type: body.content_type as any,
       name: body.name || body.content_type,
-      scene_id: body.scene_id ?? null,
+      scene_id: body.scene_id || undefined,
       default_blocks: body.default_blocks || { [body.content_type]: { provider: 'inherit' } },
       section_complete: false,
       created_at: now,
       updated_at: now,
     };
 
+    console.log('[API] Section object created:', JSON.stringify(section, null, 2));
+
     const validation = validate('section', section);
     if (!validation.valid) {
+      console.error('[API] Validation failed:', JSON.stringify(validation.errors, null, 2));
       reply.code(400);
       return { error: 'Invalid section data', details: validation.errors };
     }

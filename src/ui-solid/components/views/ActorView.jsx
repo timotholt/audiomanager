@@ -68,22 +68,17 @@ export default function ActorView(props) {
         const names = parsedSceneNames();
         if (names.length === 0) return;
 
-        console.log('[[CACHE_BUST_VERIFICATION]] handleAddScenes called with names:', names);
-
         try {
             for (const name of names) {
                 // 1. Create the scene
-                console.log('[ActorView] Creating scene:', name);
                 const sceneResult = await props.sceneOps.createScene({ name });
                 const sceneId = sceneResult?.scene?.id;
-                console.log('[ActorView] Created scene, ID:', sceneId);
 
                 if (sceneId) {
                     // 2. Create a section for this actor in that scene
                     // Default to a dialogue section
-                    console.log('[ActorView] Creating section for actor:', props.actor.id, 'in scene:', sceneId);
                     await props.operations.createSection(props.actor.id, 'actor', 'dialogue', {
-                        name: `${name} (Cue)`,
+                        name: name,
                         scene_id: sceneId
                     });
                 } else {

@@ -166,6 +166,56 @@ export function buildAssetIndex(actors, sections, content, takes, scenes = []) {
     }
   }
 
+  // 1.5 Process Sections (Shells for sections that might not have content yet)
+  for (const s of sections) {
+    let ownerName = 'Global';
+    let actorId = null;
+    let actorName = null;
+    let sceneId = null;
+    let sceneName = null;
+
+    if (s.owner_type === 'actor') {
+        const a = actorsById.get(s.owner_id);
+        ownerName = a?.display_name || 'Unknown Actor';
+        actorId = s.owner_id;
+        actorName = ownerName;
+        if (actorId) seenActorIds.add(actorId); // Mark actor as seen so we don't duplicate shell
+    } else if (s.owner_type === 'scene') {
+        const sc = scenesById.get(s.owner_id);
+        ownerName = sc?.name || 'Unknown Scene';
+        sceneId = s.owner_id;
+        sceneName = ownerName;
+        if (sceneId) seenSceneIds.add(sceneId);
+    }
+
+    if (!sceneId && s.scene_id) {
+        const sc = scenesById.get(s.scene_id);
+        sceneId = s.scene_id;
+        sceneName = sc?.name || 'Unknown Scene';
+        if (sceneId) seenSceneIds.add(sceneId);
+    }
+
+    // Check if this section is already represented by content?
+    // Actually, adding a shell entry is fine, it just adds to the group options.
+    // It is safer to add it to ensure the Section Node exists with correct metadata.
+    
+    index.push({
+      id: `shell-section-${s.id}`,
+      section_id: s.id,
+      section_name: s.name || s.content_type,
+      owner_type: s.owner_type,
+      owner_id: s.owner_id,
+      owner_name: ownerName,
+      scene_id: sceneId,
+      scene_name: sceneName,
+      actor_id: actorId,
+      actor_name: actorName,
+      status: '__empty__',
+      asset_type: 'audio', // default
+      // No content_id
+    });
+  }
+
   // 2. Add Shell Entries for Empty Actors (So they appear in the tree)
   for (const actor of actors) {
     if (!seenActorIds.has(actor.id)) {

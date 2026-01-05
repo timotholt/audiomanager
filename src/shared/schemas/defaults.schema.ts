@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ContentTypeSchema, DefaultBlockSchema } from './common.schema.js';
+import { MediaTypeSchema, DefaultBlockSchema } from './common.schema.js';
 
 // ============================================================================
 // Defaults.json Schema
@@ -20,11 +20,11 @@ export const DefaultsSchema = z.object({
     // Templates for creating new entities
     templates: z.object({
         actor: z.object({
-            auto_add_blocks: z.array(ContentTypeSchema).default(['dialogue']),
+            auto_add_blocks: z.array(MediaTypeSchema).default(['dialogue']),
         }).optional(),
 
         scene: z.object({
-            auto_add_blocks: z.array(ContentTypeSchema).default([]),
+            auto_add_blocks: z.array(MediaTypeSchema).default([]),
         }).optional(),
     }).optional(),
 });

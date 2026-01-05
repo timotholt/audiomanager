@@ -11,7 +11,7 @@ export const DIMENSIONS = [
   { id: 'scene_id', name: 'Scene', icon: 'folder', displayField: 'scene_name' },
   { id: 'actor_id', name: 'Actor', icon: 'person', displayField: 'actor_name' },
   { id: 'bin_id', name: 'Media Bin', icon: 'folder', displayField: 'bin_name' },
-  { id: 'media_type', name: 'Type', icon: 'type', labelMap: { dialogue: 'Dialogue', music: 'Music', sfx: 'SFX', image: 'Image', video: 'Video' } },
+  { id: 'media_type', name: 'Type', icon: 'type', labelMap: { dialogue: 'Dialogue', music: 'Music', sfx: 'SFX', image: 'Image', video: 'Video', text: 'Text' } },
   { id: 'status', name: 'Status', icon: 'status' },
   { id: 'media_id', name: 'Media / Take', icon: 'content', displayField: 'name', isTerminal: true },
 ];

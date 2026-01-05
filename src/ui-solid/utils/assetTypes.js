@@ -103,6 +103,7 @@ export const MEDIA_TYPE_TO_ASSET = {
   script: 'script',
   notes: 'script',
   documentation: 'script',
+  text: 'script',
 };
 
 /**

@@ -19,7 +19,7 @@ export default function DefaultBlockManager(props) {
     const [anchorEl, setAnchorEl] = createSignal(null);
     const open = () => Boolean(anchorEl());
 
-    const availableTypes = ['dialogue', 'music', 'sfx'];
+    const availableTypes = ['dialogue', 'music', 'sfx', 'video', 'image', 'text'];
     const currentBlocks = () => props.owner.default_blocks || {};
     const existingTypes = () => Object.keys(currentBlocks());
     const unusedTypes = () => availableTypes.filter(t => !existingTypes().includes(t));

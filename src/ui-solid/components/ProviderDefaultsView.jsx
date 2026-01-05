@@ -19,6 +19,12 @@ export default function ProviderDefaultsView(props) {
                 return 'Default settings for all music media. Actors can inherit these settings or override with custom values.';
             case 'sfx':
                 return 'Default settings for all sound effects media. Actors can inherit these settings or override with custom values.';
+            case 'video':
+                return 'Default settings for all video media. Actors can inherit these settings or override with custom values.';
+            case 'image':
+                return 'Default settings for all image media. Actors can inherit these settings or override with custom values.';
+            case 'text':
+                return 'Default settings for all text media. Actors can inherit these settings or override with custom values.';
             default:
                 return 'Default provider settings for this media type.';
         }

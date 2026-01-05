@@ -5,14 +5,14 @@
  * for better UX across different media types.
  */
 
-import type { ContentType } from '../shared/schemas/index.js';
+import type { MediaType } from '../shared/schemas/index.js';
 
 /**
- * Get singular label for content type
+ * Get singular label for media type
  * @example getContentLabel('dialogue') → 'Cue'
  * @example getContentLabel('image') → 'Image'
  */
-export function getContentLabel(contentType: ContentType): string {
+export function getContentLabel(contentType: MediaType): string {
     switch (contentType) {
         case 'dialogue':
             return 'Cue';
@@ -24,6 +24,8 @@ export function getContentLabel(contentType: ContentType): string {
             return 'Image';
         case 'video':
             return 'Clip';
+        case 'text':
+            return 'Line';
         default:
             return 'Content';
     }
@@ -34,7 +36,7 @@ export function getContentLabel(contentType: ContentType): string {
  * @example getContentLabelPlural('dialogue') → 'Cues'
  * @example getContentLabelPlural('image') → 'Images'
  */
-export function getContentLabelPlural(contentType: ContentType): string {
+export function getContentLabelPlural(contentType: MediaType): string {
     switch (contentType) {
         case 'dialogue':
             return 'Cues';
@@ -46,6 +48,8 @@ export function getContentLabelPlural(contentType: ContentType): string {
             return 'Images';
         case 'video':
             return 'Clips';
+        case 'text':
+            return 'Lines';
         default:
             return 'Content';
     }
@@ -56,7 +60,7 @@ export function getContentLabelPlural(contentType: ContentType): string {
  * @example getContentCreateLabel('dialogue') → 'Add New Cue'
  * @example getContentCreateLabel('image') → 'Add New Image'
  */
-export function getContentCreateLabel(contentType: ContentType): string {
+export function getContentCreateLabel(contentType: MediaType): string {
     return `Add New ${getContentLabel(contentType)}`;
 }
 
@@ -65,7 +69,7 @@ export function getContentCreateLabel(contentType: ContentType): string {
  * @example getContentIdLabel('dialogue') → 'Cue ID'
  * @example getContentIdLabel('image') → 'Image ID'
  */
-export function getContentIdLabel(contentType: ContentType): string {
+export function getContentIdLabel(contentType: MediaType): string {
     return `${getContentLabel(contentType)} ID`;
 }
 
@@ -74,7 +78,7 @@ export function getContentIdLabel(contentType: ContentType): string {
  * @example getTakeLabel('dialogue') → 'Take'
  * @example getTakeLabel('image') → 'Variant'
  */
-export function getTakeLabel(contentType: ContentType): string {
+export function getTakeLabel(contentType: MediaType): string {
     switch (contentType) {
         case 'dialogue':
         case 'music':
@@ -83,6 +87,8 @@ export function getTakeLabel(contentType: ContentType): string {
         case 'image':
         case 'video':
             return 'Variant';
+        case 'text':
+            return 'Draft';
         default:
             return 'Take';
     }
@@ -93,7 +99,7 @@ export function getTakeLabel(contentType: ContentType): string {
  * @example getTakeLabelPlural('dialogue') → 'Takes'
  * @example getTakeLabelPlural('image') → 'Variants'
  */
-export function getTakeLabelPlural(contentType: ContentType): string {
+export function getTakeLabelPlural(contentType: MediaType): string {
     switch (contentType) {
         case 'dialogue':
         case 'music':
@@ -102,6 +108,8 @@ export function getTakeLabelPlural(contentType: ContentType): string {
         case 'image':
         case 'video':
             return 'Variants';
+        case 'text':
+            return 'Drafts';
         default:
             return 'Takes';
     }

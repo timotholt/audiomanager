@@ -253,7 +253,7 @@ export default function ViewTree(props) {
                     onClick={() => props.onAddActor && props.onAddActor()}
                     sx={{ fontSize: '0.7rem', p: 0, minWidth: 0, textTransform: 'none' }}
                 >
-                    + Create First Item
+                    Create First Item
                 </Button>
             </Box>
         }>

@@ -28,6 +28,26 @@ const FALLBACK_DEFAULTS = {
         provider: 'elevenlabs',
         min_candidates: 1,
         approval_count_default: 1,
+    },
+    video: {
+        provider: 'openai',
+        min_candidates: 1,
+        approval_count_default: 1,
+        motion_strength: 0.5,
+    },
+    image: {
+        provider: 'openai',
+        min_candidates: 1,
+        approval_count_default: 1,
+        model: 'dall-e-3',
+        quality: 'standard',
+        size: '1024x1024',
+    },
+    text: {
+        provider: 'openai',
+        min_candidates: 1,
+        approval_count_default: 1,
+        model_id: 'gpt-4o',
     }
 };
 
@@ -87,7 +107,9 @@ export default function ProviderSettingsEditor(props) {
         const validKeys = [
             'provider', 'voice_id', 'model_id', 'min_candidates',
             'approval_count_default', 'stability', 'similarity_boost',
-            'duration_seconds', 'templates'
+            'duration_seconds', 'motion_strength', 'aspect_ratio', 'fps',
+            'model', 'style', 'quality', 'size', 'negative_prompt',
+            'templates'
         ];
         const sanitized = {};
         for (const key of validKeys) {
@@ -191,182 +213,237 @@ export default function ProviderSettingsEditor(props) {
             </Show>
 
             <Show when={!isInheriting()}>
-                <FormControl size="small" fullWidth>
-                    <InputLabel>Provider</InputLabel>
-                    <Select
-                        value={currentSettings().provider || 'elevenlabs'}
-                        label="Provider"
-                        onChange={(e) => handleChange('provider', e.target.value)}
-                    >
-                        <MenuItem value="elevenlabs">ElevenLabs</MenuItem>
-                        <MenuItem value="manual">Manual</MenuItem>
-                    </Select>
-                </FormControl>
+                <Stack spacing={2}>
+                    <FormControl size="small" fullWidth>
+                        <InputLabel>Provider</InputLabel>
+                        <Select
+                            value={currentSettings().provider || 'elevenlabs'}
+                            label="Provider"
+                            onChange={(e) => handleChange('provider', e.target.value)}
+                        >
+                            <MenuItem value="elevenlabs">ElevenLabs</MenuItem>
+                            <MenuItem value="openai">OpenAI</MenuItem>
+                            <MenuItem value="runway">Runway</MenuItem>
+                            <MenuItem value="manual">Manual</MenuItem>
+                        </Select>
+                    </FormControl>
 
-                <Show when={currentSettings().provider === 'elevenlabs'}>
-                    <Show when={props.mediaType === 'dialogue'}>
+                    {/* Prompt Template - Common for all */}
+                    <Box>
+                        <Typography variant="caption" sx={{ mb: 0.5, display: 'block', color: 'text.secondary', fontWeight: 600 }}>
+                            PROMPT TEMPLATE
+                        </Typography>
+                        <TextInput
+                            multiline
+                            rows={2}
+                            size="small"
+                            placeholder="{prompt}"
+                            value={currentSettings().templates?.prompt || ''}
+                            onValueChange={(val) => {
+                                const currentTemplates = currentSettings().templates || {};
+                                handleChange('templates', { ...currentTemplates, prompt: val });
+                            }}
+                            fullWidth
+                        />
+                    </Box>
+
+                    <Show when={currentSettings().provider === 'elevenlabs'}>
+                        <Stack spacing={2}>
+                            <Show when={props.mediaType === 'dialogue'}>
+                                <FormControl size="small" fullWidth>
+                                    <InputLabel>Model</InputLabel>
+                                    <Select
+                                        value={currentSettings().model_id || 'eleven_multilingual_v2'}
+                                        label="Model"
+                                        onChange={(e) => {
+                                            const newModel = e.target.value;
+                                            let newStability = currentSettings().stability;
+                                            if (newModel === 'eleven_v3') {
+                                                if (newStability == null) newStability = 0.5;
+                                                if (newStability < 0.25) newStability = 0.0;
+                                                else if (newStability < 0.75) newStability = 0.5;
+                                                else newStability = 1.0;
+                                            } else {
+                                                if (newStability == null || Number.isNaN(newStability)) {
+                                                    newStability = 0.5;
+                                                }
+                                            }
+                                            handleMultiChange({ model_id: newModel, stability: newStability });
+                                        }}
+                                    >
+                                        <MenuItem value="eleven_v3">Eleven v3 (alpha)</MenuItem>
+                                        <MenuItem value="eleven_multilingual_v2">Eleven Multilingual v2</MenuItem>
+                                        <MenuItem value="eleven_turbo_v2_5">Eleven Turbo v2.5</MenuItem>
+                                        <MenuItem value="eleven_flash_v2_5">Eleven Flash v2.5</MenuItem>
+                                    </Select>
+                                </FormControl>
+
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                    <FormControl size="small" fullWidth>
+                                        <InputLabel>Voice</InputLabel>
+                                        <Select
+                                            value={currentSettings().voice_id || ''}
+                                            label="Voice"
+                                            onChange={(e) => handleChange('voice_id', e.target.value)}
+                                            disabled={props.loadingVoices}
+                                        >
+                                            <MenuItem value="">
+                                                <em>- None -</em>
+                                            </MenuItem>
+                                            <For each={props.voices}>
+                                                {(voice) => (
+                                                    <MenuItem value={voice.voice_id}>{voice.name}</MenuItem>
+                                                )}
+                                            </For>
+                                        </Select>
+                                    </FormControl>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={playingPreview() ? <CircularProgress size={16} /> : <PlayArrowIcon />}
+                                        onClick={handlePlayPreview}
+                                        disabled={playingPreview() || !currentSettings().voice_id}
+                                    >
+                                        {playingPreview() ? 'Playing...' : 'Sample'}
+                                    </Button>
+                                </Box>
+
+                                <Box>
+                                    <Typography variant="caption" gutterBottom color="text.secondary">
+                                        Stability: {currentSettings().stability ?? 0.5}
+                                    </Typography>
+                                    <Slider
+                                        value={currentSettings().stability ?? 0.5}
+                                        onChange={(e, value) => handleChange('stability', value)}
+                                        min={0}
+                                        max={1}
+                                        step={currentSettings().model_id === 'eleven_v3' ? 0.5 : 0.1}
+                                        size="small"
+                                    />
+                                </Box>
+                                <Show when={currentSettings().model_id !== 'eleven_v3'}>
+                                    <Box>
+                                        <Typography variant="caption" gutterBottom color="text.secondary">
+                                            Similarity Boost: {currentSettings().similarity_boost ?? 0.75}
+                                        </Typography>
+                                        <Slider
+                                            value={currentSettings().similarity_boost ?? 0.75}
+                                            onChange={(e, value) => handleChange('similarity_boost', value)}
+                                            min={0}
+                                            max={1}
+                                            step={0.05}
+                                            size="small"
+                                        />
+                                    </Box>
+                                </Show>
+                            </Show>
+
+                            <Box sx={{ display: 'flex', gap: 2 }}>
+                                <TextInput
+                                    size="small"
+                                    label="Min Approved"
+                                    type="number"
+                                    value={String(currentSettings().approval_count_default || 1)}
+                                    onValueChange={(val) => handleChange('approval_count_default', parseInt(val) || 1)}
+                                    sx={{ width: 140 }}
+                                />
+                                <TextInput
+                                    size="small"
+                                    label="Min Candidates"
+                                    type="number"
+                                    value={String(currentSettings().min_candidates || 1)}
+                                    onValueChange={(val) => handleChange('min_candidates', parseInt(val) || 1)}
+                                    sx={{ width: 140 }}
+                                />
+                            </Box>
+                        </Stack>
+                    </Show>
+
+                    <Show when={props.mediaType === 'video'}>
+                        <Box>
+                            <Typography variant="caption" gutterBottom color="text.secondary">
+                                Motion Strength: {currentSettings().motion_strength ?? 0.5}
+                            </Typography>
+                            <Slider
+                                value={currentSettings().motion_strength ?? 0.5}
+                                onChange={(e, value) => handleChange('motion_strength', value)}
+                                min={0}
+                                max={1}
+                                step={0.05}
+                                size="small"
+                            />
+                        </Box>
+                    </Show>
+
+                    <Show when={props.mediaType === 'image'}>
                         <FormControl size="small" fullWidth>
                             <InputLabel>Model</InputLabel>
                             <Select
-                                value={currentSettings().model_id || 'eleven_multilingual_v2'}
+                                value={currentSettings().model || 'dall-e-3'}
                                 label="Model"
-                                onChange={(e) => {
-                                    const newModel = e.target.value;
-                                    let newStability = currentSettings().stability;
-                                    if (newModel === 'eleven_v3') {
-                                        if (newStability == null) newStability = 0.5;
-                                        if (newStability < 0.25) newStability = 0.0;
-                                        else if (newStability < 0.75) newStability = 0.5;
-                                        else newStability = 1.0;
-                                    } else {
-                                        if (newStability == null || Number.isNaN(newStability)) {
-                                            newStability = 0.5;
-                                        }
-                                    }
-                                    handleMultiChange({ model_id: newModel, stability: newStability });
-                                }}
+                                onChange={(e) => handleChange('model', e.target.value)}
                             >
-                                <MenuItem value="eleven_v3">Eleven v3 (alpha)</MenuItem>
-                                <MenuItem value="eleven_multilingual_v2">Eleven Multilingual v2</MenuItem>
-                                <MenuItem value="eleven_turbo_v2_5">Eleven Turbo v2.5</MenuItem>
-                                <MenuItem value="eleven_flash_v2_5">Eleven Flash v2.5</MenuItem>
+                                <MenuItem value="dall-e-3">DALL-E 3</MenuItem>
+                                <MenuItem value="dall-e-2">DALL-E 2</MenuItem>
                             </Select>
                         </FormControl>
-
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <FormControl size="small" fullWidth>
-                                <InputLabel shrink>Voice</InputLabel>
-                                <Select
-                                    value={currentSettings().voice_id || ''}
-                                    label="Voice"
-                                    displayEmpty
-                                    onChange={(e) => handleChange('voice_id', e.target.value)}
-                                    disabled={props.loadingVoices}
-                                >
-                                    <MenuItem value="">
-                                        <em>- None -</em>
-                                    </MenuItem>
-                                    <For each={props.voices}>
-                                        {(voice) => (
-                                            <MenuItem value={voice.voice_id}>{voice.name}</MenuItem>
-                                        )}
-                                    </For>
-                                </Select>
-                            </FormControl>
-                            <Button
-                                size="small"
-                                variant="outlined"
-                                startIcon={playingPreview() ? <CircularProgress size={16} /> : <PlayArrowIcon />}
-                                onClick={handlePlayPreview}
-                                disabled={playingPreview() || !currentSettings().voice_id}
+                        <FormControl size="small" fullWidth>
+                            <InputLabel>Quality</InputLabel>
+                            <Select
+                                value={currentSettings().quality || 'standard'}
+                                label="Quality"
+                                onChange={(e) => handleChange('quality', e.target.value)}
                             >
-                                {playingPreview() ? 'Playing...' : 'Sample'}
-                            </Button>
-                        </Box>
-
-                        <Box>
-                            <Typography variant="caption" gutterBottom color="text.secondary">
-                                Stability: {currentSettings().stability ?? 0.5}
-                            </Typography>
-                            <Slider
-                                value={currentSettings().stability ?? 0.5}
-                                onChange={(e, value) => handleChange('stability', value)}
-                                min={0}
-                                max={1}
-                                step={currentSettings().model_id === 'eleven_v3' ? 0.5 : 0.1}
-                                size="small"
-                            />
-                        </Box>
-                        <Show when={currentSettings().model_id !== 'eleven_v3'}>
-                            <Box>
-                                <Typography variant="caption" gutterBottom color="text.secondary">
-                                    Similarity Boost: {currentSettings().similarity_boost ?? 0.75}
-                                </Typography>
-                                <Slider
-                                    value={currentSettings().similarity_boost ?? 0.75}
-                                    onChange={(e, value) => handleChange('similarity_boost', value)}
-                                    min={0}
-                                    max={1}
-                                    step={0.05}
-                                    size="small"
-                                />
-                            </Box>
-                        </Show>
+                                <MenuItem value="standard">Standard</MenuItem>
+                                <MenuItem value="hd">HD</MenuItem>
+                            </Select>
+                        </FormControl>
+                        <FormControl size="small" fullWidth>
+                            <InputLabel>Size</InputLabel>
+                            <Select
+                                value={currentSettings().size || '1024x1024'}
+                                label="Size"
+                                onChange={(e) => handleChange('size', e.target.value)}
+                            >
+                                <MenuItem value="1024x1024">1024x1024</MenuItem>
+                                <MenuItem value="1024x1792">1024x1792 (Tall)</MenuItem>
+                                <MenuItem value="1792x1024">1792x1024 (Wide)</MenuItem>
+                            </Select>
+                        </FormControl>
                     </Show>
 
-                    <Box sx={{ display: 'flex', gap: 2 }}>
-                        <TextInput
-                            size="small"
-                            label="Min Approved"
-                            type="number"
-                            value={String(currentSettings().approval_count_default || 1)}
-                            onValueChange={(val) => handleChange('approval_count_default', parseInt(val) || 1)}
-                            sx={{ width: 140 }}
-                        />
-                        <TextInput
-                            size="small"
-                            label="Min Candidates"
-                            type="number"
-                            value={String(currentSettings().min_candidates || 1)}
-                            onValueChange={(val) => handleChange('min_candidates', parseInt(val) || 1)}
-                            sx={{ width: 140 }}
-                        />
-                    </Box>
-
-                    <Show when={props.mediaType === 'music'}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <TextInput
-                                size="small"
-                                label="Duration (mm:ss)"
-                                value={durationText()}
-                                onValueChange={(val) => {
-                                    setDurationText(val);
-                                    const width_secs = parseMmSsToSeconds(val);
-                                    if (width_secs != null) handleChange('duration_seconds', width_secs);
-                                }}
-                                sx={{ width: 160 }}
-                            />
-                            <Slider
-                                value={currentSettings().duration_seconds || 30}
-                                onChange={(e, value) => handleChange('duration_seconds', value)}
-                                min={1}
-                                max={300}
-                                step={1}
-                                size="small"
-                            />
-                        </Box>
+                    <Show when={props.mediaType === 'text'}>
+                        <FormControl size="small" fullWidth>
+                            <InputLabel>Model</InputLabel>
+                            <Select
+                                value={currentSettings().model_id || 'gpt-4o'}
+                                label="Model"
+                                onChange={(e) => handleChange('model_id', e.target.value)}
+                            >
+                                <MenuItem value="gpt-4o">GPT-4o</MenuItem>
+                                <MenuItem value="gpt-4o-mini">GPT-4o mini</MenuItem>
+                                <MenuItem value="gpt-4-turbo">GPT-4 Turbo</MenuItem>
+                                <MenuItem value="gpt-3.5-turbo">GPT-3.5 Turbo</MenuItem>
+                            </Select>
+                        </FormControl>
                     </Show>
 
-                    <Box sx={{ mt: 2, borderTop: 1, borderColor: 'divider', pt: 2 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 1, fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-                            Advanced Templates
+                    <Box sx={{ mt: 1, borderTop: 1, borderColor: 'divider', pt: 2 }}>
+                        <Typography variant="caption" sx={{ mb: 1, display: 'block', color: 'text.secondary', fontWeight: 600 }}>
+                            FILENAME TEMPLATE
                         </Typography>
-                        <Stack spacing={2}>
-                            <TextInput
-                                size="small"
-                                label="Prompt Template"
-                                placeholder="{prompt}"
-                                value={currentSettings().templates?.prompt || ''}
-                                onValueChange={(val) => {
-                                    const currentTemplates = currentSettings().templates || {};
-                                    handleChange('templates', { ...currentTemplates, prompt: val });
-                                }}
-                                fullWidth
-                            />
-                            <TextInput
-                                size="small"
-                                label="Filename Template"
-                                placeholder="{name}_{take_number}"
-                                value={currentSettings().templates?.filename || ''}
-                                onValueChange={(val) => {
-                                    const currentTemplates = currentSettings().templates || {};
-                                    handleChange('templates', { ...currentTemplates, filename: val });
-                                }}
-                                fullWidth
-                            />
-                        </Stack>
+                        <TextInput
+                            size="small"
+                            placeholder="{name}_{take_number}"
+                            value={currentSettings().templates?.filename || ''}
+                            onValueChange={(val) => {
+                                const currentTemplates = currentSettings().templates || {};
+                                handleChange('templates', { ...currentTemplates, filename: val });
+                            }}
+                            fullWidth
+                        />
                     </Box>
-                </Show>
+                </Stack>
             </Show>
 
             <Show when={props.error}>

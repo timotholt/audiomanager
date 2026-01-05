@@ -17,6 +17,9 @@ import StarBorderIcon from '@suid/icons-material/StarBorder';
 import FolderIcon from '@suid/icons-material/Folder';
 import AssessmentIcon from '@suid/icons-material/Assessment';
 import AddIcon from '@suid/icons-material/Add';
+import VideoFileIcon from '@suid/icons-material/VideoFile';
+import ImageIcon from '@suid/icons-material/Image';
+import DescriptionIcon from '@suid/icons-material/Description';
 
 import { DESIGN_SYSTEM } from '../theme/designSystem.js';
 import { TREE_INDENT } from '../constants.js';
@@ -29,12 +32,129 @@ function nodeKey(type, id) {
     return `${type}:${id}`;
 }
 
+/**
+ * Recursive Tree Item component to handle any depth of nesting
+ */
+function TreeItem(props) {
+    const itemKey = () => `item-${props.item.id}`;
+    const isView = () => props.item.category === 'view' || props.item.category === 'summary';
+    const hasItems = () => props.item.items && props.item.items.length > 0;
+    const isSelected = () => {
+        if (isView()) return props.selectedNode?.type === 'view-config' && props.selectedNode?.id === props.item.id;
+        return props.selectedId() === nodeKey(props.item.nodeType, props.item.nodeId);
+    };
+
+    const handleClick = (e) => {
+        if (isView()) props.onViewSelect(e, props.item);
+        else if (hasItems()) props.onToggle(itemKey());
+        else props.onSelect(props.item.nodeType, props.item.nodeId);
+    };
+
+    return (
+        <Box>
+            <ListItemButton
+                sx={{
+                    pl: `${TREE_INDENT.BASE + TREE_INDENT.STEP * props.depth}px`,
+                    pr: '0.25rem',
+                    py: '0.125rem',
+                    ...DESIGN_SYSTEM.treeItem
+                }}
+                selected={isSelected()}
+                onClick={handleClick}
+            >
+                <ListItemIcon sx={{ minWidth: 'auto', mr: '0.375rem' }}>
+                    {isView() ? (
+                        props.item.category === 'summary' ? <AssessmentIcon sx={{ fontSize: '0.75rem', opacity: 0.7 }} /> : <FolderIcon sx={{ fontSize: '0.75rem', opacity: 0.7 }} />
+                    ) : props.item.icon}
+                </ListItemIcon>
+                <ListItemText
+                    primary={getStickyName(props.item)}
+                    primaryTypographyProps={{
+                        fontSize: props.depth > 1 ? '0.85rem' : '0.9rem',
+                        lineHeight: props.depth > 1 ? '1rem' : '1.125rem',
+                        fontWeight: isView() ? 600 : 400
+                    }}
+                />
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: '2px', ml: 'auto' }}>
+                    {isView() && (
+                        <IconButton size="small" onClick={(e) => props.onTogglePin(e, props.item.id)} sx={{ p: 0, color: props.isPinned(props.item.id) ? 'primary.main' : 'text.disabled', opacity: 0.7 }}>
+                            {props.isPinned(props.item.id) ? <StarIcon sx={{ fontSize: '0.75rem' }} /> : <StarBorderIcon sx={{ fontSize: '0.75rem' }} />}
+                        </IconButton>
+                    )}
+                    {isView() && (
+                        <IconButton
+                            size="small"
+                            onClick={(e) => { e.stopPropagation(); props.onSelect('root', 'root'); }}
+                            sx={{ p: 0, opacity: 0.6, '&:hover': { opacity: 1, color: 'primary.main' } }}
+                        >
+                            <AddIcon sx={{ fontSize: '0.9rem' }} />
+                        </IconButton>
+                    )}
+                    {(isView() || hasItems()) && (
+                        <Box onClick={(e) => { e.stopPropagation(); props.onToggle(itemKey()); }} sx={{ display: 'flex', alignItems: 'center', opacity: 0.5 }}>
+                            {props.expanded()[itemKey()] ? <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} /> : <KeyboardArrowRightIcon sx={{ fontSize: '0.75rem' }} />}
+                        </Box>
+                    )}
+                </Box>
+            </ListItemButton>
+
+            <Collapse in={props.expanded()[itemKey()]}>
+                <Show when={isView()}>
+                    <ViewTree
+                        viewId={props.item.id}
+                        viewName={getStickyName(props.item)}
+                        tree={buildViewTree(props.item.id, {
+                            actors: props.actors,
+                            bins: props.bins,
+                            media: props.media,
+                            takes: props.takes,
+                            scenes: props.scenes || []
+                        }, props.customViews)}
+                        selectedNode={props.selectedNode}
+                        onSelect={(node) => props.onSelect(node.type, node.id)}
+                        baseDepth={props.depth + 1}
+                        onAddActor={() => props.onSelect('root', 'root')}
+                        onAddScene={() => props.onSelect('root', 'root')}
+                    />
+                </Show>
+                <Show when={hasItems()}>
+                    <List disablePadding>
+                        <For each={props.item.items}>
+                            {(subItem) => (
+                                <TreeItem
+                                    item={subItem}
+                                    depth={props.depth + 1}
+                                    expanded={props.expanded}
+                                    onToggle={props.onToggle}
+                                    selectedId={props.selectedId}
+                                    selectedNode={props.selectedNode}
+                                    onSelect={props.onSelect}
+                                    onViewSelect={props.onViewSelect}
+                                    onTogglePin={props.onTogglePin}
+                                    isPinned={props.isPinned}
+                                    actors={props.actors}
+                                    bins={props.bins}
+                                    media={props.media}
+                                    takes={props.takes}
+                                    scenes={props.scenes}
+                                    customViews={props.customViews}
+                                />
+                            )}
+                        </For>
+                    </List>
+                </Show>
+            </Collapse>
+        </Box>
+    );
+}
+
 export default function TreePane(props) {
     const selectedId = () => props.selectedNode ? nodeKey(props.selectedNode.type, props.selectedNode.id) : null;
 
     // --- Persistence ---
     const [expanded, setExpanded] = createSignal((() => {
-        return storage.get(props.projectName, 'tree-expanded', { views: true, favorites: true });
+        return storage.get(props.projectName, 'tree-expanded', { views: true, favorites: true, system: true });
     })());
 
     const [pinnedIds, setPinnedIds] = createSignal((() => {
@@ -97,7 +217,19 @@ export default function TreePane(props) {
                 { id: 'history', name: 'history', nodeType: 'history', nodeId: 'logs', icon: <HistoryIcon sx={{ fontSize: '0.75rem' }} /> },
                 {
                     id: 'defaults', name: 'defaults', nodeType: 'defaults', nodeId: 'providers', icon: <SettingsIcon sx={{ fontSize: '0.75rem' }} />,
-                    isDefaults: true
+                    items: [
+                        {
+                            id: 'defaults-media', name: 'media', nodeType: 'defaults', nodeId: 'media', icon: <FolderIcon sx={{ fontSize: '0.75rem' }} />,
+                            items: [
+                                { id: 'defaults-dialogue', name: 'Dialogue', nodeType: 'defaults', nodeId: 'dialogue', icon: <RecordVoiceOverIcon sx={{ fontSize: '0.75rem' }} /> },
+                                { id: 'defaults-music', name: 'Music', nodeType: 'defaults', nodeId: 'music', icon: <MusicNoteIcon sx={{ fontSize: '0.75rem' }} /> },
+                                { id: 'defaults-sfx', name: 'SFX', nodeType: 'defaults', nodeId: 'sfx', icon: <GraphicEqIcon sx={{ fontSize: '0.75rem' }} /> },
+                                { id: 'defaults-video', name: 'Video', nodeType: 'defaults', nodeId: 'video', icon: <VideoFileIcon sx={{ fontSize: '0.75rem' }} /> },
+                                { id: 'defaults-image', name: 'Image', nodeType: 'defaults', nodeId: 'image', icon: <ImageIcon sx={{ fontSize: '0.75rem' }} /> },
+                                { id: 'defaults-text', name: 'Text', nodeType: 'defaults', nodeId: 'text', icon: <DescriptionIcon sx={{ fontSize: '0.75rem' }} /> },
+                            ]
+                        }
+                    ]
                 }
             ]
         }
@@ -169,83 +301,26 @@ export default function TreePane(props) {
                             <Collapse in={expanded()[cat.id]}>
                                 <List disablePadding>
                                     <For each={cat.items}>
-                                        {(item) => {
-                                            const itemKey = `item-${item.id}`;
-                                            const isView = item.category === 'view' || item.category === 'summary';
-                                            const isSelected = () => props.selectedNode?.type === 'view-config' && props.selectedNode?.id === item.id;
-
-                                            return (
-                                                <Box>
-                                                    <ListItemButton
-                                                        sx={{
-                                                            pl: `${TREE_INDENT.BASE + TREE_INDENT.STEP}px`,
-                                                            pr: '0.25rem',
-                                                            py: '0.125rem',
-                                                            ...DESIGN_SYSTEM.treeItem
-                                                        }}
-                                                        selected={isSelected() || (!isView && selectedId() === nodeKey(item.nodeType, item.nodeId))}
-                                                        onClick={(e) => isView ? handleViewSelect(e, item) : handleSelect(item.nodeType, item.nodeId)}
-                                                    >
-                                                        <ListItemIcon sx={{ minWidth: 'auto', mr: '0.375rem' }}>
-                                                            {isView ? (
-                                                                item.category === 'summary' ? <AssessmentIcon sx={{ fontSize: '0.75rem', opacity: 0.7 }} /> : <FolderIcon sx={{ fontSize: '0.75rem', opacity: 0.7 }} />
-                                                            ) : item.icon}
-                                                        </ListItemIcon>
-                                                        <ListItemText
-                                                            primary={getStickyName(item)}
-                                                            primaryTypographyProps={{
-                                                                fontSize: '0.9rem',
-                                                                lineHeight: '1.125rem',
-                                                                fontWeight: isView ? 600 : 400
-                                                            }}
-                                                        />
-
-                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: '2px', ml: 'auto' }}>
-                                                            {isView && (
-                                                                <IconButton size="small" onClick={(e) => togglePin(e, item.id)} sx={{ p: 0, color: pinnedIds().includes(item.id) ? 'primary.main' : 'text.disabled', opacity: 0.7 }}>
-                                                                    {pinnedIds().includes(item.id) ? <StarIcon sx={{ fontSize: '0.75rem' }} /> : <StarBorderIcon sx={{ fontSize: '0.75rem' }} />}
-                                                                </IconButton>
-                                                            )}
-                                                            {isView && (
-                                                                <IconButton
-                                                                    size="small"
-                                                                    onClick={(e) => { e.stopPropagation(); props.onSelect({ type: 'root', id: 'root' }); }}
-                                                                    sx={{ p: 0, opacity: 0.6, '&:hover': { opacity: 1, color: 'primary.main' } }}
-                                                                >
-                                                                    <AddIcon sx={{ fontSize: '0.9rem' }} />
-                                                                </IconButton>
-                                                            )}
-                                                            {isView && (
-                                                                <Box onClick={(e) => { e.stopPropagation(); handleToggle(itemKey); }} sx={{ display: 'flex', alignItems: 'center', opacity: 0.5 }}>
-                                                                    {expanded()[itemKey] ? <ExpandMoreIcon sx={{ fontSize: '0.75rem' }} /> : <KeyboardArrowRightIcon sx={{ fontSize: '0.75rem' }} />}
-                                                                </Box>
-                                                            )}
-                                                        </Box>
-                                                    </ListItemButton>
-
-                                                    <Collapse in={expanded()[itemKey]}>
-                                                        <Show when={isView}>
-                                                            <ViewTree
-                                                                viewId={item.id}
-                                                                viewName={getStickyName(item)}
-                                                                tree={buildViewTree(item.id, {
-                                                                    actors: props.actors,
-                                                                    bins: props.bins,
-                                                                    media: props.media,
-                                                                    takes: props.takes,
-                                                                    scenes: props.scenes || []
-                                                                }, props.customViews)}
-                                                                selectedNode={props.selectedNode}
-                                                                onSelect={props.onSelect}
-                                                                baseDepth={2}
-                                                                onAddActor={() => props.onSelect({ type: 'root', id: 'root' })}
-                                                                onAddScene={() => props.onSelect({ type: 'root', id: 'root' })}
-                                                            />
-                                                        </Show>
-                                                    </Collapse>
-                                                </Box>
-                                            );
-                                        }}
+                                        {(item) => (
+                                            <TreeItem
+                                                item={item}
+                                                depth={1}
+                                                expanded={expanded}
+                                                onToggle={handleToggle}
+                                                selectedId={selectedId}
+                                                selectedNode={props.selectedNode}
+                                                onSelect={handleSelect}
+                                                onViewSelect={handleViewSelect}
+                                                onTogglePin={togglePin}
+                                                isPinned={(id) => pinnedIds().includes(id)}
+                                                actors={props.actors}
+                                                bins={props.bins}
+                                                media={props.media}
+                                                takes={props.takes}
+                                                scenes={props.scenes}
+                                                customViews={props.customViews}
+                                            />
+                                        )}
                                     </For>
                                 </List>
                             </Collapse>

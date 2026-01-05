@@ -193,14 +193,14 @@ export default function ViewConfigView(props) {
                     </Box>
                     <Box sx={{ display: 'flex', gap: 1 }}>
                         <Show when={isPreset()}>
-                            <Button variant="outlined" color="primary" onClick={handleReset} startIcon={<RestartAltIcon />}>
+                            <Button variant="outlined" color="primary" onClick={handleReset}>
                                 Reset to Defaults
                             </Button>
                         </Show>
-                        <Button variant="outlined" color="error" startIcon={<DeleteIcon />} onClick={props.onDelete}>
+                        <Button variant="outlined" color="error" onClick={props.onDelete}>
                             Delete
                         </Button>
-                        <Button variant="contained" color="primary" startIcon={<SaveIcon />} onClick={handleSave}>
+                        <Button variant="contained" color="primary" onClick={handleSave}>
                             Save Changes
                         </Button>
                     </Box>
@@ -234,7 +234,6 @@ export default function ViewConfigView(props) {
                                     size="large"
                                     onClick={handleQuickAdd}
                                     disabled={quickAddNames().length === 0}
-                                    startIcon={<AddIcon />}
                                     sx={{ height: '40px', px: 4, fontWeight: 700 }}
                                 >
                                     Add {nextLevelType() === 'actor' ? 'Actor' : 'Scene'}{quickAddNames().length > 1 ? `s (${quickAddNames().length})` : ''}
@@ -311,9 +310,7 @@ export default function ViewConfigView(props) {
                                             <Button
                                                 size="small"
                                                 variant="outlined"
-                                                startIcon={<AddIcon fontSize="small" />}
                                                 onClick={() => addLevel(dim.id)}
-                                                sx={{ borderRadius: '16px' }}
                                             >
                                                 {dim.name}
                                             </Button>
@@ -340,7 +337,7 @@ export default function ViewConfigView(props) {
                     <Collapse in={filtersExpanded()}>
                         <Box sx={{ p: 3 }}>
                             <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-                                <Button size="small" startIcon={<AddIcon />} onClick={addFilter}>
+                                <Button size="small" onClick={addFilter}>
                                     Add Rule
                                 </Button>
                             </Box>

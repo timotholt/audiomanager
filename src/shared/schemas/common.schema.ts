@@ -5,7 +5,7 @@ import { z } from 'zod';
 // ============================================================================
 
 export const OwnerTypeSchema = z.enum(['actor', 'scene', 'global']);
-export const MediaTypeSchema = z.enum(['dialogue', 'music', 'sfx', 'image', 'video']);
+export const MediaTypeSchema = z.enum(['dialogue', 'music', 'sfx', 'image', 'video', 'text']);
 export const TakeStatusSchema = z.enum(['new', 'approved', 'rejected', 'hidden']);
 export const ProviderSchema = z.enum(['elevenlabs', 'openai', 'runway', 'manual', 'inherit']);
 
@@ -61,6 +61,7 @@ export const DefaultBlocksSchema = z.object({
     sfx: DefaultBlockSchema.optional(),
     image: DefaultBlockSchema.optional(),
     video: DefaultBlockSchema.optional(),
+    text: DefaultBlockSchema.optional(),
 }).optional();
 
 // ============================================================================

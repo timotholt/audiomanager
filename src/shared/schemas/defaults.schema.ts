@@ -15,6 +15,7 @@ export const DefaultsSchema = z.object({
         sfx: DefaultBlockSchema.optional(),
         image: DefaultBlockSchema.optional(),
         video: DefaultBlockSchema.optional(),
+        text: DefaultBlockSchema.optional(),
     }),
 
     // Templates for creating new entities

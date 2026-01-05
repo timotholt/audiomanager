@@ -135,7 +135,16 @@ export default function DetailPane(props) {
                 </Match>
 
                 <Match when={activeType() === 'defaults'}>
-                    <DefaultsView />
+                    <Show when={props.selectedNode?.id === 'providers' || props.selectedNode?.id === 'media'} fallback={
+                        <ProviderDefaultsView
+                            mediaType={props.selectedNode?.id}
+                            voices={dataOps.voices}
+                            loadingVoices={dataOps.loadingVoices}
+                            error={commonError()}
+                        />
+                    }>
+                        <DefaultsView />
+                    </Show>
                 </Match>
 
                 <Match when={activeType() === 'console'}>

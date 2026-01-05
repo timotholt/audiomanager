@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import * as Schemas from '../shared/schemas/index.js';
+export { validateReferences } from './validationRI.js';
 
 /**
  * Validation result interface

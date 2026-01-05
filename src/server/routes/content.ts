@@ -5,7 +5,7 @@ import type { Actor, Content, Section, Take, Defaults, Scene } from '../../types
 import { ContentSchema, TakeSchema, ActorSchema, SectionSchema, SceneSchema, DefaultsSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
-import { validate } from '../../utils/validation.js';
+import { validate, validateReferences } from '../../utils/validation.js';
 import { getAudioProvider } from '../../services/provider-factory.js';
 import { writeMetadata, buildMetadataFromTake } from '../../services/audio/metadata.js';
 import { resolveDefaultBlock } from '../../utils/defaultBlockResolver.js';
@@ -76,6 +76,15 @@ export function registerContentRoutes(fastify: FastifyInstance, getProjectContex
 
     // Read catalog for snapshots and duplicate checking
     const catalog = await readCatalog(paths);
+
+    // Validate Referential Integrity (RI)
+    // Checks owner_id/type, section_id, and scene_id existence
+    const ri = validateReferences(body, catalog);
+    if (!ri.valid) {
+      reply.code(400);
+      return { error: 'Referential integrity failure', details: ri.errors };
+    }
+
     const displayNames = allNames.length === 1 ? allNames[0] : `${allNames.length} items`;
 
     await saveSnapshot(

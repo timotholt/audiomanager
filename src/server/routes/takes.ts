@@ -5,7 +5,7 @@ import type { Take, Content } from '../../types/index.js';
 import { TakeSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
-import { validate } from '../../utils/validation.js';
+import { validate, validateReferences } from '../../utils/validation.js';
 import { readCatalog, saveSnapshot } from './snapshots.js';
 import { describeChanges } from '../../utils/diffDescriber.js';
 import { updateMetadata } from '../../services/audio/metadata.js';
@@ -48,6 +48,14 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
     }
 
     const catalog = await readCatalog(paths);
+
+    // Validate Referential Integrity (RI)
+    const ri = validateReferences(body, catalog);
+    if (!ri.valid) {
+      reply.code(400);
+      return { error: 'Referential integrity failure', details: ri.errors };
+    }
+
     const takes = await readJsonl<Take>(paths.catalog.takes, TakeSchema);
     const takeIndex = takes.findIndex(t => t.id === id);
 

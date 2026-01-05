@@ -4,7 +4,7 @@ import type { Section, Take } from '../../types/index.js';
 import { SectionSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
-import { validate } from '../../utils/validation.js';
+import { validate, validateReferences } from '../../utils/validation.js';
 import {
   readCatalog,
   saveSnapshot,
@@ -50,25 +50,12 @@ export function registerSectionRoutes(fastify: FastifyInstance, getProjectContex
     // Read catalog once and save snapshot
     const catalog = await readCatalog(paths);
 
-    // Validate existence of owner
-    if (body.owner_type === 'actor' && body.owner_id) {
-      if (!catalog.actors.some(a => a.id === body.owner_id)) {
-        reply.code(400);
-        return { error: 'Actor not found', details: { owner_id: body.owner_id } };
-      }
-    } else if (body.owner_type === 'scene' && body.owner_id) {
-      if (!catalog.scenes.some(s => s.id === body.owner_id)) {
-        reply.code(400);
-        return { error: 'Scene not found', details: { owner_id: body.owner_id } };
-      }
-    }
-
-    // Validate existence of linked scene
-    if (body.scene_id) {
-      if (!catalog.scenes.some(s => s.id === body.scene_id)) {
-        reply.code(400);
-        return { error: 'Linked scene not found', details: { scene_id: body.scene_id } };
-      }
+    // Validate Referential Integrity (RI)
+    // This systematically checks keys like 'owner_id' + 'owner_type', 'scene_id', etc.
+    const ri = validateReferences(body, catalog);
+    if (!ri.valid) {
+      reply.code(400);
+      return { error: 'Referential integrity failure', details: ri.errors };
     }
 
     const sectionName = body.name || body.content_type;

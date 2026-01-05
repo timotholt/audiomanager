@@ -5,7 +5,7 @@ import type { Scene, Defaults } from '../../types/index.js';
 import { SceneSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
-import { validate } from '../../utils/validation.js';
+import { validate, validateReferences } from '../../utils/validation.js';
 import {
     readCatalog,
     saveSnapshot
@@ -43,6 +43,14 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
 
         const snapshotMessage = `Create scene: ${body.name}`;
         const catalog = await readCatalog(paths);
+
+        // Validate Referential Integrity (RI)
+        const ri = validateReferences(body, catalog);
+        if (!ri.valid) {
+            reply.code(400);
+            return { error: 'Referential integrity failure', details: ri.errors };
+        }
+
         await saveSnapshot(paths, snapshotMessage, catalog);
 
         // Load global defaults for potential auto-blocks (though scenes often start empty)
@@ -60,7 +68,7 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
 
         // Determine auto-added blocks from template
         const autoAddBlocks = defaults?.templates?.scene?.auto_add_blocks || [];
-        const defaultBlocks: Scene['default_blocks'] = {};
+        const defaultBlocks: any = {};
         for (const type of autoAddBlocks) {
             defaultBlocks[type as keyof Scene['default_blocks'] & string] = { provider: 'inherit' };
         }

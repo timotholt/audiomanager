@@ -5,7 +5,7 @@ import type { Actor, Take, Section, Content, Defaults } from '../../types/index.
 import { ActorSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
-import { validate } from '../../utils/validation.js';
+import { validate, validateReferences } from '../../utils/validation.js';
 import {
   readCatalog,
   saveSnapshot,
@@ -49,6 +49,14 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     // Read catalog once and save snapshot
     const catalog = await readCatalog(paths);
+
+    // Validate Referential Integrity (RI)
+    const ri = validateReferences(body, catalog);
+    if (!ri.valid) {
+      reply.code(400);
+      return { error: 'Referential integrity failure', details: ri.errors };
+    }
+
     await saveSnapshot(paths, snapshotMessage, catalog);
 
     // Load global defaults to initialize actor blocks

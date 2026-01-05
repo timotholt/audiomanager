@@ -1,6 +1,10 @@
+import { join } from 'path';
+import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Actor, Section, Content, Take } from '../../types/index.js';
 import { readJsonl } from '../../utils/jsonl.js';
+import { validateReferences } from '../../utils/validation.js';
+import { readCatalog } from './snapshots.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -45,9 +49,9 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
     }
     const { paths } = ctx;
 
-    const query = request.query as { 
-      actor_id?: string; 
-      section_id?: string; 
+    const query = request.query as {
+      actor_id?: string;
+      section_id?: string;
       content_id?: string;
       dry_run?: string;
     };
@@ -56,19 +60,26 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
     const filterContentId = query.content_id;
     const dryRun = query.dry_run === 'true';
 
-    // Load all catalog data
-    const actors = await readJsonl<Actor>(paths.catalog.actors);
-    const sections = await readJsonl<Section>(paths.catalog.sections);
-    const content = await readJsonl<Content>(paths.catalog.content);
-    const takes = await readJsonl<Take>(paths.catalog.takes);
+    // Load full catalog for validation and processing
+    const catalog = await readCatalog(paths);
 
-    // Build lookup maps
-    const actorsById = new Map(actors.map(a => [a.id, a]));
-    const sectionsById = new Map(sections.map(s => [s.id, s]));
+    // Validate filters (automatically checks actor_id, section_id, content_id)
+    const ri = validateReferences(query, catalog);
+    if (!ri.valid) {
+      reply.code(400);
+      return { error: 'Invalid filter ID', details: ri.errors };
+    }
+
+    // Load global defaults if needed for resolution
+    const defaultsPath = join(paths.root, 'defaults.json');
+    let globalDefaults: any = null;
+    if (await fs.pathExists(defaultsPath)) {
+      globalDefaults = await fs.readJson(defaultsPath);
+    }
 
     // Filter content to process
-    let targetContent = content.filter(c => !c.all_approved); // Only incomplete cues
-    
+    let targetContent = catalog.content.filter(c => !c.all_approved); // Only incomplete cues
+
     if (filterContentId) {
       targetContent = targetContent.filter(c => c.id === filterContentId);
     }
@@ -76,34 +87,38 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
       targetContent = targetContent.filter(c => c.section_id === filterSectionId);
     }
     if (filterActorId) {
-      targetContent = targetContent.filter(c => c.actor_id === filterActorId);
+      targetContent = targetContent.filter(c => c.owner_id === filterActorId && c.owner_type === 'actor');
     }
 
     const results: BackfillResult[] = [];
     const errors: string[] = [];
     let totalGenerated = 0;
 
+    const takes = await readJsonl<Take>(paths.catalog.takes);
+
+    const actorsById = new Map(catalog.actors.map(a => [a.id, a]));
+    const sectionsById = new Map(catalog.sections.map(s => [s.id, s]));
+    const scenesById = new Map(catalog.scenes.map(s => [s.id, s]));
+
     for (const cue of targetContent) {
-      const actor = actorsById.get(cue.actor_id);
+      let owner: any = null;
+      if (cue.owner_type === 'actor') owner = actorsById.get(cue.owner_id!);
+      else if (cue.owner_type === 'scene') owner = scenesById.get(cue.owner_id!);
+
       const section = sectionsById.get(cue.section_id);
-      
-      if (!actor || !section) {
-        errors.push(`Cue ${cue.cue_id}: Missing actor or section`);
+
+      if (!section) {
+        errors.push(`Cue ${cue.id}: Missing section`);
         continue;
       }
 
-      // Get settings from section, falling back to actor settings
-      // If section provider is 'inherit', use actor settings
-      const sectionSettings = section.provider_settings;
-      const actorSettings = actor.provider_settings?.[cue.content_type as keyof typeof actor.provider_settings];
-      
-      const minCandidates = (sectionSettings?.provider !== 'inherit' && sectionSettings?.min_candidates)
-        ? sectionSettings.min_candidates
-        : (actorSettings?.min_candidates ?? 1);
-      
-      const minApprovedTakes = (sectionSettings?.provider !== 'inherit' && sectionSettings?.approval_count_default)
-        ? sectionSettings.approval_count_default
-        : (actorSettings?.approval_count_default ?? 1);
+      // Use the standard block resolver to determine needed counts
+      const { resolveDefaultBlock } = await import('../../utils/defaultBlockResolver.js');
+      const resolved = resolveDefaultBlock(cue.content_type, cue, section, owner, globalDefaults);
+      const settings = resolved.settings;
+
+      const minCandidates = settings.min_candidates ?? 1;
+      const minApprovedTakes = settings.approval_count_default ?? 1;
 
       // Count takes by status
       const cueTakes = takes.filter(t => t.content_id === cue.id);
@@ -116,13 +131,13 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
       if (approvedCount < minApprovedTakes) {
         needed = Math.max(0, minCandidates - undecidedCount);
       }
-      
-      console.log(`[Backfill] ${cue.cue_id}: approved=${approvedCount}/${minApprovedTakes}, undecided=${undecidedCount}/${minCandidates}, needed=${needed}`);
+
+      const ownerName = owner ? (owner.display_name || owner.name) : 'Global';
 
       const result: BackfillResult = {
         content_id: cue.id,
-        cue_id: cue.cue_id,
-        actor_name: actor.display_name,
+        cue_id: cue.id, // V2 uses same id
+        actor_name: ownerName,
         section_name: section.name || section.content_type,
         current_undecided: undecidedCount,
         min_candidates: minCandidates,
@@ -146,11 +161,11 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
           } else {
             const errorBody = JSON.parse(generateResponse.body);
             result.error = errorBody.error || `HTTP ${generateResponse.statusCode}`;
-            errors.push(`${actor.display_name} → ${section.name || section.content_type} → ${cue.cue_id}: ${result.error}`);
+            errors.push(`${ownerName} → ${section.name || section.content_type} → ${cue.id}: ${result.error}`);
           }
         } catch (err) {
           result.error = (err as Error).message;
-          errors.push(`${actor.display_name} → ${section.name || section.content_type} → ${cue.cue_id}: ${result.error}`);
+          errors.push(`${ownerName} → ${section.name || section.content_type} → ${cue.id}: ${result.error}`);
         }
       } else if (needed > 0 && dryRun) {
         result.generated = needed; // In dry run, report what would be generated
@@ -184,9 +199,9 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'No project selected' };
     }
 
-    const query = request.query as { 
-      actor_id?: string; 
-      section_id?: string; 
+    const query = request.query as {
+      actor_id?: string;
+      section_id?: string;
       content_id?: string;
     };
 

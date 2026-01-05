@@ -26,11 +26,11 @@ export function validate(schemaKey: string, data: unknown): ValidationResult {
         case 'scene':
             schema = Schemas.SceneSchema;
             break;
-        case 'section':
-            schema = Schemas.SectionSchema;
+        case 'bin':
+            schema = Schemas.BinSchema;
             break;
-        case 'content':
-            schema = Schemas.ContentSchema;
+        case 'media':
+            schema = Schemas.MediaSchema;
             break;
         case 'take':
             schema = Schemas.TakeSchema;

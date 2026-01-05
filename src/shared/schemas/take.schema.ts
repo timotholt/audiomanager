@@ -16,7 +16,7 @@ export const GenerationParamsSchema = z.object({
     negative_prompt: z.string().optional(),
 
     // Provenance: Where settings came from
-    resolved_from: z.enum(['content', 'section', 'owner', 'global', 'hardcoded']),
+    resolved_from: z.enum(['content', 'bin', 'owner', 'global', 'hardcoded']),
 
     // Full settings snapshot (for reproducibility)
     full_settings: DefaultBlockSchema,

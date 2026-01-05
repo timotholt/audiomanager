@@ -1,7 +1,7 @@
 import { join } from 'path';
 import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Actor, Section, Content, Take } from '../../types/index.js';
+import type { Bin, Media, Take } from '../../types/index.js';
 import { readJsonl } from '../../utils/jsonl.js';
 import { validateReferences } from '../../utils/validation.js';
 import { readCatalog } from './snapshots.js';
@@ -9,10 +9,9 @@ import { readCatalog } from './snapshots.js';
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
 interface BackfillResult {
-  content_id: string;
-  cue_id: string;
+  media_id: string;
   actor_name: string;
-  section_name: string;
+  bin_name: string;
   current_undecided: number;
   min_candidates: number;
   needed: number;
@@ -31,14 +30,14 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
   /**
    * POST /api/batch/backfill-takes
    * 
-   * For each cue that is not yet complete (all_approved = false):
+   * For each media item that is not yet complete (all_approved = false):
    * - Count undecided takes (status = 'new')
    * - If undecided < min_candidates, generate (min_candidates - undecided) new takes
    * 
    * Query params:
    * - actor_id: optional, limit to specific actor
-   * - section_id: optional, limit to specific section
-   * - content_id: optional, limit to specific cue
+   * - bin_id: optional, limit to specific bin
+   * - media_id: optional, limit to specific media item
    * - dry_run: if true, just return what would be generated without generating
    */
   fastify.post('/api/batch/backfill-takes', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -51,19 +50,19 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
 
     const query = request.query as {
       actor_id?: string;
-      section_id?: string;
-      content_id?: string;
+      bin_id?: string;
+      media_id?: string;
       dry_run?: string;
     };
     const filterActorId = query.actor_id;
-    const filterSectionId = query.section_id;
-    const filterContentId = query.content_id;
+    const filterBinId = query.bin_id;
+    const filterMediaId = query.media_id;
     const dryRun = query.dry_run === 'true';
 
     // Load full catalog for validation and processing
     const catalog = await readCatalog(paths);
 
-    // Validate filters (automatically checks actor_id, section_id, content_id)
+    // Validate filters
     const ri = validateReferences(query, catalog);
     if (!ri.valid) {
       reply.code(400);
@@ -77,17 +76,17 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
       globalDefaults = await fs.readJson(defaultsPath);
     }
 
-    // Filter content to process
-    let targetContent = catalog.content.filter(c => !c.all_approved); // Only incomplete cues
+    // Filter media to process
+    let targetMedia = catalog.media.filter(m => !m.all_approved);
 
-    if (filterContentId) {
-      targetContent = targetContent.filter(c => c.id === filterContentId);
+    if (filterMediaId) {
+      targetMedia = targetMedia.filter(m => m.id === filterMediaId);
     }
-    if (filterSectionId) {
-      targetContent = targetContent.filter(c => c.section_id === filterSectionId);
+    if (filterBinId) {
+      targetMedia = targetMedia.filter(m => m.bin_id === filterBinId);
     }
     if (filterActorId) {
-      targetContent = targetContent.filter(c => c.owner_id === filterActorId && c.owner_type === 'actor');
+      targetMedia = targetMedia.filter(m => m.owner_id === filterActorId && m.owner_type === 'actor');
     }
 
     const results: BackfillResult[] = [];
@@ -97,36 +96,35 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
     const takes = await readJsonl<Take>(paths.catalog.takes);
 
     const actorsById = new Map(catalog.actors.map(a => [a.id, a]));
-    const sectionsById = new Map(catalog.sections.map(s => [s.id, s]));
+    const binsById = new Map(catalog.bins.map(b => [b.id, b]));
     const scenesById = new Map(catalog.scenes.map(s => [s.id, s]));
 
-    for (const cue of targetContent) {
+    for (const media of targetMedia) {
       let owner: any = null;
-      if (cue.owner_type === 'actor') owner = actorsById.get(cue.owner_id!);
-      else if (cue.owner_type === 'scene') owner = scenesById.get(cue.owner_id!);
+      if (media.owner_type === 'actor') owner = actorsById.get(media.owner_id!);
+      else if (media.owner_type === 'scene') owner = scenesById.get(media.owner_id!);
 
-      const section = sectionsById.get(cue.section_id);
+      const bin = binsById.get(media.bin_id);
 
-      if (!section) {
-        errors.push(`Cue ${cue.id}: Missing section`);
+      if (!bin) {
+        errors.push(`Media ${media.id}: Missing bin`);
         continue;
       }
 
       // Use the standard block resolver to determine needed counts
       const { resolveDefaultBlock } = await import('../../utils/defaultBlockResolver.js');
-      const resolved = resolveDefaultBlock(cue.content_type, cue, section, owner, globalDefaults);
+      const resolved = resolveDefaultBlock(media.media_type, media, bin, owner, globalDefaults);
       const settings = resolved.settings;
 
       const minCandidates = settings.min_candidates ?? 1;
       const minApprovedTakes = settings.approval_count_default ?? 1;
 
       // Count takes by status
-      const cueTakes = takes.filter(t => t.content_id === cue.id);
-      const undecidedCount = cueTakes.filter(t => t.status === 'new').length;
-      const approvedCount = cueTakes.filter(t => t.status === 'approved').length;
+      const mediaTakes = takes.filter(t => t.media_id === media.id);
+      const undecidedCount = mediaTakes.filter(t => t.status === 'new').length;
+      const approvedCount = mediaTakes.filter(t => t.status === 'approved').length;
 
       // Don't backfill if we already have enough approved takes
-      // Otherwise, backfill to meet min_candidates for undecided
       let needed = 0;
       if (approvedCount < minApprovedTakes) {
         needed = Math.max(0, minCandidates - undecidedCount);
@@ -135,10 +133,9 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
       const ownerName = owner ? (owner.display_name || owner.name) : 'Global';
 
       const result: BackfillResult = {
-        content_id: cue.id,
-        cue_id: cue.id, // V2 uses same id
+        media_id: media.id,
         actor_name: ownerName,
-        section_name: section.name || section.content_type,
+        bin_name: bin.name || bin.media_type,
         current_undecided: undecidedCount,
         min_candidates: minCandidates,
         needed,
@@ -146,11 +143,10 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
       };
 
       if (needed > 0 && !dryRun) {
-        // Call the existing generate endpoint internally
         try {
           const generateResponse = await fastify.inject({
             method: 'POST',
-            url: `/api/content/${cue.id}/generate`,
+            url: `/api/media/${media.id}/generate`,
             payload: { count: needed },
           });
 
@@ -161,14 +157,14 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
           } else {
             const errorBody = JSON.parse(generateResponse.body);
             result.error = errorBody.error || `HTTP ${generateResponse.statusCode}`;
-            errors.push(`${ownerName} → ${section.name || section.content_type} → ${cue.id}: ${result.error}`);
+            errors.push(`${ownerName} → ${bin.name || bin.media_type} → ${media.id}: ${result.error}`);
           }
         } catch (err) {
           result.error = (err as Error).message;
-          errors.push(`${ownerName} → ${section.name || section.content_type} → ${cue.id}: ${result.error}`);
+          errors.push(`${ownerName} → ${bin.name || bin.media_type} → ${media.id}: ${result.error}`);
         }
       } else if (needed > 0 && dryRun) {
-        result.generated = needed; // In dry run, report what would be generated
+        result.generated = needed;
         totalGenerated += needed;
       }
 
@@ -185,14 +181,7 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
     return response;
   });
 
-  /**
-   * GET /api/batch/backfill-takes/preview
-   * 
-   * Preview what would be generated by backfill without actually generating.
-   * Same logic as POST but always dry_run.
-   */
   fastify.get('/api/batch/backfill-takes/preview', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Redirect to POST with dry_run=true
     const ctx = getProjectContext();
     if (!ctx) {
       reply.code(400);
@@ -201,11 +190,10 @@ export function registerBatchRoutes(fastify: FastifyInstance, getProjectContext:
 
     const query = request.query as {
       actor_id?: string;
-      section_id?: string;
-      content_id?: string;
+      bin_id?: string;
+      media_id?: string;
     };
 
-    // Use inject to call the POST endpoint with dry_run
     const response = await fastify.inject({
       method: 'POST',
       url: '/api/batch/backfill-takes',

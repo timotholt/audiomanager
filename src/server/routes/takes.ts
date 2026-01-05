@@ -1,15 +1,14 @@
 import { join } from 'path';
 import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Take, Content } from '../../types/index.js';
+import type { Take, Media } from '../../types/index.js';
 import { TakeSchema } from '../../shared/schemas/index.js';
-import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
-import { generateId } from '../../utils/ids.js';
-import { validate, validateReferences } from '../../utils/validation.js';
+import { readJsonl, writeJsonlAll } from '../../utils/jsonl.js';
+import { validateReferences } from '../../utils/validation.js';
 import { readCatalog, saveSnapshot } from './snapshots.js';
 import { describeChanges } from '../../utils/diffDescriber.js';
 import { updateMetadata } from '../../services/audio/metadata.js';
-import { buildContentPath } from '../../utils/pathBuilder.js';
+import { buildMediaPath } from '../../utils/pathBuilder.js';
 
 type ProjectContext = { projectRoot: string; paths: ReturnType<typeof import('../../utils/paths.js').getProjectPaths> };
 
@@ -23,10 +22,10 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
     const { paths } = ctx;
     const takes = await readJsonl<Take>(paths.catalog.takes, TakeSchema);
 
-    const query = request.query as { contentId?: string };
-    const contentId = query.contentId;
+    const query = request.query as { mediaId?: string };
+    const mediaId = query.mediaId;
 
-    const filtered = contentId ? takes.filter((t) => t.content_id === contentId) : takes;
+    const filtered = mediaId ? takes.filter((t) => t.media_id === mediaId) : takes;
 
     return { takes: filtered };
   });
@@ -73,11 +72,11 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
     };
 
     // Find context for snapshot message
-    const content = catalog.content.find(c => c.id === currentTake.content_id);
+    const mediaItem = catalog.media.find(m => m.id === currentTake.media_id);
     let snapshotMessage = '';
 
-    if (content) {
-      const displayPath = buildContentPath(content.owner_type, content.owner_id || null, content.section_id, content.name, catalog);
+    if (mediaItem) {
+      const displayPath = buildMediaPath(mediaItem.owner_type, mediaItem.owner_id || null, mediaItem.bin_id, mediaItem.name, catalog);
       const diff = describeChanges(currentTake as any, updatedTake as any);
       const changeDesc = diff.changes.length > 0 ? diff.changes[0] : 'updated';
       snapshotMessage = `${displayPath} → Take ${currentTake.take_number}: ${changeDesc}`;
@@ -87,10 +86,11 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
 
     await saveSnapshot(paths, snapshotMessage, catalog);
 
-    const validation = validate('take', updatedTake);
-    if (!validation.valid) {
+    // Zod validation
+    const validation = TakeSchema.safeParse(updatedTake);
+    if (!validation.success) {
       reply.code(400);
-      return { error: 'Invalid take data', details: validation.errors };
+      return { error: 'Invalid take data', details: validation.error.format() };
     }
 
     takes[takeIndex] = updatedTake;
@@ -133,7 +133,7 @@ export function registerTakeRoutes(fastify: FastifyInstance, getProjectContext: 
     takes.splice(takeIndex, 1);
     await writeJsonlAll(paths.catalog.takes, takes, TakeSchema);
 
-    // Optional: Delete physical file
+    // Delete physical file
     try {
       const fullPath = join(ctx.projectRoot, deletedTake.path);
       if (await fs.pathExists(fullPath)) {

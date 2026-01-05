@@ -2,7 +2,7 @@ import { join } from 'path';
 import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Scene, Defaults } from '../../types/index.js';
-import { SceneSchema } from '../../shared/schemas/index.js';
+import { SceneSchema, BinSchema, MediaSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { validate, validateReferences } from '../../utils/validation.js';
@@ -46,7 +46,6 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
         const existingScene = catalog.scenes.find(s => s.name.toLowerCase() === body.name?.toLowerCase());
 
         if (existingScene) {
-            // MERGE: If scene exists, just link the new actors to it
             const newActorIds = body.actor_ids || [];
             const currentActorIds = existingScene.actor_ids || [];
             const mergedIds = Array.from(new Set([...currentActorIds, ...newActorIds]));
@@ -58,7 +57,6 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
             return { scene: existingScene, reused: true };
         }
 
-        // Validate Referential Integrity (RI)
         const ri = validateReferences(body, catalog);
         if (!ri.valid) {
             reply.code(400);
@@ -67,7 +65,6 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
 
         await saveSnapshot(paths, snapshotMessage, catalog);
 
-        // Load global defaults for potential auto-blocks
         const defaultsPath = join(paths.root, 'defaults.json');
         let defaults: Defaults | null = null;
         try {
@@ -79,8 +76,6 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
         }
 
         const now = new Date().toISOString();
-
-        // Determine auto-added blocks from template
         const autoAddBlocks = defaults?.templates?.scene?.auto_add_blocks || [];
         const defaultBlocks: any = {};
         for (const type of autoAddBlocks) {
@@ -166,26 +161,24 @@ export function registerSceneRoutes(fastify: FastifyInstance, getProjectContext:
 
         const remainingScenes = catalog.scenes.filter(s => s.id !== id);
 
-        // Cascade delete logic: 
-        // 1. Sections owned by 'scene' type
-        // 2. Sections referencing this scene via scene_id (even if owned by actor)
-        const remainingSections = catalog.sections.filter(s =>
-            !(s.owner_id === id && s.owner_type === 'scene') &&
-            !(s.scene_id === id)
+        // Cascade delete logic
+        const remainingBins = catalog.bins.filter(b =>
+            !(b.owner_id === id && b.owner_type === 'scene') &&
+            !(b.scene_id === id)
         );
-        const removedSectionIds = new Set(catalog.sections
-            .filter(s => (s.owner_id === id && s.owner_type === 'scene') || (s.scene_id === id))
-            .map(s => s.id));
+        const removedBinIds = new Set(catalog.bins
+            .filter(b => (b.owner_id === id && b.owner_type === 'scene') || (b.scene_id === id))
+            .map(b => b.id));
 
-        const remainingContent = catalog.content.filter(c =>
-            !(c.owner_id === id && c.owner_type === 'scene') &&
-            !(c.scene_id === id) &&
-            !removedSectionIds.has(c.section_id)
+        const remainingMedia = catalog.media.filter(m =>
+            !(m.owner_id === id && m.owner_type === 'scene') &&
+            !(m.scene_id === id) &&
+            !removedBinIds.has(m.bin_id)
         );
 
         await writeJsonlAll(paths.catalog.scenes, remainingScenes, SceneSchema);
-        await writeJsonlAll(paths.catalog.sections, remainingSections);
-        await writeJsonlAll(paths.catalog.content, remainingContent);
+        await writeJsonlAll(paths.catalog.bins, remainingBins, BinSchema);
+        await writeJsonlAll(paths.catalog.media, remainingMedia, MediaSchema);
 
         reply.code(204);
         return null;

@@ -16,12 +16,12 @@ export interface ReferenceValidationResult {
  * Supported Keys:
  * - actor_id
  * - scene_id
- * - section_id
- * - content_id
+ * - bin_id
+ * - media_id
  * - owner_id + owner_type context
  * 
  * @param data The object to validate (e.g. body of a POST request)
- * @param catalog The full loaded catalog (actors, scenes, sections, etc)
+ * @param catalog The full loaded catalog (actors, scenes, bins, etc)
  */
 export function validateReferences(data: any, catalog: any): ReferenceValidationResult {
     const errors: string[] = [];
@@ -47,12 +47,12 @@ export function validateReferences(data: any, catalog: any): ReferenceValidation
         }
     }
 
-    if (data.section_id && !catalog.sections.some((s: any) => s.id === data.section_id)) {
-        errors.push(`Invalid section_id: ${data.section_id}`);
+    if (data.bin_id && !catalog.bins.some((b: any) => b.id === data.bin_id)) {
+        errors.push(`Invalid bin_id: ${data.bin_id}`);
     }
 
-    if (data.content_id && !catalog.content.some((c: any) => c.id === data.content_id)) {
-        errors.push(`Invalid content_id: ${data.content_id}`);
+    if (data.media_id && !catalog.media.some((m: any) => m.id === data.media_id)) {
+        errors.push(`Invalid media_id: ${data.media_id}`);
     }
 
     // 2. Check Polymorphic Owner Fields
@@ -66,7 +66,6 @@ export function validateReferences(data: any, catalog: any): ReferenceValidation
                 errors.push(`Invalid owner_id (Scene): ${data.owner_id}`);
             }
         }
-        // 'global' owner has no ID to check, so we ignore it
     }
 
     if (errors.length > 0) {

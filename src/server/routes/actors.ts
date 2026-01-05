@@ -1,8 +1,8 @@
 import { join } from 'path';
 import fs from 'fs-extra';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import type { Actor, Take, Section, Content, Defaults } from '../../types/index.js';
-import { ActorSchema, SceneSchema } from '../../shared/schemas/index.js';
+import type { Actor, Take, Bin, Media, Defaults } from '../../types/index.js';
+import { ActorSchema, SceneSchema, BinSchema, MediaSchema } from '../../shared/schemas/index.js';
 import { readJsonl, appendJsonl, ensureJsonlFile, writeJsonlAll } from '../../utils/jsonl.js';
 import { generateId } from '../../utils/ids.js';
 import { validate, validateReferences } from '../../utils/validation.js';
@@ -23,7 +23,6 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       return { error: 'No project selected' };
     }
     const { paths } = ctx;
-    // Use schema validation on read
     const actors = await readJsonl<Actor>(paths.catalog.actors, ActorSchema);
     return { actors };
   });
@@ -40,17 +39,13 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     const body = request.body as Partial<Actor> | undefined;
     const now = new Date().toISOString();
 
-    // Get actor name(s) for snapshot message
     const displayNameInput = body?.display_name ?? 'New Actor';
     const allNames = displayNameInput.split(',').map((n: string) => n.trim()).filter((n: string) => n.length > 0);
     const snapshotMessage = allNames.length === 1
       ? snapshotMessageForActor('create', allNames[0])
       : `Create actors: ${allNames.join(', ')}`;
 
-    // Read catalog once and save snapshot
     const catalog = await readCatalog(paths);
-
-    // Validate Referential Integrity (RI)
     const ri = validateReferences(body, catalog);
     if (!ri.valid) {
       reply.code(400);
@@ -59,7 +54,6 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Load global defaults to initialize actor blocks
     const defaultsPath = join(paths.root, 'defaults.json');
     let defaults: Defaults | null = null;
     try {
@@ -84,7 +78,6 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
       if (existing) {
         finalActors.push(existing);
       } else {
-        // Create new actor
         const autoAddBlocks = defaults?.templates?.actor?.auto_add_blocks || ['dialogue'];
         const defaultBlocks: any = {};
         for (const type of autoAddBlocks) {
@@ -147,11 +140,10 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     const updatedActor: Actor = {
       ...currentActor,
       ...body,
-      id, // Ensure ID doesn't change
+      id,
       updated_at: new Date().toISOString(),
     };
 
-    // Save snapshot
     const snapshotMessage = snapshotMessageForActorUpdate(
       currentActor.display_name,
       currentActor as unknown as Record<string, unknown>,
@@ -159,7 +151,6 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
     );
     await saveSnapshot(paths, snapshotMessage, catalog);
 
-    // Validate
     const validation = validate('actor', updatedActor);
     if (!validation.valid) {
       reply.code(400);
@@ -194,28 +185,22 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     const remainingActors = catalog.actors.filter((a) => a.id !== id);
 
-    // Updated Cascade Delete Logic: 
-    // Delete all sections where owner_id is this actor and owner_type is 'actor'
-    const remainingSections = catalog.sections.filter((s) => !(s.owner_id === id && s.owner_type === 'actor'));
+    // Cascade Delete Logic (Bins, Media, Takes)
+    const remainingBins = catalog.bins.filter((b) => !(b.owner_id === id && b.owner_type === 'actor'));
+    const removedBinIds = new Set(catalog.bins
+      .filter((b) => b.owner_id === id && b.owner_type === 'actor')
+      .map(b => b.id));
 
-    const removedSectionIds = new Set(catalog.sections
-      .filter((s) => s.owner_id === id && s.owner_type === 'actor')
-      .map(s => s.id));
-
-    // Delete content belonging to those sections (or directly owned by actor)
-    const remainingContent = catalog.content.filter((c) =>
-      !(c.owner_id === id && c.owner_type === 'actor') && !removedSectionIds.has(c.section_id)
+    const remainingMedia = catalog.media.filter((m) =>
+      !(m.owner_id === id && m.owner_type === 'actor') && !removedBinIds.has(m.bin_id)
     );
+    const removedMediaIds = new Set(catalog.media
+      .filter((m) => (m.owner_id === id && m.owner_type === 'actor') || removedBinIds.has(m.bin_id))
+      .map(m => m.id));
 
-    const removedContentIds = new Set(catalog.content
-      .filter((c) => (c.owner_id === id && c.owner_type === 'actor') || removedSectionIds.has(c.section_id))
-      .map(c => c.id));
-
-    // Delete takes for removed content
     const takes = await readJsonl<Take>(paths.catalog.takes);
-    const remainingTakes = takes.filter((t) => !removedContentIds.has(t.content_id));
+    const remainingTakes = takes.filter((t) => !removedMediaIds.has(t.media_id));
 
-    // Update all scenes to remove this actor from their actor_ids list
     const updatedScenes = catalog.scenes.map(s => ({
       ...s,
       actor_ids: s.actor_ids ? s.actor_ids.filter((aid: string) => aid !== id) : []
@@ -223,15 +208,14 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     await writeJsonlAll(paths.catalog.actors, remainingActors, ActorSchema);
     await writeJsonlAll(paths.catalog.scenes, updatedScenes, SceneSchema);
-    await writeJsonlAll(paths.catalog.sections, remainingSections);
-    await writeJsonlAll(paths.catalog.content, remainingContent);
+    await writeJsonlAll(paths.catalog.bins, remainingBins, BinSchema);
+    await writeJsonlAll(paths.catalog.media, remainingMedia, MediaSchema);
     await writeJsonlAll(paths.catalog.takes, remainingTakes);
 
     reply.code(204);
     return null;
   });
 
-  // Restore actor for undo
   fastify.post('/api/actors/restore', async (request: FastifyRequest, reply: FastifyReply) => {
     const ctx = getProjectContext();
     if (!ctx) {
@@ -242,8 +226,8 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     const body = request.body as {
       actor: Actor;
-      sections: Section[];
-      content: Content[];
+      bins: Bin[];
+      media: Media[];
     };
 
     if (!body.actor) {
@@ -253,22 +237,22 @@ export function registerActorRoutes(fastify: FastifyInstance, getProjectContext:
 
     await appendJsonl(paths.catalog.actors, body.actor, ActorSchema);
 
-    if (body.sections) {
-      for (const section of body.sections) {
-        await appendJsonl(paths.catalog.sections, section);
+    if (body.bins) {
+      for (const bin of body.bins) {
+        await appendJsonl(paths.catalog.bins, bin, BinSchema);
       }
     }
 
-    if (body.content) {
-      for (const item of body.content) {
-        await appendJsonl(paths.catalog.content, item);
+    if (body.media) {
+      for (const item of body.media) {
+        await appendJsonl(paths.catalog.media, item, MediaSchema);
       }
     }
 
     return {
       actor: body.actor,
-      sections: body.sections || [],
-      content: body.content || [],
+      bins: body.bins || [],
+      media: body.media || [],
     };
   });
 }

@@ -28,11 +28,11 @@ describe('M2.5 Batch Generation', () => {
   beforeEach(async () => {
     projectRoot = await fs.mkdtemp(join(os.tmpdir(), 'vof-gen-'));
     const paths = getProjectPaths(projectRoot);
-    await fs.ensureDir(join(projectRoot, 'catalog'));
+    await fs.ensureDir(join(projectRoot, '.moo'));
     await fs.writeFile(paths.catalog.actors, '', 'utf-8');
-    await fs.writeFile(paths.catalog.content, '', 'utf-8');
+    await fs.writeFile(paths.catalog.bins, '', 'utf-8');
+    await fs.writeFile(paths.catalog.media, '', 'utf-8');
     await fs.writeFile(paths.catalog.takes, '', 'utf-8');
-    await fs.writeFile(paths.catalog.generationJobs, '', 'utf-8');
   });
 
   afterEach(async () => {
@@ -46,95 +46,121 @@ describe('M2.5 Batch Generation', () => {
     const paths = getProjectPaths(projectRoot);
 
     const actor = {
-      id: '00000000-0000-0000-0000-0000000000aa',
+      id: 'actor-1',
       display_name: 'DryRun Actor',
-      base_filename: 'dry_actor_',
-      all_approved: false,
-      provider_settings: {
+      base_filename: 'dry_actor',
+      default_blocks: {
         dialogue: {
           provider: 'elevenlabs',
           approval_count_default: 2,
         },
       },
-      aliases: [],
-      notes: '',
+      actor_complete: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    const content1 = {
-      id: '00000000-0000-0000-0000-0000000001aa',
-      actor_id: actor.id,
-      content_type: 'dialogue',
-      item_id: 'line1',
+    const bin = {
+      id: 'bin-1',
+      owner_type: 'actor',
+      owner_id: actor.id,
+      media_type: 'dialogue',
+      name: 'Main Mission',
+      default_blocks: {
+        dialogue: { provider: 'inherit' }
+      },
+      bin_complete: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const media1 = {
+      id: 'media-1',
+      owner_type: 'actor',
+      owner_id: actor.id,
+      bin_id: bin.id,
+      media_type: 'dialogue',
+      name: 'line1',
       prompt: 'First line',
-      complete: false,
       all_approved: false,
-      tags: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    const content2 = {
-      id: '00000000-0000-0000-0000-0000000001ab',
-      actor_id: actor.id,
-      content_type: 'dialogue',
-      item_id: 'line2',
+    const media2 = {
+      id: 'media-2',
+      owner_type: 'actor',
+      owner_id: actor.id,
+      bin_id: bin.id,
+      media_type: 'dialogue',
+      name: 'line2',
       prompt: 'Second line',
-      complete: false,
       all_approved: false,
-      tags: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
     await fs.appendFile(paths.catalog.actors, JSON.stringify(actor) + '\n', 'utf-8');
-    await fs.appendFile(paths.catalog.content, JSON.stringify(content1) + '\n', 'utf-8');
-    await fs.appendFile(paths.catalog.content, JSON.stringify(content2) + '\n', 'utf-8');
+    await fs.appendFile(paths.catalog.bins, JSON.stringify(bin) + '\n', 'utf-8');
+    await fs.appendFile(paths.catalog.media, JSON.stringify(media1) + '\n', 'utf-8');
+    await fs.appendFile(paths.catalog.media, JSON.stringify(media2) + '\n', 'utf-8');
 
-    const { job } = await runBatchGeneration(projectRoot, { dryRun: true, contentType: 'dialogue' });
+    const { job } = await runBatchGeneration(projectRoot, { dryRun: true, mediaType: 'dialogue' });
 
-    expect(job.total_content).toBe(2);
-    expect(job.total_takes_created).toBe(4); // 2 approvals per content
+    expect(job.total_media).toBe(2);
+    expect(job.total_takes_created).toBe(4); // 2 needed per media
     expect(job.items).toHaveLength(2);
   });
 
-  it('should write takes and generation job in real mode', async () => {
+  it('should write takes in real mode', async () => {
     const paths = getProjectPaths(projectRoot);
 
     const actor = {
-      id: '00000000-0000-0000-0000-0000000000bb',
+      id: 'actor-2',
       display_name: 'Real Actor',
-      base_filename: 'real_actor_',
-      all_approved: false,
-      provider_settings: {
+      base_filename: 'real_actor',
+      default_blocks: {
         dialogue: {
           provider: 'elevenlabs',
           approval_count_default: 1,
           voice_id: 'EXAVITQu4vr4xnSDxMaL',
         },
       },
-      aliases: [],
-      notes: '',
+      actor_complete: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    const content = {
-      id: '00000000-0000-0000-0000-0000000002bb',
-      actor_id: actor.id,
-      content_type: 'dialogue',
-      item_id: 'real_line',
+    const bin = {
+      id: 'bin-2',
+      owner_type: 'actor',
+      owner_id: actor.id,
+      media_type: 'dialogue',
+      name: 'Combat',
+      default_blocks: {
+        dialogue: { provider: 'inherit' }
+      },
+      bin_complete: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const media = {
+      id: 'media-3',
+      owner_type: 'actor',
+      owner_id: actor.id,
+      bin_id: bin.id,
+      media_type: 'dialogue',
+      name: 'real_line',
       prompt: 'Hello from test',
-      complete: false,
       all_approved: false,
-      tags: [],
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
     await fs.appendFile(paths.catalog.actors, JSON.stringify(actor) + '\n', 'utf-8');
-    await fs.appendFile(paths.catalog.content, JSON.stringify(content) + '\n', 'utf-8');
+    await fs.appendFile(paths.catalog.bins, JSON.stringify(bin) + '\n', 'utf-8');
+    await fs.appendFile(paths.catalog.media, JSON.stringify(media) + '\n', 'utf-8');
 
     const fakeBuffer = Buffer.from('fake-audio');
 
@@ -152,16 +178,16 @@ describe('M2.5 Batch Generation', () => {
 
     vi.mocked(hashSvc.hashFile).mockResolvedValue('abc123'.padEnd(64, '0'));
 
-    const { job } = await runBatchGeneration(projectRoot, { contentType: 'dialogue' });
+    const { job } = await runBatchGeneration(projectRoot, { mediaType: 'dialogue' });
 
-    expect(job.total_content).toBe(1);
+    expect(job.total_media).toBe(1);
     expect(job.total_takes_created).toBe(1);
 
     const takesContent = await fs.readFile(paths.catalog.takes, 'utf-8');
     const takeLines = takesContent.trim().split('\n');
     expect(takeLines.length).toBe(1);
     const take = JSON.parse(takeLines[0]);
-    expect(take.content_id).toBe(content.id);
+    expect(take.media_id).toBe(media.id);
     expect(take.hash_sha256).toHaveLength(64);
     expect(take.duration_sec).toBeCloseTo(1.23);
   });

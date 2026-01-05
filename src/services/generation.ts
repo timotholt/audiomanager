@@ -7,13 +7,13 @@ import { getAudioProvider } from './provider-factory.js';
 import { probeAudio } from './audio/ffprobe.js';
 import { hashFile } from './audio/hash.js';
 import { writeMetadata, buildMetadataFromTake } from './audio/metadata.js';
-import type { Actor, Content, Take, GenerationJob, GenerationJobItemSummary, Section } from '../types/index.js';
+import type { Actor, Media, Take, GenerationJob, GenerationJobItemSummary, Bin } from '../types/index.js';
 
 const DEBUG_BATCH_GENERATION = false;
 
 export interface BatchGenerationOptions {
     actorId?: string;
-    contentType?: 'dialogue' | 'music' | 'sfx';
+    mediaType?: 'dialogue' | 'music' | 'sfx';
     dryRun?: boolean;
 }
 
@@ -28,17 +28,16 @@ export async function runBatchGeneration(
     const paths = getProjectPaths(projectRoot);
 
     await ensureJsonlFile(paths.catalog.takes);
-    await ensureJsonlFile(paths.catalog.generationJobs);
 
-    const [actors, contentItems, existingTakes, sections] = await Promise.all([
+    const [actors, mediaItems, existingTakes, bins] = await Promise.all([
         readJsonl<Actor>(paths.catalog.actors),
-        readJsonl<Content>(paths.catalog.content),
+        readJsonl<Media>(paths.catalog.media),
         readJsonl<Take>(paths.catalog.takes),
-        readJsonl<Section>(paths.catalog.sections),
+        readJsonl<Bin>(paths.catalog.bins),
     ]);
 
     const actorsById = new Map<string, Actor>(actors.map((a) => [a.id, a]));
-    const sectionsById = new Map<string, Section>(sections.map((s) => [s.id, s]));
+    const binsById = new Map<string, Bin>(bins.map((b) => [b.id, b]));
 
     const provider = await getAudioProvider(projectRoot);
 
@@ -47,56 +46,73 @@ export async function runBatchGeneration(
         id: generateId(),
         started_at: startedAt,
         status: 'running',
-        total_content: 0,
+        total_media: 0,
         total_takes_created: 0,
         items: [],
     };
 
     const items: GenerationJobItemSummary[] = [];
 
-    // Filter content: incomplete only, optional actor/content_type filters
-    const filteredContent = contentItems.filter((c) => {
-        if (c.complete) return false;
-        if (options.actorId && c.actor_id !== options.actorId) return false;
-        if (options.contentType && c.content_type !== options.contentType) return false;
+    // Filter media: incomplete only, optional actor/mediaType filters
+    const filteredMedia = mediaItems.filter((m) => {
+        if (m.all_approved) return false;
+        if (options.actorId && m.owner_id !== options.actorId) return false;
+        if (options.mediaType && m.media_type !== options.mediaType) return false;
         return true;
     });
 
-    for (const content of filteredContent) {
+    for (const media of filteredMedia) {
         const itemSummary: GenerationJobItemSummary = {
-            content_id: content.id,
+            media_id: media.id,
             generated_takes: 0,
         };
 
-        const actor = actorsById.get(content.actor_id);
-        if (!actor) {
+        const actor = actorsById.get(media.owner_id || '');
+        if (!actor && media.owner_type === 'actor') {
             itemSummary.error = 'actor_not_found';
             items.push(itemSummary);
             continue;
         }
 
+        // Use the standard block resolver to determine needed counts
+        const { resolveDefaultBlock } = await import('../utils/defaultBlockResolver.js');
+        const bin = binsById.get(media.bin_id);
+
+        if (!bin) {
+            itemSummary.error = 'bin_not_found';
+            items.push(itemSummary);
+            continue;
+        }
+
+        // Load global defaults if needed for resolution
+        const defaultsPath = join(paths.root, 'defaults.json');
+        let globalDefaults: any = null;
+        if (await fs.pathExists(defaultsPath)) {
+            globalDefaults = await fs.readJson(defaultsPath);
+        }
+
+        const resolved = resolveDefaultBlock(media.media_type, media, bin, actor, globalDefaults);
+        const settings = resolved.settings;
+
         // For now we only support dialogue generation
-        const providerSettings = actor.provider_settings?.dialogue;
-        if (!providerSettings || providerSettings.provider !== 'elevenlabs') {
+        if (media.media_type !== 'dialogue') {
             items.push(itemSummary);
             continue;
         }
 
-        // Only support dialogue generation for now
-        if (content.content_type !== 'dialogue') {
-            items.push(itemSummary);
-            continue;
+        const targetApprovals = settings.approval_count_default ?? 1;
+        const minCandidates = settings.min_candidates ?? 1;
+
+        const takesForMedia = existingTakes.filter((t) => t.media_id === media.id);
+        const approvedCount = takesForMedia.filter((t) => t.status === 'approved').length;
+        const undecidedCount = takesForMedia.filter((t) => t.status === 'new').length;
+
+        // Don't backfill if we already have enough approved takes
+        let needed = 0;
+        if (approvedCount < targetApprovals) {
+            needed = Math.max(0, minCandidates - undecidedCount);
         }
 
-        const targetApprovals = providerSettings.approval_count_default ?? 0;
-        if (targetApprovals <= 0) {
-            items.push(itemSummary);
-            continue;
-        }
-
-        const takesForContent = existingTakes.filter((t) => t.content_id === content.id);
-        const approvedCount = takesForContent.filter((t) => t.status === 'approved').length;
-        const needed = targetApprovals - approvedCount;
         if (needed <= 0) {
             items.push(itemSummary);
             continue;
@@ -108,83 +124,77 @@ export async function runBatchGeneration(
             continue;
         }
 
-        const baseTakeNumber = takesForContent.reduce((max, t) => Math.max(max, t.take_number), 0);
+        const baseTakeNumber = takesForMedia.reduce((max, t) => Math.max(max, t.take_number), 0);
 
         for (let i = 1; i <= needed; i++) {
             try {
-                const stability = providerSettings.stability;
-                const similarity_boost = providerSettings.similarity_boost;
-
-                const buffer = await provider.generateDialogue(content.prompt, providerSettings.voice_id ?? '', {
-                    stability,
-                    similarity_boost,
-                });
+                const buffer = await provider.generateDialogue(media.prompt || media.name, settings.voice_id ?? '', {
+                    stability: settings.stability,
+                    similarity_boost: settings.similarity_boost,
+                }, settings.model_id);
 
                 const takeNumber = baseTakeNumber + i;
-                const filename = `${actor.base_filename}${content.cue_id}_take${takeNumber}.wav`;
-                const mediaDir = join(paths.media, 'actors', actor.id, 'dialogue', content.id, 'raw');
-                const filePath = join(mediaDir, filename);
 
-                await fs.ensureDir(mediaDir);
-                await fs.writeFile(filePath, buffer);
+                // Construct path using common utility
+                const { constructTakePath } = await import('../utils/pathConstruction.js');
+                const relativePath = constructTakePath(media, bin, takeNumber, actor?.base_filename);
+                const fullFilePath = join(paths.root, relativePath);
+                const folderPath = join(projectRoot, join(paths.root, relativePath), '..');
 
-                if (DEBUG_BATCH_GENERATION) {
-                    console.log('[batch-generation] wrote raw file', filePath);
-                }
+                await fs.ensureDir(folderPath);
+                await fs.writeFile(fullFilePath, buffer);
 
-                const probeResult = await probeAudio(filePath);
-                const hash = await hashFile(filePath);
+                const probeResult = await probeAudio(fullFilePath);
+                const hash = await hashFile(fullFilePath);
 
                 const primaryStream = probeResult.streams[0];
                 const durationSec = probeResult.format.duration;
-                const rawSampleRate = primaryStream?.sample_rate ? Number(primaryStream.sample_rate) : 44100;
-                const rawChannels = primaryStream?.channels ?? 1;
-
-                const sampleRate = rawSampleRate === 48000 ? 48000 : 44100;
-                const channels = rawChannels === 2 ? 2 : 1;
 
                 const now = new Date().toISOString();
                 const take: Take = {
                     id: generateId(),
-                    content_id: content.id,
+                    media_id: media.id,
                     take_number: takeNumber,
-                    filename,
+                    filename: join(relativePath).split(/[/\\]/).pop() || 'file.mp3',
+                    path: relativePath,
                     status: 'new',
-                    path: filePath,
-                    hash_sha256: hash,
-                    duration_sec: durationSec,
                     format: 'wav',
-                    sample_rate: sampleRate,
+                    size_bytes: buffer.length,
+                    duration_sec: durationSec || 0,
+                    hash_sha256: hash,
+                    sample_rate: (primaryStream?.sample_rate ? Number(primaryStream.sample_rate) : 41000) as any,
+                    channels: (primaryStream?.channels || 1) as any,
                     bit_depth: 16,
-                    channels,
                     lufs_integrated: 0,
                     peak_dbfs: 0,
-                    generated_by: 'elevenlabs',
                     generation_params: {
-                        provider: 'elevenlabs',
+                        provider: settings.provider as any,
+                        resolved_from: resolved.resolvedFrom as any,
+                        full_settings: settings as any,
+                        prompt: media.prompt || media.name,
+                        owner_type: media.owner_type,
+                        owner_id: media.owner_id ?? null,
+                        owner_name: actor ? actor.display_name : 'Global',
+                        bin_name: bin.name,
+                        generated_at: now
                     },
                     created_at: now,
                     updated_at: now,
                 };
 
                 await appendJsonl(paths.catalog.takes, take);
-                
-                // Dual-write: Embed metadata in the audio file
+
+                // Embed metadata
                 try {
-                    const section = sectionsById.get(content.section_id);
-                    const metadata = buildMetadataFromTake(take, content, {
-                        actor_name: actor.display_name,
-                        section_name: section?.name,
+                    const metadata = buildMetadataFromTake(take, media, {
+                        actor_name: actor?.display_name || 'Global',
+                        bin_name: bin.name,
                     });
-                    await writeMetadata(filePath, filePath, metadata);
-                    if (DEBUG_BATCH_GENERATION) {
-                        console.log('[batch-generation] wrote metadata to', filePath);
-                    }
+                    await writeMetadata(fullFilePath, fullFilePath, metadata);
                 } catch (metaErr) {
-                    // Log but don't fail generation if metadata write fails
                     console.warn('[batch-generation] failed to write metadata:', (metaErr as Error).message);
                 }
-                
+
                 existingTakes.push(take);
                 itemSummary.generated_takes += 1;
             } catch (err) {
@@ -196,13 +206,11 @@ export async function runBatchGeneration(
         items.push(itemSummary);
     }
 
-    job.total_content = filteredContent.length;
+    job.total_media = filteredMedia.length;
     job.items = items;
     job.total_takes_created = items.reduce((sum, item) => sum + item.generated_takes, 0);
     job.status = 'completed';
     job.completed_at = new Date().toISOString();
-
-    await appendJsonl(paths.catalog.generationJobs, job);
 
     return { job };
 }

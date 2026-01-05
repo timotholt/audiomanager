@@ -34,6 +34,13 @@ export function getProjectPaths(projectRoot: string) {
             takes: join(mooDir, 'takes.jsonl'),
             snapshots: join(mooDir, 'snapshots.jsonl'),
             redoSnapshots: join(mooDir, 'redo-snapshots.jsonl'),
+            // Derived indexes
+            indexes: {
+                dir: join(mooDir, 'indexes'),
+                byActor: (id: string) => join(mooDir, 'indexes', 'by_actor', `${id}.json`),
+                byBin: (id: string) => join(mooDir, 'indexes', 'by_bin', `${id}.json`),
+                byMedia: (id: string) => join(mooDir, 'indexes', 'by_media', `${id}.json`),
+            },
         },
 
         // Media folders (at root)

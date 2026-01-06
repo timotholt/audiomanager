@@ -112,7 +112,7 @@ function TreeItem(props) {
                             scenes: props.scenes || []
                         }, props.customViews)}
                         selectedNode={props.selectedNode}
-                        onSelect={(node) => props.onSelect(node.type, node.id)}
+                        onSelect={(node) => props.onSelect(node)}
                         baseDepth={props.depth + 1}
                         onAddActor={() => props.onSelect('root', 'root')}
                         onAddScene={() => props.onSelect('root', 'root')}
@@ -236,7 +236,11 @@ export default function TreePane(props) {
     ]);
 
     const handleSelect = (type, id) => {
-        props.onSelect({ type, id });
+        if (typeof type === 'object' && type !== null) {
+            props.onSelect(type);
+        } else {
+            props.onSelect({ type, id });
+        }
     };
 
     const handleViewSelect = (e, item) => {

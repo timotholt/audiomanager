@@ -104,6 +104,7 @@ function TreeNode(props) {
                 field: props.node.field,
                 fieldValue: props.node.fieldValue,
                 viewId: props.viewId,
+                label: props.node.label,
                 children: props.node.children,
             });
         }

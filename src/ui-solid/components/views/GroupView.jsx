@@ -74,6 +74,9 @@ function TypeGroupView(props) {
 export default function GroupView(props) {
     // props: groupNode (selectedNode with field, fieldValue), data (actors, bins, scenes, media, takes), operations
 
+    console.log('[GroupView] Rendering groupNode:', props.groupNode);
+
+
     const flattenItems = (node) => {
         if (!node) return [];
         if (node.type === 'leaf') return [node.data];
@@ -141,9 +144,32 @@ export default function GroupView(props) {
                 />
             </Match>
 
+            <Match when={props.groupNode.field === 'scene_id'}>
+                {(() => {
+                    const scene = props.data.scenes.find(s => String(s.id) === String(props.groupNode.fieldValue));
+                    if (scene) {
+                        // Find bins for this scene
+                        const sceneBins = props.data.bins.filter(b => b.owner_id === scene.id && b.owner_type === 'scene');
+                        return (
+                            <SceneView
+                                scene={scene}
+                                bins={sceneBins}
+                                operations={props.operations}
+                            />
+                        );
+                    }
+                    return (
+                        <TypeGroupView
+                            groupNode={{ ...props.groupNode, label: props.groupNode.label || 'Unknown Scene' }}
+                            items={groupItems()}
+                        />
+                    );
+                })()}
+            </Match>
+
             <Match when={true}>
                 <TypeGroupView
-                    groupNode={props.groupNode}
+                    groupNode={{ ...props.groupNode, label: props.groupNode.label || 'Unknown' }}
                     items={groupItems()}
                 />
             </Match>
